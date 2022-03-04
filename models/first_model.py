@@ -1,6 +1,6 @@
 import pyomo.environ as pyo
 
-from util.parameters import get_T_W, get_T_S
+from util.first.parameters import get_T_W, get_T_S
 
 
 def get_model(indices={}, parameters={}):
@@ -44,9 +44,14 @@ def get_model(indices={}, parameters={}):
     model.b_plus = pyo.Var(model.d, model.s, model.w_s)
 
     # CONSTRAINTS
-    for d in model.d:
-        model.b_arr[d, 0] = B_start[d]
-        model.b_arr[d, 0].fix()
+    # for d in model.d:
+    #     model.b_arr[d, 0] = B_start[d]
+    #     model.b_arr[d, 0].fix()
+
+    def rule_start_battery(model, d):
+        return model.b_arr[d, 0] == B_start[d]
+
+    model.start_battery = pyo.Constraint(model.d, rule=rule_start_battery)
 
     def rule_at_most_one_station_per_drone(model, d, w_s):
         return sum(model.x[d, s, w_s] for s in model.s) <= 1
