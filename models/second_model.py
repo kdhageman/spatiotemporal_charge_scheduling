@@ -52,6 +52,7 @@ def get_model(indices={}, parameters={}):
     )
 
     # battery constraints
+    print(f"model.d: {[d for d in model.d]}")
     model.b_arr_start = pyo.Constraint(
         model.d,
         rule=lambda m, d: m.b_arr[d, 0] == B_start[d]

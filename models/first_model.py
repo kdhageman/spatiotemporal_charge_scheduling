@@ -13,7 +13,6 @@ def get_model(indices={}, parameters={}):
     B_min = parameters["B_min"]
     B_max = parameters["B_max"]
 
-    m = parameters["m"]  # TODO: use!
     r_charge = parameters['r_charge']
     r_deplete = parameters['r_deplete']
 
