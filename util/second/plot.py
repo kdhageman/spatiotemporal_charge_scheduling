@@ -134,11 +134,11 @@ def plot_battery_over_time(model, N_s, d, ax=None):
                         )
                     )
 
-    ax.plot(x, y)
+    ax.plot(x, y, marker='o')
 
     for rect in rectangles:
         ax.add_patch(rect)
     ax.set_ylim([0, 1])
-    ax.set_xticks(x_ticks, x_labels)
-    ax.set_xlabel("Arrival at node")
+    ax.set_xticks(x_ticks, x_labels, rotation=45)
+    ax.set_xlabel("Arrival time at node")
     ax.set_ylabel("Battery")
