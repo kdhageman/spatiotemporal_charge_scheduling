@@ -8,6 +8,7 @@ from util import distance
 
 _W_COLORS = ['red', 'blue']
 
+
 class Scenario:
     def __init__(self, fname):
         with open(fname, 'r') as f:

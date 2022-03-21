@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
 
-from util.plot import _W_COLORS
-
+from util.scenario import _W_COLORS
 
 # print model WITH solution
 def plot_model_solved(model, positions_S, positions_w, ax=None, battery_params={}):
@@ -69,4 +69,76 @@ def plot_model_solved(model, positions_S, positions_w, ax=None, battery_params={
     #         ax.add_patch(outer)
 
     # add margins to plot
-    ax.margins(0.2)
+
+
+def plot_battery_over_time(model, N_s, d, ax=None):
+    if not ax:
+        _, ax = plt.subplots()
+
+    x = [0]  # covered distances
+    y = [model.b_arr[d, 0]()]  # battery charges
+    x_ticks = [0]
+    x_labels = [f'$w_{{{1}}}$']
+    rectangles = []
+
+    total_dist = 0
+    for w_s in model.w_s:
+        p = model.P[d, :, w_s]()
+        for n in model.n:
+            if p[n] == 1:
+                if n == N_s:
+                    # next waypoint
+                    dist_to_next_node = model.T_N[d, n, w_s]
+                    total_dist += dist_to_next_node
+                    x.append(total_dist)
+                    x_ticks.append(total_dist)
+                    x_labels.append(f'$w_{{{w_s + 2}}}$')
+                    y.append(model.b_arr[d, w_s + 1]())
+                else:
+                    # charging
+                    # x-value
+                    dist_to_next_node = model.T_N[d, n, w_s]
+                    total_dist += dist_to_next_node
+                    x.append(total_dist)
+                    x_ticks.append(total_dist)
+                    x_rect = total_dist
+                    total_dist += model.D[d, w_s]()
+                    x.append(total_dist)
+                    dist_from_station = model.T_W[d, n, w_s]
+                    total_dist += dist_from_station
+                    x.append(total_dist)
+                    x_ticks.append(total_dist)
+
+                    # x-label
+                    x_labels.append(f'$s_{{{n + 1}}}$')
+                    x_labels.append(f'$w_{{{w_s + 2}}}$')
+
+                    # y-value
+                    y.append(model.b_min[d, w_s]())
+                    y.append(model.b_plus[d, w_s]())
+                    y.append(model.b_arr[d, w_s + 1]())
+
+                    # rectangle
+                    width_rect = model.D[d, w_s]()
+                    height_rect = 1
+                    y_rect = 0
+                    rectangles.append(
+                        Rectangle(
+                            (x_rect, y_rect),
+                            width_rect,
+                            height_rect,
+                            color='green',
+                            linewidth=None,
+                            alpha=0.2,
+                            zorder=-1
+                        )
+                    )
+
+    ax.plot(x, y)
+
+    for rect in rectangles:
+        ax.add_patch(rect)
+    ax.set_ylim([0, 1])
+    ax.set_xticks(x_ticks, x_labels)
+    ax.set_xlabel("Arrival at node")
+    ax.set_ylabel("Battery")
