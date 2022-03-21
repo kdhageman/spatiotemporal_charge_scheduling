@@ -45,6 +45,7 @@ class Model(pyo.ConcreteModel):
         self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
         self.D = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.F = pyo.Var(self.d, self.w_s, bounds=(0, sum(D_max)))
+        self.alpha = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
 
         # state variables
         self.b_arr = pyo.Var(self.d, self.w)
@@ -131,7 +132,10 @@ class Model(pyo.ConcreteModel):
             self.d,
             self.w_s,
             self.w_s,
-            rule=lambda m, d, d_prime, w_s, w_s_prime: m.C[d, d_prime, w_s, w_s_prime] == (m.Z_s[d, w_s] - m.Z_s[d_prime, w_s_prime] - _epsilon) * (m.Z_s[d_prime, w_s_prime] - m.Z_e[d, w_s] - _epsilon)
+            rule=lambda m, d, d_prime, w_s, w_s_prime: m.C[d, d_prime, w_s, w_s_prime] == m.alpha[
+                d, d_prime, w_s, w_s_prime] * (m.Z_s[d_prime, w_s_prime] - m.Z_s[d, w_s]) + (
+                                                               1 - m.alpha[d, d_prime, w_s, w_s_prime]) * (
+                                                                   m.Z_e[d, w_s] - m.Z_s[d_prime, w_s_prime])
         )
 
         self.C_prime_calc = pyo.Constraint(
