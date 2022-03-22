@@ -19,11 +19,11 @@ class BaseModel(pyo.ConcreteModel):
         B_start = parameters["B_start"]
         B_min = parameters["B_min"]
         B_max = parameters["B_max"]
-
         r_charge = parameters['r_charge']
         r_deplete = parameters['r_deplete']
+        v = parameters['v']
 
-        self.D_max = (B_max - B_min) / r_charge
+        self.C_max = (B_max - B_min) / r_charge
 
         self.positions_S = scenario.positions_S
         self.positions_w = scenario.positions_w
@@ -41,7 +41,8 @@ class BaseModel(pyo.ConcreteModel):
 
         # VARIABLES
         self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
-        self.D = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
+        self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
+        self.W = pyo.Var(self.d, self.w_s, bounds=(0, sum(self.C_max)))
         self.b_arr = pyo.Var(self.d, self.w)
         self.b_min = pyo.Var(self.d, self.w_s)
         self.b_plus = pyo.Var(self.d, self.w_s)
@@ -62,20 +63,20 @@ class BaseModel(pyo.ConcreteModel):
         self.b_min_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - r_deplete[d] * sum(
+            rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - r_deplete[d] * v[d] * sum(
                 m.P[d, n, w_s] * self.T_N[d, n, w_s] for n in m.n)
         )
 
         self.b_plus_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_plus[d, w_s] == m.b_min[d, w_s] + r_charge[d] * m.D[d, w_s]
+            rule=lambda m, d, w_s: m.b_plus[d, w_s] == m.b_min[d, w_s] + r_charge[d] * m.C[d, w_s]
         )
 
         self.b_arr_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - r_deplete[d] * sum(
+            rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - r_deplete[d] * v[d] * sum(
                 m.P[d, n, w_s] * self.T_W[d, n, w_s] for n in m.n)
         )
 
@@ -100,14 +101,12 @@ class BaseModel(pyo.ConcreteModel):
         self.D_lim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.D[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * self.D_max[d]
+            rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * self.C_max[d]
         )
 
         # OBJECTIVE
         def E(d):
-            return sum(
-                self.D[d, w_s] + sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n) for w_s in
-                self.w_s)
+            return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s)
 
         self.execution_time = pyo.Objective(
             expr=sum(E(d) for d in self.d),
@@ -159,6 +158,9 @@ class BaseModel(pyo.ConcreteModel):
                             x = [cur_waypoint[0], pos_S[0], next_waypoint[0]]
                             y = [cur_waypoint[1], pos_S[1], next_waypoint[1]]
                         ax.plot(x, y, constants.W_COLORS[d], linewidth=2, zorder=-1)
+
+    def t(self, d, w_s):
+        return sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n)
 
     def _get_T_N(self):
         T_n = []

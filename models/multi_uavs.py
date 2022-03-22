@@ -9,7 +9,7 @@ class MultiUavModel(BaseModel):
 
         # VARIABLES
         # control variables
-        self.F = pyo.Var(self.d, self.w_s, bounds=(0, sum(self.D_max)))
+
         self.alpha = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
 
         # state variables
@@ -23,14 +23,14 @@ class MultiUavModel(BaseModel):
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.Z_s[d, w_s] == sum(
-                m.D[d, w_p] + m.F[d, w_p] + m.t(d, w_p) for w_p in range(w_s)) + sum(
+                m.C[d, w_p] + m.F[d, w_p] + m.t(d, w_p) for w_p in range(w_s)) + sum(
                 m.P[d, n, w_s] * self.T_W[d, n, w_s] for n in m.n) + m.F[d, w_s]
         )
 
         self.Z_e_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.Z_e[d, w_s] == m.Z_s[d, w_s] + m.D[d, w_s]
+            rule=lambda m, d, w_s: m.Z_e[d, w_s] == m.Z_s[d, w_s] + m.C[d, w_s]
         )
 
         self.C_calc = pyo.Constraint(
@@ -60,14 +60,3 @@ class MultiUavModel(BaseModel):
 
         self.C_prime_lim = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=C_prime_lim_rule)
 
-        # OBJECTIVE
-        def E(d):
-            return sum(self.D[d, w_s] + self.F[d, w_s] + self.t(d, w_s) for w_s in self.w_s)
-
-        self.execution_time = pyo.Objective(
-            expr=sum(E(d) for d in self.d),
-            sense=pyo.minimize,
-        )
-
-    def t(self, d, w_s):
-        return sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n)

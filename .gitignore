@@ -1,5 +1,5 @@
 .idea
 
 .ipynb_checkpoints/
-scratch.*.ipynb
+scratch*.ipynb
 *.working.ipynb

@@ -8,7 +8,7 @@ def battery_over_time_from_base_model(base_model, d, ax=None, charge_bars=True, 
     N_w_s = len(base_model.w_s)
 
     decisions = np.reshape(base_model.P[d, :, :](), (N_s + 1, N_w_s))
-    wait_times = base_model.D[d, :]()
+    wait_times = base_model.C[d, :]()
 
     return battery_over_time(
         decisions,
