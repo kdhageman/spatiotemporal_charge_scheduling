@@ -1,0 +1,1 @@
+W_COLORS = ['red', 'blue']

@@ -4,9 +4,7 @@ import yaml
 from matplotlib import pyplot as plt
 from yaml import Loader
 
-from util import distance
-
-_W_COLORS = ['red', 'blue']
+from util import distance, constants
 
 
 class Scenario:
@@ -27,16 +25,16 @@ class Scenario:
                 waypoints.append((x, y))
             self.positions_w.append(waypoints)
 
-    def plot(self, ax=None):
-        N_d = len(self.positions_w)
-        N_w = len(self.positions_w[0])
-        N_s = len(self.positions_S)
+        self.N_d = len(self.positions_w)
+        self.N_s = len(self.positions_S)
+        self.N_w = len(self.positions_w[0])
 
+    def plot(self, ax=None):
         if not ax:
             _, ax = plt.subplots()
 
         # draw lines between waypoints and S
-        for d, s, w in product(range(N_d), range(N_s), range(N_w)):
+        for d, s, w in product(range(self.N_d), range(self.N_s), range(self.N_w)):
             pos_s = self.positions_S[s]
             pos_w = self.positions_w[d][w]
             dist = distance.dist(pos_s, pos_w)
@@ -50,7 +48,7 @@ class Scenario:
             y_text = pos_s[1] + alpha * (pos_w[1] - pos_s[1])
             ax.text(x_text, y_text, f"{dist:.2f}", color='k', alpha=0.4)
 
-        for s in range(N_s):
+        for s in range(self.N_s):
             x_s = self.positions_S[s][0]
             y_s = self.positions_S[s][1]
             ax.scatter(x_s, y_s, marker='s', color='k', s=100)
@@ -61,20 +59,20 @@ class Scenario:
             ax.text(x_text, y_text, f"$s_{{{s + 1}}}$", fontsize=15)
 
         # plot waypoints
-        for d in range(N_d):
+        for d in range(self.N_d):
             waypoints = self.positions_w[d]
             x = [i[0] for i in waypoints]
             y = [i[1] for i in waypoints]
-            ax.plot(x, y, marker='o', color=_W_COLORS[d], markersize=10, markerfacecolor='white')
+            ax.plot(x, y, marker='o', color=constants.W_COLORS[d], markersize=10, markerfacecolor='white')
 
             # label waypoints
-            for w in range(N_w):
+            for w in range(self.N_w):
                 x_text = waypoints[w][0]
                 y_text = waypoints[w][1] + 0.05
-                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=_W_COLORS[d], fontsize=15)
+                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=constants.W_COLORS[d], fontsize=15)
 
             # label time between waypoints
-            for w_s in range(N_w - 1):
+            for w_s in range(self.N_w - 1):
                 pos_w_s = waypoints[w_s]
                 pos_w_d = waypoints[w_s + 1]
                 dist = distance.dist(pos_w_s, pos_w_d)
@@ -83,4 +81,4 @@ class Scenario:
 
                 x_text = pos_w_s[0] + alpha * (pos_w_d[0] - pos_w_s[0])
                 y_text = pos_w_s[1] + alpha * (pos_w_d[1] - pos_w_s[1]) + 0.05
-                ax.text(x_text, y_text, f"{dist:.2f}", color=_W_COLORS[d])
+                ax.text(x_text, y_text, f"{dist:.2f}", color=constants.W_COLORS[d])
