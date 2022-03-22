@@ -63,7 +63,7 @@ class BaseModel(pyo.ConcreteModel):
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - r_deplete[d] * sum(
-                m.P[d, n, w_s] * T_N[d, n, w_s] for n in m.n)
+                m.P[d, n, w_s] * self.T_N[d, n, w_s] for n in m.n)
         )
 
         self.b_plus_calc = pyo.Constraint(
@@ -76,7 +76,7 @@ class BaseModel(pyo.ConcreteModel):
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - r_deplete[d] * sum(
-                m.P[d, n, w_s] * T_W[d, n, w_s] for n in m.n)
+                m.P[d, n, w_s] * self.T_W[d, n, w_s] for n in m.n)
         )
 
         # lower and upper bounds of variables values
@@ -100,13 +100,13 @@ class BaseModel(pyo.ConcreteModel):
         self.D_lim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.D[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * D_max[d]
+            rule=lambda m, d, w_s: m.D[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * self.D_max[d]
         )
 
         # OBJECTIVE
         def E(d):
             return sum(
-                self.D[d, w_s] + sum(self.P[d, n, w_s] * (T_N[d, n, w_s] + T_W[d, n, w_s]) for n in self.n) for w_s in
+                self.D[d, w_s] + sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n) for w_s in
                 self.w_s)
 
         self.execution_time = pyo.Objective(

@@ -4,8 +4,8 @@ from models.base import BaseModel
 
 
 class MultiUavModel(BaseModel):
-    def __init__(self, indices={}, parameters={}):
-        super().__init__(indices, parameters)
+    def __init__(self, scenario, parameters):
+        super().__init__(scenario, parameters)
 
         # VARIABLES
         # control variables
