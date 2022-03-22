@@ -18,13 +18,14 @@ def battery_over_time_from_base_model(base_model, d, ax=None, charge_bars=True, 
         base_model.b_plus[d, :](),
         base_model.T_N[d, :, :],
         base_model.T_W[d, :, :],
+        base_model.v[d],
         ax=ax,
         charge_bars=charge_bars,
         **kwargs
     )
 
 
-def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, ax=None, charge_bars=True, **kwargs):
+def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, v, ax=None, charge_bars=True, **kwargs):
     if not ax:
         _, ax = plt.subplots()
 
@@ -36,33 +37,33 @@ def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, ax=
     x_labels = [f'$w_{{{1}}}$']
     rectangles = []
 
-    total_dist = 0
+    total_time = 0
     for w_s in range(T_W.shape[1]):
         p = decisions[:, w_s]
         for n in range(len(p)):
             if p[n] == 1:
                 if n == next_waypoint_idx:
                     # next waypoint
-                    dist_to_next_node = T_N[n, w_s]
-                    total_dist += dist_to_next_node
-                    x.append(total_dist)
-                    x_ticks.append(total_dist)
+                    t_to_node = T_N[n, w_s]
+                    total_time += t_to_node * v
+                    x.append(total_time)
+                    x_ticks.append(total_time)
                     x_labels.append(f'$w_{{{w_s + 2}}}$')
                     y.append(b_arr[w_s + 1])
                 else:
                     # charging
                     # x-value
-                    dist_to_next_node = T_N[n, w_s]
-                    total_dist += dist_to_next_node
-                    x.append(total_dist)
-                    x_ticks.append(total_dist)
-                    x_rect = total_dist
-                    total_dist += wait_times[w_s]
-                    x.append(total_dist)
-                    dist_from_station = T_W[n, w_s]
-                    total_dist += dist_from_station
-                    x.append(total_dist)
-                    x_ticks.append(total_dist)
+                    t_to_node = T_N[n, w_s] * v
+                    total_time += t_to_node
+                    x.append(total_time)
+                    x_ticks.append(total_time)
+                    x_rect = total_time
+                    total_time += wait_times[w_s]
+                    x.append(total_time)
+                    t_from_station = T_W[n, w_s]
+                    total_time += t_from_station
+                    x.append(total_time)
+                    x_ticks.append(total_time)
 
                     # x-label
                     x_labels.append(f'$s_{{{n + 1}}}$')

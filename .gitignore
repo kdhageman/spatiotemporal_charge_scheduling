@@ -1,5 +1,5 @@
 .idea
-
+out/
 .ipynb_checkpoints/
 scratch*.ipynb
 *.working.ipynb

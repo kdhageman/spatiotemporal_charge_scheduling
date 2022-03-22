@@ -64,7 +64,8 @@ class Scenario:
             waypoints = self.positions_w[d]
             x = [i[0] for i in waypoints]
             y = [i[1] for i in waypoints]
-            ax.plot(x, y, marker='o', color=constants.W_COLORS[d], markersize=10, markerfacecolor='white')
+            ax.plot(x, y, color=constants.W_COLORS[d], zorder=-1)
+            ax.scatter(x, y, marker='o', color=constants.W_COLORS[d], facecolor='white', s=70)
 
             # label waypoints
             for w in range(self.N_w):
@@ -73,13 +74,14 @@ class Scenario:
                 ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=constants.W_COLORS[d], fontsize=15)
 
             # label time between waypoints
-            for w_s in range(self.N_w - 1):
-                pos_w_s = waypoints[w_s]
-                pos_w_d = waypoints[w_s + 1]
-                dist = distance.dist(pos_w_s, pos_w_d)
+            if draw_distances:
+                for w_s in range(self.N_w - 1):
+                    pos_w_s = waypoints[w_s]
+                    pos_w_d = waypoints[w_s + 1]
+                    dist = distance.dist(pos_w_s, pos_w_d)
 
-                alpha = 0.5  # SET ALPHA
+                    alpha = 0.5  # SET ALPHA
 
-                x_text = pos_w_s[0] + alpha * (pos_w_d[0] - pos_w_s[0])
-                y_text = pos_w_s[1] + alpha * (pos_w_d[1] - pos_w_s[1]) + 0.05
-                ax.text(x_text, y_text, f"{dist:.2f}", color=constants.W_COLORS[d])
+                    x_text = pos_w_s[0] + alpha * (pos_w_d[0] - pos_w_s[0])
+                    y_text = pos_w_s[1] + alpha * (pos_w_d[1] - pos_w_s[1]) + 0.05
+                    ax.text(x_text, y_text, f"{dist:.2f}", color=constants.W_COLORS[d])

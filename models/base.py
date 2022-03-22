@@ -16,14 +16,14 @@ class BaseModel(pyo.ConcreteModel):
         self.N_w = scenario.N_w
         self.N_w_s = scenario.N_w - 1
 
-        B_start = parameters["B_start"]
-        B_min = parameters["B_min"]
-        B_max = parameters["B_max"]
-        r_charge = parameters['r_charge']
-        r_deplete = parameters['r_deplete']
-        v = parameters['v']
+        self.B_start = parameters["B_start"]
+        self.B_min = parameters["B_min"]
+        self.B_max = parameters["B_max"]
+        self.r_charge = parameters['r_charge']
+        self.r_deplete = parameters['r_deplete']
+        self.v = parameters['v']
 
-        self.C_max = (B_max - B_min) / r_charge
+        self.C_max = (self.B_max - self.B_min) / self.r_charge
 
         self.positions_S = scenario.positions_S
         self.positions_w = scenario.positions_w
@@ -57,26 +57,26 @@ class BaseModel(pyo.ConcreteModel):
         # battery constraints
         self.b_arr_start = pyo.Constraint(
             self.d,
-            rule=lambda m, d: m.b_arr[d, 0] == B_start[d]
+            rule=lambda m, d: m.b_arr[d, 0] == self.B_start[d]
         )
 
         self.b_min_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - r_deplete[d] * v[d] * sum(
+            rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - self.r_deplete[d] * self.v[d] * sum(
                 m.P[d, n, w_s] * self.T_N[d, n, w_s] for n in m.n)
         )
 
         self.b_plus_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_plus[d, w_s] == m.b_min[d, w_s] + r_charge[d] * m.C[d, w_s]
+            rule=lambda m, d, w_s: m.b_plus[d, w_s] == m.b_min[d, w_s] + self.r_charge[d] * m.C[d, w_s]
         )
 
         self.b_arr_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - r_deplete[d] * v[d] * sum(
+            rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - self.r_deplete[d] * self.v[d] * sum(
                 m.P[d, n, w_s] * self.T_W[d, n, w_s] for n in m.n)
         )
 
@@ -84,18 +84,18 @@ class BaseModel(pyo.ConcreteModel):
         self.b_arr_llim = pyo.Constraint(
             self.d,
             self.w,
-            rule=lambda m, d, w: m.b_arr[d, w] >= B_min
+            rule=lambda m, d, w: m.b_arr[d, w] >= self.B_min
         )
 
         self.b_min_llim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_min[d, w_s] >= B_min
+            rule=lambda m, d, w_s: m.b_min[d, w_s] >= self.B_min
         )
         self.b_plus_ulim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_plus[d, w_s] <= B_max
+            rule=lambda m, d, w_s: m.b_plus[d, w_s] <= self.B_max
         )
 
         self.D_lim = pyo.Constraint(
@@ -126,7 +126,7 @@ class BaseModel(pyo.ConcreteModel):
             # label station
             x_text = x_s + 0.1
             y_text = y_s
-            ax.text(x_text, y_text, f"$s_{s + 1}$", fontsize=15)
+            ax.text(x_text, y_text, f"$s_{{{s + 1}}}$", fontsize=15)
 
         # draw waypoints and lines for each drone
         for d in range(self.N_d):
@@ -139,7 +139,7 @@ class BaseModel(pyo.ConcreteModel):
             for w in range(self.N_w):
                 x_text = waypoints[w][0]
                 y_text = waypoints[w][1] + 0.05
-                ax.text(x_text, y_text, f"$w^{d + 1}_{w + 1}$", color=constants.W_COLORS[d], fontsize=15)
+                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=constants.W_COLORS[d], fontsize=15)
 
         # draw lines
         for d in self.d:
@@ -157,7 +157,7 @@ class BaseModel(pyo.ConcreteModel):
                             pos_S = self.positions_S[n]
                             x = [cur_waypoint[0], pos_S[0], next_waypoint[0]]
                             y = [cur_waypoint[1], pos_S[1], next_waypoint[1]]
-                        ax.plot(x, y, constants.W_COLORS[d], linewidth=2, zorder=-1)
+                        ax.plot(x, y, constants.W_COLORS[d], zorder=-1)
 
     def t(self, d, w_s):
         return sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n)
