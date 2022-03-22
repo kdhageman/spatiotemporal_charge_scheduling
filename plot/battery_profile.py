@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
 
-def battery_over_time_from_base_model(base_model, d, ax=None, charge_bars=True):
+def battery_over_time_from_base_model(base_model, d, ax=None, charge_bars=True, **kwargs):
     N_s = len(base_model.s)
     N_w_s = len(base_model.w_s)
 
@@ -19,11 +19,12 @@ def battery_over_time_from_base_model(base_model, d, ax=None, charge_bars=True):
         base_model.T_N[d, :, :],
         base_model.T_W[d, :, :],
         ax=ax,
-        charge_bars=charge_bars
+        charge_bars=charge_bars,
+        **kwargs
     )
 
 
-def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, ax=None, charge_bars=True):
+def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, ax=None, charge_bars=True, **kwargs):
     if not ax:
         _, ax = plt.subplots()
 
@@ -88,7 +89,7 @@ def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, ax=
                         )
                     )
 
-    ax.plot(x, y, marker='o')
+    ax.plot(x, y, marker='o', **kwargs)
 
     if charge_bars:
         for rect in rectangles:

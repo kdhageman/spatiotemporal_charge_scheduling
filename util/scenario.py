@@ -29,24 +29,25 @@ class Scenario:
         self.N_s = len(self.positions_S)
         self.N_w = len(self.positions_w[0])
 
-    def plot(self, ax=None):
+    def plot(self, ax=None, draw_distances=True):
         if not ax:
             _, ax = plt.subplots()
 
-        # draw lines between waypoints and S
-        for d, s, w in product(range(self.N_d), range(self.N_s), range(self.N_w)):
-            pos_s = self.positions_S[s]
-            pos_w = self.positions_w[d][w]
-            dist = distance.dist(pos_s, pos_w)
-            x = [pos_s[0], pos_w[0]]
-            y = [pos_s[1], pos_w[1]]
-            ax.plot(x, y, color='k', alpha=0.2)
+        if draw_distances:
+            # draw lines between waypoints and S
+            for d, s, w in product(range(self.N_d), range(self.N_s), range(self.N_w)):
+                pos_s = self.positions_S[s]
+                pos_w = self.positions_w[d][w]
+                dist = distance.dist(pos_s, pos_w)
+                x = [pos_s[0], pos_w[0]]
+                y = [pos_s[1], pos_w[1]]
+                ax.plot(x, y, color='k', alpha=0.2)
 
-            alpha = 0.7  # SET ALPHA
+                alpha = 0.7  # SET ALPHA
 
-            x_text = pos_s[0] + alpha * (pos_w[0] - pos_s[0])
-            y_text = pos_s[1] + alpha * (pos_w[1] - pos_s[1])
-            ax.text(x_text, y_text, f"{dist:.2f}", color='k', alpha=0.4)
+                x_text = pos_s[0] + alpha * (pos_w[0] - pos_s[0])
+                y_text = pos_s[1] + alpha * (pos_w[1] - pos_s[1])
+                ax.text(x_text, y_text, f"{dist:.2f}", color='k', alpha=0.4)
 
         for s in range(self.N_s):
             x_s = self.positions_S[s][0]
