@@ -162,6 +162,15 @@ class BaseModel(pyo.ConcreteModel):
     def t(self, d, w_s):
         return sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n) / self.v[d]
 
+    def schedule(self, d):
+        """
+        Return the schedule for this model
+        :param d: drone identifier
+        """
+        path = np.reshape(self.P[d, :, :](), (self.N_s + 1, self.N_w_s))
+        charging_times = np.array(self.C[d, :]())
+        return path, charging_times
+
     def _get_T_N(self):
         T_n = []
         for d in range(self.N_d):
