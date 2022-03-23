@@ -45,7 +45,7 @@ def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, v, 
                 if n == next_waypoint_idx:
                     # next waypoint
                     t_to_node = T_N[n, w_s]
-                    total_time += t_to_node * v
+                    total_time += t_to_node / v
                     x.append(total_time)
                     x_ticks.append(total_time)
                     x_labels.append(f'$w_{{{w_s + 2}}}$')
@@ -53,14 +53,14 @@ def battery_over_time(decisions, wait_times, b_arr, b_min, b_plus, T_N, T_W, v, 
                 else:
                     # charging
                     # x-value
-                    t_to_node = T_N[n, w_s] * v
+                    t_to_node = T_N[n, w_s] / v
                     total_time += t_to_node
                     x.append(total_time)
                     x_ticks.append(total_time)
                     x_rect = total_time
                     total_time += wait_times[w_s]
                     x.append(total_time)
-                    t_from_station = T_W[n, w_s]
+                    t_from_station = T_W[n, w_s] / v
                     total_time += t_from_station
                     x.append(total_time)
                     x_ticks.append(total_time)

@@ -63,7 +63,7 @@ class BaseModel(pyo.ConcreteModel):
         self.b_min_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - self.r_deplete[d] * self.v[d] * sum(
+            rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - self.r_deplete[d] / self.v[d] * sum(
                 m.P[d, n, w_s] * self.T_N[d, n, w_s] for n in m.n)
         )
 
@@ -76,7 +76,7 @@ class BaseModel(pyo.ConcreteModel):
         self.b_arr_calc = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - self.r_deplete[d] * self.v[d] * sum(
+            rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - self.r_deplete[d] / self.v[d] * sum(
                 m.P[d, n, w_s] * self.T_W[d, n, w_s] for n in m.n)
         )
 
@@ -160,7 +160,7 @@ class BaseModel(pyo.ConcreteModel):
                         ax.plot(x, y, constants.W_COLORS[d], zorder=-1)
 
     def t(self, d, w_s):
-        return sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n)
+        return sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n) / self.v[d]
 
     def _get_T_N(self):
         T_n = []
