@@ -2,7 +2,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
-
 class Schedule:
     def __init__(self, decisions: np.ndarray, charging_times: np.ndarray):
         assert (decisions.ndim == 2)
@@ -48,6 +47,34 @@ class DeterministicEnvironment(Environment):
         return x
 
 
+def nonnegative(func):
+    def f(*args, **kwargs):
+        res = -1
+        while res < 0:
+            res = func(*args, **kwargs)
+        return res
+    return f
+
+
+class WhiteNoiseEnvironment(Environment):
+    def __init__(self, d_scale=0.1, v_scale=0.1, dep_scale=0.1):
+        self.d_scale = d_scale
+        self.v_scale = v_scale
+        self.dep_scale = dep_scale
+
+    @nonnegative
+    def distance(self, x):
+        return x + x * np.random.normal(0, self.d_scale)
+
+    @nonnegative
+    def velocity(self, x):
+        return x + x * np.random.normal(0, self.v_scale)
+
+    @nonnegative
+    def depletion(self, x):
+        return x + x * np.random.normal(0, self.dep_scale)
+
+
 class Simulation:
     def __init__(self, schedule: Schedule, params: Parameters, env: Environment):
         self.schedule = schedule
@@ -55,10 +82,12 @@ class Simulation:
         self.env = env
 
     @classmethod
-    def from_base_model(cls, model, d):
+    def from_base_model(cls, model, d, env=None):
         schedule = Schedule(*model.schedule(d))
-        params = Parameters(model.v[d], model.r_charge[d], model.r_deplete[d], model.B_start[d], model.T_N[d], model.T_W[0])
-        env = DeterministicEnvironment()
+        params = Parameters(model.v[d], model.r_charge[d], model.r_deplete[d], model.B_start[d], model.T_N[d],
+                            model.T_W[0])
+        if not env:
+            env = DeterministicEnvironment()
 
         return Simulation(schedule, params, env)
 
@@ -84,12 +113,14 @@ class Simulation:
                     cur_charge -= depleted
                     charges.append(cur_charge)
                     timestamps.append(arrival_timestamp)
+                    if cur_charge < 0:
+                        return charges, timestamps, path, path_arrivals, charging_windows, False
 
                     # charge at station
                     charging_time = self.schedule.charging_times[w_s]
                     charged = self.params.r_charge * charging_time
                     if charged > 0:
-                        cur_charge += charged
+                        cur_charge = min(1, cur_charge + charged)
                         charges.append(cur_charge)
                         charging_finished_timestamp = timestamps[-1] + charging_time
                         timestamps.append(charging_finished_timestamp)
@@ -108,16 +139,20 @@ class Simulation:
                         cur_charge -= depleted
                         charges.append(cur_charge)
                         timestamps.append(next_waypoint_timestamp)
+                        if cur_charge < 0:
+                            return charges, timestamps, path, path_arrivals, charging_windows, False
+
                     path_arrivals.append(next_waypoint_timestamp)
                     path.append(f"$w_{{{w_s + 2}}}$")
-        return charges, timestamps, path, path_arrivals, charging_windows
 
-    def plot_charge(self, ax=None):
+        return charges, timestamps, path, path_arrivals, charging_windows, True
+
+    def plot_charge(self, ax=None, **kwargs):
         if not ax:
             _, ax = plt.subplots()
-        charges, timestamps, path, path_arrivals, charging_windows = self.simulate()
+        charges, timestamps, path, path_arrivals, charging_windows, _ = self.simulate()
 
-        ax.plot(timestamps, charges, marker='o')
+        ax.plot(timestamps, charges, marker='o', **kwargs)
         for x_rect, width_rect in charging_windows:
             rect = Rectangle((x_rect, 0), width_rect, 1, color='g', alpha=0.2, zorder=-1)
             ax.add_patch(rect)
