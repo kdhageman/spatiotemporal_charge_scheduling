@@ -150,7 +150,7 @@ class Simulation:
     def plot_charge(self, ax=None, **kwargs):
         if not ax:
             _, ax = plt.subplots()
-        charges, timestamps, path, path_arrivals, charging_windows, _ = self.simulate()
+        charges, timestamps, path, path_arrivals, charging_windows, ok = self.simulate()
 
         ax.plot(timestamps, charges, marker='o', **kwargs)
         for x_rect, width_rect in charging_windows:
@@ -161,3 +161,4 @@ class Simulation:
         ax.set_ylabel("Charge")
         ax.set_xlabel("Arrival time at node")
         ax.grid(axis='y')
+        return ok
