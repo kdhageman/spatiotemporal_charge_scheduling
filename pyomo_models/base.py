@@ -169,7 +169,8 @@ class BaseModel(pyo.ConcreteModel):
         """
         path = np.reshape(self.P[d, :, :](), (self.N_s + 1, self.N_w_s))
         charging_times = np.array(self.C[d, :]())
-        return path, charging_times
+        waiting_times = np.array(self.W[d, :]())
+        return path, charging_times, waiting_times
 
     def _get_T_N(self):
         T_n = []

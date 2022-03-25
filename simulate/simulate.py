@@ -3,12 +3,14 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
 class Schedule:
-    def __init__(self, decisions: np.ndarray, charging_times: np.ndarray):
+    def __init__(self, decisions: np.ndarray, charging_times: np.ndarray, waiting_times: np.ndarray):
         assert (decisions.ndim == 2)
         assert (charging_times.ndim == 1)
+        assert (waiting_times.ndim == 1)
 
         self.decisions = decisions
         self.charging_times = charging_times
+        self.waiting_times = waiting_times
 
 
 class Parameters:
@@ -116,6 +118,12 @@ class Simulation:
                     if cur_charge < 0:
                         return charges, timestamps, path, path_arrivals, charging_windows, False
 
+                    # wait at station
+                    waiting_time = self.schedule.waiting_times[w_s]
+                    waiting_finished_timestamp = timestamps[-1] + waiting_time
+                    timestamps.append(waiting_finished_timestamp)
+                    charges.append(cur_charge)
+
                     # charge at station
                     charging_time = self.schedule.charging_times[w_s]
                     charged = self.params.r_charge * charging_time
@@ -126,7 +134,7 @@ class Simulation:
                         timestamps.append(charging_finished_timestamp)
                         path_arrivals.append(charging_finished_timestamp)
                         path.append(f"$s_{{{n + 1}}}$")
-                        charging_windows.append((arrival_timestamp, charging_time))
+                        charging_windows.append((waiting_finished_timestamp, charging_time))
 
                     # move to next waypoint
                     dist = self.env.distance(self.params.T_W[n, w_s])
@@ -155,7 +163,9 @@ class Simulation:
         ax.plot(timestamps, charges, marker='o', **kwargs)
         for x_rect, width_rect in charging_windows:
             rect = Rectangle((x_rect, 0), width_rect, 1, color='g', alpha=0.2, zorder=-1)
-            ax.add_patch(rect)
+            if width_rect > 0.01:
+                # only plot significant charging periods
+                ax.add_patch(rect)
         ax.set_xticks(path_arrivals, path, rotation=45)
         ax.set_ylim(0, 1)
         ax.set_ylabel("Charge")

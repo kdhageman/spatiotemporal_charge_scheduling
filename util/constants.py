@@ -1,1 +1,1 @@
-W_COLORS = ['red', 'blue']
+W_COLORS = ['red', 'blue', 'green']
