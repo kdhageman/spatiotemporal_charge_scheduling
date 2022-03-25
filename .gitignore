@@ -3,3 +3,4 @@ out/
 .ipynb_checkpoints/
 scratch*.ipynb
 *.working.ipynb
+__pycache__/
