@@ -24,7 +24,7 @@ class MultiUavModel(BaseModel):
             self.w_s,
             rule=lambda m, d, w_s: m.Z_s[d, w_s] == sum(
                 m.C[d, w_p] + m.W[d, w_p] + m.t(d, w_p) for w_p in range(w_s)) + sum(
-                m.P[d, n, w_s] * self.T_W[d, n, w_s] for n in m.n) / self.v[d] + m.W[d, w_s]
+                m.P[d, n, w_s] * self.T_N[d, n, w_s] for n in m.n) / self.v[d] + m.W[d, w_s]
         )
 
         self.Z_e_calc = pyo.Constraint(
