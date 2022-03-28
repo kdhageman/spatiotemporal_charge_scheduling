@@ -2,6 +2,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
+from util import constants
+
+
 class Schedule:
     def __init__(self, decisions: np.ndarray, charging_times: np.ndarray, waiting_times: np.ndarray):
         assert (decisions.ndim == 2)
@@ -134,7 +137,7 @@ class Simulation:
                         timestamps.append(charging_finished_timestamp)
                         path_arrivals.append(charging_finished_timestamp)
                         path.append(f"$s_{{{n + 1}}}$")
-                        charging_windows.append((waiting_finished_timestamp, charging_time))
+                        charging_windows.append((waiting_finished_timestamp, charging_time, n))
 
                     # move to next waypoint
                     dist = self.env.distance(self.params.T_W[n, w_s])
@@ -161,8 +164,8 @@ class Simulation:
         charges, timestamps, path, path_arrivals, charging_windows, ok = self.simulate()
 
         ax.plot(timestamps, charges, marker='o', **kwargs)
-        for x_rect, width_rect in charging_windows:
-            rect = Rectangle((x_rect, 0), width_rect, 1, color='g', alpha=0.2, zorder=-1)
+        for x_rect, width_rect, n in charging_windows:
+            rect = Rectangle((x_rect, 0), width_rect, 1, color=constants.W_COLORS[n], ec=None, alpha=0.2, zorder=-1)
             if width_rect > 0.01:
                 # only plot significant charging periods
                 ax.add_patch(rect)

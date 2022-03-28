@@ -42,10 +42,11 @@ class BaseModel(pyo.ConcreteModel):
         # VARIABLES
         self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
         self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
-        self.W = pyo.Var(self.d, self.w_s, bounds=(0, sum(self.C_max)))
+        self.W = pyo.Var(self.d, self.w_s, bounds=(0, sum(self.C_max)), initialize=sum(self.C_max))
         self.b_arr = pyo.Var(self.d, self.w)
         self.b_min = pyo.Var(self.d, self.w_s)
         self.b_plus = pyo.Var(self.d, self.w_s)
+        self.alpha = pyo.Var(domain=pyo.NonNegativeReals)
 
         # CONSTRAINTS
         self.path_constraint = pyo.Constraint(
@@ -110,14 +111,19 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: m.W[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * sum(self.C_max)
         )
 
-        # OBJECTIVE
-        def E(d):
-            return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s)
+        self.alpha_min = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.alpha >= m.E(d)
+        )
 
         self.execution_time = pyo.Objective(
-            expr=sum(E(d) for d in self.d),
+            expr=self.alpha,
             sense=pyo.minimize,
         )
+
+    # OBJECTIVE
+    def E(self, d):
+        return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s)
 
     def plot(self, ax=None):
         if not ax:

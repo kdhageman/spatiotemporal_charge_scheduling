@@ -10,7 +10,7 @@ class MultiUavModel(BaseModel):
         # VARIABLES
         # control variables
 
-        self.alpha = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
+        self.beta = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
 
         # state variables
         self.Z_s = pyo.Var(self.d, self.w_s)
@@ -38,9 +38,9 @@ class MultiUavModel(BaseModel):
             self.d,
             self.w_s,
             self.w_s,
-            rule=lambda m, d, d_prime, w_s, w_s_prime: m.Y[d, d_prime, w_s, w_s_prime] == m.alpha[
+            rule=lambda m, d, d_prime, w_s, w_s_prime: m.Y[d, d_prime, w_s, w_s_prime] == m.beta[
                 d, d_prime, w_s, w_s_prime] * (m.Z_s[d_prime, w_s_prime] - m.Z_s[d, w_s]) + (
-                                                               1 - m.alpha[d, d_prime, w_s, w_s_prime]) * (
+                                                               1 - m.beta[d, d_prime, w_s, w_s_prime]) * (
                                                                m.Z_e[d, w_s] - m.Z_s[d_prime, w_s_prime])
         )
 
