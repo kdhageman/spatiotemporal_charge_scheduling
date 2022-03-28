@@ -98,10 +98,16 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: m.b_plus[d, w_s] <= self.B_max
         )
 
-        self.D_lim = pyo.Constraint(
+        self.C_lim = pyo.Constraint(
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * self.C_max[d]
+        )
+
+        self.W_lim = pyo.Constraint(
+            self.d,
+            self.w_s,
+            rule=lambda m, d, w_s: m.W[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * sum(self.C_max)
         )
 
         # OBJECTIVE
