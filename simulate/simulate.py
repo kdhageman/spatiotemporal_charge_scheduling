@@ -58,6 +58,7 @@ def nonnegative(func):
         while res < 0:
             res = func(*args, **kwargs)
         return res
+
     return f
 
 
@@ -86,6 +87,8 @@ class Simulation:
         self.params = params
         self.env = env
 
+        self.N_s, self.N_w_s = schedule.decisions.shape
+
     @classmethod
     def from_base_model(cls, model, d, env=None):
         schedule = Schedule(*model.schedule(d))
@@ -97,79 +100,66 @@ class Simulation:
         return Simulation(schedule, params, env)
 
     def simulate(self):
+        # Potential plot fixing
         cur_charge = self.params.B_start
+        cur_time = 0
         charges = [cur_charge]
-        timestamps = [0]
-        path = ['$w_{1}$']
-        path_arrivals = [0]
+        charge_timestamps = [cur_time]
         charging_windows = []
 
-        for w_s in range(self.schedule.decisions.shape[1]):
-            p = self.schedule.decisions[:, w_s]
-            for n in range(len(p)):
-                if p[n] == 1:
-                    # to path node
-                    dist = self.env.distance(self.params.T_N[n, w_s])
-                    velocity = self.env.velocity(self.params.v)
-                    time = dist / velocity
-                    arrival_timestamp = timestamps[-1] + time
-                    depletion_rate = self.env.depletion(self.params.r_deplete)
-                    depleted = depletion_rate * time
-                    cur_charge -= depleted
-                    charges.append(cur_charge)
-                    timestamps.append(arrival_timestamp)
-                    if cur_charge < 0:
-                        return charges, timestamps, path, path_arrivals, charging_windows, False
+        for w_s in range(self.N_w_s):
+            # time to node
+            dist_to_node = (self.params.T_N[:, w_s] * self.schedule.decisions[:, w_s]).sum()
+            t_to_node = np.round(dist_to_node / self.params.v, 3)
+            depletion = t_to_node * self.params.r_deplete
+            cur_charge -= depletion
+            cur_time += t_to_node
+            charges.append(cur_charge)
+            charge_timestamps.append(cur_time)
+            if cur_charge < 0:
+                return charges, charge_timestamps, charging_windows, False
 
-                    # wait at station
-                    waiting_time = self.schedule.waiting_times[w_s]
-                    waiting_finished_timestamp = timestamps[-1] + waiting_time
-                    timestamps.append(waiting_finished_timestamp)
-                    charges.append(cur_charge)
+            # waiting time
+            t_wait = np.round(self.schedule.waiting_times[w_s], 3)
+            cur_time += t_wait
+            charges.append(cur_charge)
+            charge_timestamps.append(cur_time)
 
-                    # charge at station
-                    charging_time = self.schedule.charging_times[w_s]
-                    charged = self.params.r_charge * charging_time
-                    if charged > 0:
-                        cur_charge = min(1, cur_charge + charged)
-                        charges.append(cur_charge)
-                        charging_finished_timestamp = timestamps[-1] + charging_time
-                        timestamps.append(charging_finished_timestamp)
-                        path_arrivals.append(charging_finished_timestamp)
-                        path.append(f"$s_{{{n + 1}}}$")
-                        charging_windows.append((waiting_finished_timestamp, charging_time, n))
+            # charge time
+            ts_charge = cur_time
+            t_charge = np.round(self.schedule.charging_times[w_s], 3)
+            charged = t_charge * self.params.r_charge
+            cur_charge += charged
+            cur_time += t_charge
+            charges.append(cur_charge)
+            charge_timestamps.append(cur_time)
 
-                    # move to next waypoint
-                    dist = self.env.distance(self.params.T_W[n, w_s])
-                    velocity = self.env.velocity(self.params.v)
-                    time = dist / velocity
-                    next_waypoint_timestamp = timestamps[-1] + time
-                    depletion_rate = self.env.depletion(self.params.r_deplete)
-                    depleted = depletion_rate * time
-                    if depleted > 0:
-                        cur_charge -= depleted
-                        charges.append(cur_charge)
-                        timestamps.append(next_waypoint_timestamp)
-                        if cur_charge < 0:
-                            return charges, timestamps, path, path_arrivals, charging_windows, False
+            station = np.where(np.round(self.schedule.decisions[:, w_s]) == 1)[0][0]
+            if station != self.N_s:
+                charging_windows.append((ts_charge, t_charge, station))
 
-                    path_arrivals.append(next_waypoint_timestamp)
-                    path.append(f"$w_{{{w_s + 2}}}$")
+            # to next waypoint
+            dist_to_waypoint = (self.params.T_W[:, w_s] * self.schedule.decisions[:, w_s]).sum()
+            t_to_waypoint = np.round(dist_to_waypoint / self.params.v, 3)
+            depletion = t_to_waypoint * self.params.r_deplete
+            cur_charge -= depletion
+            cur_time += t_to_waypoint
+            charges.append(cur_charge)
+            charge_timestamps.append(cur_time)
+            if cur_charge < 0:
+                return charges, charge_timestamps, charging_windows, False
 
-        return charges, timestamps, path, path_arrivals, charging_windows, True
+        return charges, charge_timestamps, charging_windows, True
 
     def plot_charge(self, ax=None, **kwargs):
         if not ax:
             _, ax = plt.subplots()
-        charges, timestamps, path, path_arrivals, charging_windows, ok = self.simulate()
-
-        ax.plot(timestamps, charges, marker='o', **kwargs)
-        for x_rect, width_rect, n in charging_windows:
-            rect = Rectangle((x_rect, 0), width_rect, 1, color=constants.W_COLORS[n], ec=None, alpha=0.2, zorder=-1)
-            if width_rect > 0.01:
-                # only plot significant charging periods
-                ax.add_patch(rect)
-        ax.set_xticks(path_arrivals, path, rotation=45)
+        charges, charge_timestamps, charging_windows, ok = self.simulate()
+        ax.plot(charge_timestamps, charges, marker='o', **kwargs)
+        for x_rect, width_rect, s in charging_windows:
+            rect = Rectangle((x_rect, 0), width_rect, 1, color=constants.W_COLORS[s], ec=None, alpha=0.2, zorder=-1)
+            ax.add_patch(rect)
+        ax.set_xticks([])
         ax.set_ylim(0, 1)
         ax.set_ylabel("Charge")
         ax.set_xlabel("Arrival time at node")
