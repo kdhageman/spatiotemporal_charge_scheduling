@@ -42,14 +42,12 @@ class BaseModel(pyo.ConcreteModel):
         self.n = pyo.RangeSet(0, self.N_s)
 
         # VARIABLES
-        # decision
-        self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
-        self.C = pyo.Var(self.d, self.w_s)
-        self.W_max = self.get_W_max()
-        self.W = pyo.Var(self.d, self.w_s, bounds=(0, self.W_max))
-        # randomly initialize
-
         # control
+        self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
+        self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
+        self.W = pyo.Var(self.d, self.w_s, bounds=(0, self.W_max))
+
+        # state
         self.b_arr = pyo.Var(self.d, self.w)
         self.b_min = pyo.Var(self.d, self.w_s)
         self.b_plus = pyo.Var(self.d, self.w_s)
@@ -143,13 +141,14 @@ class BaseModel(pyo.ConcreteModel):
 
         # randomize W
         for d, w_s in product(self.d, self.w_s):
-            self.W[d, w_s] = np.random.rand() * self.get_W_max()
+            self.W[d, w_s] = np.random.rand() * self.W_max
 
         # randomize C
         for d, w_s in product(self.d, self.w_s):
             self.C[d, w_s] = np.random.rand() * self.C_max[d]
 
-    def get_W_max(self):
+    @property
+    def W_max(self):
         return sum(self.C_max)
 
     # OBJECTIVE

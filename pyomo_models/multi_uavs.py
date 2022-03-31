@@ -41,7 +41,7 @@ class MultiUavModel(BaseModel):
             rule=lambda m, d, d_prime, w_s, w_s_prime: m.Y[d, d_prime, w_s, w_s_prime] == m.beta[
                 d, d_prime, w_s, w_s_prime] * (m.Z_s[d_prime, w_s_prime] - m.Z_s[d, w_s] + self.epsilon) + (
                                                                1 - m.beta[d, d_prime, w_s, w_s_prime]) * (
-                                                               m.Z_e[d, w_s] - m.Z_s[d_prime, w_s_prime])
+                                                               m.Z_e[d, w_s] - m.Z_s[d_prime, w_s_prime] + self.epsilon)
         )
 
         self.Y_prime_calc = pyo.Constraint(
@@ -60,5 +60,6 @@ class MultiUavModel(BaseModel):
 
         self.Y_prime_lim = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=Y_prime_lim_rule)
 
-    def get_W_max(self):
+    @property
+    def W_max(self):
         return sum([max(self.C_max[d], self.epsilon) for d in self.d])
