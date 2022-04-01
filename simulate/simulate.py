@@ -152,6 +152,7 @@ class Simulation:
         return charges, charge_timestamps, charging_windows, True
 
     def plot_charge(self, ax=None, **kwargs):
+        # TODO: fix this!
         if not ax:
             _, ax = plt.subplots()
         charges, charge_timestamps, charging_windows, ok = self.simulate()
