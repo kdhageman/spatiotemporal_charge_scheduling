@@ -8,15 +8,17 @@ class MultiUavModel(BaseModel):
         self.epsilon = parameters.get("epsilon", 0.01)
         super().__init__(scenario, parameters)
 
-        # VARIABLES
-        # control variables
-        self.beta = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary, initialize=0)
+        self.M_1 = int(1e5) # TODO: redefine
+        self.M_2 = int(1e5) # TODO: redefine
 
-        # state variables
+        # VARIABLES
+        self.a = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)
+        self.A = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
+        self.y = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
+        # self.N_i = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
+        # self.N_ii = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
         self.Z_s = pyo.Var(self.d, self.w_s)
         self.Z_e = pyo.Var(self.d, self.w_s)
-        self.Y = pyo.Var(self.d, self.d, self.w_s, self.w_s)
-        self.Y_prime = pyo.Var(self.d, self.d, self.w_s, self.w_s)
 
         # CONSTRAINTS
         self.Z_s_calc = pyo.Constraint(
@@ -33,32 +35,112 @@ class MultiUavModel(BaseModel):
             rule=lambda m, d, w_s: m.Z_e[d, w_s] == m.Z_s[d, w_s] + m.C[d, w_s]
         )
 
-        self.Y_calc = pyo.Constraint(
+        def a_1_rule(m, d, d_prime, w_s, w_s_prime, s):
+            return m.a[d, d_prime, w_s, w_s_prime, s] <= m.P[d, s, w_s]
+
+        self.a_1 = pyo.Constraint(
             self.d,
             self.d,
             self.w_s,
             self.w_s,
-            rule=lambda m, d, d_prime, w_s, w_s_prime: m.Y[d, d_prime, w_s, w_s_prime] == m.beta[
-                d, d_prime, w_s, w_s_prime] * (m.Z_s[d_prime, w_s_prime] - m.Z_s[d, w_s] + self.epsilon) + (
-                                                               1 - m.beta[d, d_prime, w_s, w_s_prime]) * (
-                                                               m.Z_e[d, w_s] - m.Z_s[d_prime, w_s_prime] + self.epsilon)
+            self.s,
+            rule=a_1_rule
         )
 
-        self.Y_prime_calc = pyo.Constraint(
+        def a_2_rule(m, d, d_prime, w_s, w_s_prime, s):
+            return m.a[d, d_prime, w_s, w_s_prime, s] <= m.P[d_prime, s, w_s_prime]
+
+        self.a_2 = pyo.Constraint(
             self.d,
             self.d,
             self.w_s,
             self.w_s,
-            rule=lambda m, d, d_prime, w_s, w_s_prime: m.Y_prime[d, d_prime, w_s, w_s_prime] == m.Y[
-                d, d_prime, w_s, w_s_prime] * sum(m.P[d, s, w_s] * m.P[d_prime, s, w_s_prime] for s in m.s)
+            self.s,
+            rule=a_2_rule
         )
 
-        def Y_prime_lim_rule(m, d, d_prime, w_s, w_s_prime):
+        def a_3_rule(m, d, d_prime, w_s, w_s_prime, s):
+            return m.a[d, d_prime, w_s, w_s_prime, s] >= m.P[d, s, w_s] + m.P[d_prime, s, w_s_prime] - 1
+
+        self.a_3 = pyo.Constraint(
+            self.d,
+            self.d,
+            self.w_s,
+            self.w_s,
+            self.s,
+            rule=a_3_rule
+        )
+
+        def A_calc_rule(m, d, d_prime, w_s, w_s_prime):
+            return m.A[d, d_prime, w_s, w_s_prime] == sum(m.a[d, d_prime, w_s, w_s_prime, s] for s in m.s)
+
+        self.A_calc = pyo.Constraint(
+            self.d,
+            self.d,
+            self.w_s,
+            self.w_s,
+            rule=A_calc_rule
+        )
+
+        # window constraints
+        def window_i_rule(m, d, d_prime, w_s, w_s_prime):
             if d == d_prime:
                 return pyo.Constraint.Skip
-            return m.Y_prime[d, d_prime, w_s, w_s_prime] <= 0
+            return m.Z_e[d, w_s] <= m.Z_s[d_prime, w_s_prime] - self.epsilon + self.M_1 * (m.y[d, d_prime, w_s, w_s_prime] + 1 - m.A[d, d_prime, w_s, w_s_prime])
 
-        self.Y_prime_lim = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=Y_prime_lim_rule)
+        def window_ii_rule(m, d, d_prime, w_s, w_s_prime):
+            if d == d_prime:
+                return pyo.Constraint.Skip
+            return m.Z_s[d_prime, w_s_prime] <= m.Z_s[d, w_s] - self.epsilon + self.M_2 * (2 - m.y[d, d_prime, w_s, w_s_prime] - m.A[d, d_prime, w_s, w_s_prime])
+
+        self.window_i = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_i_rule)
+        self.window_ii = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_ii_rule)
+
+
+        # -------- BEGIN N_i rules --------
+        # def N_i_1_rule(m, d, d_prime, w_s, w_s_prime):
+        #     return m.N_i[d, d_prime, w_s, w_s_prime] <= m.y[d, d_prime, w_s, w_s_prime]
+        #
+        # def N_i_2_rule(m, d, d_prime, w_s, w_s_prime):
+        #     return m.N_i[d, d_prime, w_s, w_s_prime] <= 1 - m.A[d, d_prime, w_s, w_s_prime]
+        #
+        # def N_i_3_rule(m, d, d_prime, w_s, w_s_prime):
+        #     return m.N_i[d, d_prime, w_s, w_s_prime] >= m.y[d, d_prime, w_s, w_s_prime] - m.A[
+        #         d, d_prime, w_s, w_s_prime]
+        #
+        # self.N_i_1 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=N_i_1_rule)
+        # self.N_i_2 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=N_i_2_rule)
+        # self.N_i_3 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=N_i_3_rule)
+        #
+        # # N_ii rules
+        # def N_ii_1_rule(m, d, d_prime, w_s, w_s_prime):
+        #     return m.N_ii[d, d_prime, w_s, w_s_prime] <= 1 - m.y[d, d_prime, w_s, w_s_prime]
+        #
+        # def N_ii_2_rule(m, d, d_prime, w_s, w_s_prime):
+        #     return m.N_ii[d, d_prime, w_s, w_s_prime] <= 1 - m.A[d, d_prime, w_s, w_s_prime]
+        #
+        # def N_ii_3_rule(m, d, d_prime, w_s, w_s_prime):
+        #     return m.N_ii[d, d_prime, w_s, w_s_prime] >= 1 - m.y[d, d_prime, w_s, w_s_prime] - m.A[
+        #         d, d_prime, w_s, w_s_prime]
+        #
+        # self.N_ii_1 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=N_ii_1_rule)
+        # self.N_ii_2 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=N_ii_2_rule)
+        # self.N_ii_3 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=N_ii_3_rule)
+
+        # window constraints
+        # def window_i_rule(m, d, d_prime, w_s, w_s_prime):
+        #     if d == d_prime:
+        #         return pyo.Constraint.Skip
+        #     return m.Z_e[d, w_s] <= m.Z_s[d_prime, w_s_prime] + self.M_1 * m.N_i[d, d_prime, w_s, w_s_prime]
+
+        # def window_ii_rule(m, d, d_prime, w_s, w_s_prime):
+        #     if d == d_prime:
+        #         return pyo.Constraint.Skip
+        #     return m.Z_s[d_prime, w_s_prime] <= m.Z_s[d, w_s] - self.epsilon + self.M_2 * m.N_ii[d, d_prime, w_s, w_s_prime]
+
+        # self.window_i = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_i_rule)
+        # self.window_ii = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_ii_rule)
+        # -------- END N_i rules --------
 
     @property
     def W_max(self):
