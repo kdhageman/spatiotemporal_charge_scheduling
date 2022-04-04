@@ -30,8 +30,8 @@ class BaseModel(pyo.ConcreteModel):
         self.positions_S = scenario.positions_S
         self.positions_w = scenario.positions_w
 
-        self.T_N = self._get_T_N()
-        self.T_W = self._get_T_W()
+        self.D_N = self._get_D_N()
+        self.D_W = self._get_D_W()
 
         # MODEL DEFINITION
         self.d = pyo.RangeSet(0, self.N_d - 1)
@@ -70,7 +70,7 @@ class BaseModel(pyo.ConcreteModel):
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - self.r_deplete[d] / self.v[d] * sum(
-                m.P[d, n, w_s] * self.T_N[d, n, w_s] for n in m.n)
+                m.P[d, n, w_s] * self.D_N[d, n, w_s] for n in m.n)
         )
 
         self.b_plus_calc = pyo.Constraint(
@@ -83,7 +83,7 @@ class BaseModel(pyo.ConcreteModel):
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - self.r_deplete[d] / self.v[d] * sum(
-                m.P[d, n, w_s] * self.T_W[d, n, w_s] for n in m.n)
+                m.P[d, n, w_s] * self.D_W[d, n, w_s] for n in m.n)
         )
 
         # lower and upper bounds of variables values
@@ -202,7 +202,7 @@ class BaseModel(pyo.ConcreteModel):
                         ax.plot(x, y, constants.W_COLORS[d], zorder=-1)
 
     def t(self, d, w_s):
-        return sum(self.P[d, n, w_s] * (self.T_N[d, n, w_s] + self.T_W[d, n, w_s]) for n in self.n) / self.v[d]
+        return sum(self.P[d, n, w_s] * (self.D_N[d, n, w_s] + self.D_W[d, n, w_s]) for n in self.n) / self.v[d]
 
     def schedule(self, d):
         """
@@ -214,7 +214,7 @@ class BaseModel(pyo.ConcreteModel):
         waiting_times = np.array(self.W[d, :]())
         return path, charging_times, waiting_times
 
-    def _get_T_N(self):
+    def _get_D_N(self):
         T_n = []
         for d in range(self.N_d):
             matr = []
@@ -238,7 +238,7 @@ class BaseModel(pyo.ConcreteModel):
         T_n = np.array(T_n).transpose(0, 2, 1)
         return T_n
 
-    def _get_T_W(self):
+    def _get_D_W(self):
         T_w = []
         for d in range(self.N_d):
             matr = []

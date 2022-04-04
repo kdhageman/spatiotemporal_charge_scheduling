@@ -92,8 +92,8 @@ class Simulation:
     @classmethod
     def from_base_model(cls, model, d, env=None):
         schedule = Schedule(*model.schedule(d))
-        params = Parameters(model.v[d], model.r_charge[d], model.r_deplete[d], model.B_start[d], model.T_N[d],
-                            model.T_W[0])
+        params = Parameters(model.v[d], model.r_charge[d], model.r_deplete[d], model.B_start[d], model.D_N[d],
+                            model.D_W[0])
         if not env:
             env = DeterministicEnvironment()
 
