@@ -34,6 +34,8 @@ class MultiUavModel(BaseModel):
         )
 
         def a_1_rule(m, d, d_prime, w_s, w_s_prime, s):
+            if d == d_prime:
+                return pyo.Constraint.Skip
             return m.o[d, d_prime, w_s, w_s_prime, s] <= m.P[d, s, w_s]
 
         self.a_1 = pyo.Constraint(
@@ -46,6 +48,8 @@ class MultiUavModel(BaseModel):
         )
 
         def a_2_rule(m, d, d_prime, w_s, w_s_prime, s):
+            if d == d_prime:
+                return pyo.Constraint.Skip
             return m.o[d, d_prime, w_s, w_s_prime, s] <= m.P[d_prime, s, w_s_prime]
 
         self.a_2 = pyo.Constraint(
@@ -58,6 +62,8 @@ class MultiUavModel(BaseModel):
         )
 
         def a_3_rule(m, d, d_prime, w_s, w_s_prime, s):
+            if d == d_prime:
+                return pyo.Constraint.Skip
             return m.o[d, d_prime, w_s, w_s_prime, s] >= m.P[d, s, w_s] + m.P[d_prime, s, w_s_prime] - 1
 
         self.a_3 = pyo.Constraint(
@@ -70,6 +76,8 @@ class MultiUavModel(BaseModel):
         )
 
         def A_calc_rule(m, d, d_prime, w_s, w_s_prime):
+            if d == d_prime:
+                return pyo.Constraint.Skip
             return m.O[d, d_prime, w_s, w_s_prime] == sum(m.o[d, d_prime, w_s, w_s_prime, s] for s in m.s)
 
         self.A_calc = pyo.Constraint(
