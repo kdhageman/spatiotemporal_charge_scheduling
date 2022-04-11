@@ -204,6 +204,12 @@ class BaseModel(pyo.ConcreteModel):
     def t(self, d, w_s):
         return sum(self.P[d, n, w_s] * (self.D_N[d, n, w_s] + self.D_W[d, n, w_s]) for n in self.n) / self.v[d]
 
+    def schedules(self):
+        schedules = []
+        for d in self.d:
+            schedules.append(self.schedule(d))
+        return schedules
+
     def schedule(self, d):
         """
         Return the schedule for this model
