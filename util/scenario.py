@@ -15,16 +15,27 @@ class Scenario:
             self.positions_S.append((x, y, z))
 
         self.positions_w = []
-        for drone in doc.get('drones', []):
+        drones = doc.get('drones', [])
+        self.N_w = max([len(d['waypoints']) for d in drones])
+
+        for drone in drones:
             waypoints = []
             for wp in drone.get('waypoints', []):
                 x, y, z = wp['x'], wp['y'], wp.get('z', 0)
                 waypoints.append((x, y, z))
+
+            # add padding waypoints to ensure all UAVs traverse the same number of waypoints
+            padcount = self.N_w - len(waypoints)
+            if padcount > 0:
+                padding_wp = waypoints[-1]
+                for _ in range(padcount):
+                    waypoints.append(padding_wp)
+
             self.positions_w.append(waypoints)
+
 
         self.N_d = len(self.positions_w)
         self.N_s = len(self.positions_S)
-        self.N_w = len(self.positions_w[0])
 
     @classmethod
     def from_file(cls, fname):
