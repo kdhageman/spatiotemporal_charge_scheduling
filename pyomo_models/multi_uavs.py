@@ -8,8 +8,8 @@ class MultiUavModel(BaseModel):
         self.epsilon = parameters.get("epsilon", 0.01)
         super().__init__(scenario, parameters)
 
-        self.M_1 = (self.W_max + max(self.C_max)) * self.N_w_s
-        self.M_2 = (self.W_max + max(self.C_max)) * self.N_w_s
+        self.M_1 = self.W_max * self.N_d * self.N_w_s
+        self.M_2 = self.M_1 + self.W_max
 
         # VARIABLES
         self.o = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)
@@ -106,4 +106,4 @@ class MultiUavModel(BaseModel):
 
     @property
     def W_max(self):
-        return sum([max(self.C_max[d], self.epsilon) for d in self.d])
+        return sum([self.C_max[d] + self.epsilon for d in self.d])

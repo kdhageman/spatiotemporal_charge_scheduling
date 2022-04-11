@@ -51,7 +51,7 @@ class BaseModel(pyo.ConcreteModel):
         self.b_arr = pyo.Var(self.d, self.w)
         self.b_min = pyo.Var(self.d, self.w_s)
         self.b_plus = pyo.Var(self.d, self.w_s)
-        self.alpha = pyo.Var(domain=pyo.NonNegativeReals)
+        self.alpha = pyo.Var()
 
         # CONSTRAINTS
         self.path_constraint = pyo.Constraint(

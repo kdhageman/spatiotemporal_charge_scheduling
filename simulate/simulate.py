@@ -17,16 +17,16 @@ class Schedule:
 
 
 class Parameters:
-    def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, T_N: np.ndarray, T_W: np.ndarray):
-        assert (T_N.ndim == 2)
-        assert (T_W.ndim == 2)
+    def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, D_N: np.ndarray, D_W: np.ndarray):
+        assert (D_N.ndim == 2)
+        assert (D_W.ndim == 2)
 
         self.v = v
         self.r_charge = r_charge
         self.r_deplete = r_deplete
         self.B_start = B_start
-        self.T_N = T_N
-        self.T_W = T_W
+        self.D_N = D_N
+        self.D_W = D_W
 
 
 class Environment:
@@ -109,15 +109,15 @@ class Simulation:
 
         for w_s in range(self.N_w_s):
             # time to node
-            dist_to_node = (self.params.T_N[:, w_s] * self.schedule.decisions[:, w_s]).sum()
+            dist_to_node = (self.params.D_N[:, w_s] * self.schedule.decisions[:, w_s]).sum()
             t_to_node = np.round(dist_to_node / self.params.v, 3)
             depletion = t_to_node * self.params.r_deplete
             cur_charge -= depletion
             cur_time += t_to_node
             charges.append(cur_charge)
             charge_timestamps.append(cur_time)
-            if cur_charge < 0:
-                return charges, charge_timestamps, charging_windows, False
+            # if cur_charge < 0:
+            #     return charges, charge_timestamps, charging_windows, False
 
             # waiting time
             t_wait = np.round(self.schedule.waiting_times[w_s], 3)
@@ -139,15 +139,15 @@ class Simulation:
                 charging_windows.append((ts_charge, t_charge, station))
 
             # to next waypoint
-            dist_to_waypoint = (self.params.T_W[:, w_s] * self.schedule.decisions[:, w_s]).sum()
+            dist_to_waypoint = (self.params.D_W[:, w_s] * self.schedule.decisions[:, w_s]).sum()
             t_to_waypoint = np.round(dist_to_waypoint / self.params.v, 3)
             depletion = t_to_waypoint * self.params.r_deplete
             cur_charge -= depletion
             cur_time += t_to_waypoint
             charges.append(cur_charge)
             charge_timestamps.append(cur_time)
-            if cur_charge < 0:
-                return charges, charge_timestamps, charging_windows, False
+            # if cur_charge < 0:
+            #     return charges, charge_timestamps, charging_windows, False
 
         return charges, charge_timestamps, charging_windows, True
 
