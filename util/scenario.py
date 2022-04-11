@@ -8,10 +8,7 @@ from util import distance, constants
 
 
 class Scenario:
-    def __init__(self, fname):
-        with open(fname, 'r') as f:
-            doc = yaml.load(f, Loader=Loader)
-
+    def __init__(self, doc):
         self.positions_S = []
         for charging_station in doc.get('charging_stations', []):
             x, y = charging_station['x'], charging_station['y']
@@ -28,6 +25,13 @@ class Scenario:
         self.N_d = len(self.positions_w)
         self.N_s = len(self.positions_S)
         self.N_w = len(self.positions_w[0])
+
+    @classmethod
+    def from_file(cls, fname):
+        with open(fname, 'r') as f:
+            doc = yaml.load(f, Loader=Loader)
+        return Scenario(doc)
+
 
     def plot(self, ax=None, draw_distances=True):
         if not ax:
