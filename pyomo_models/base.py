@@ -5,7 +5,7 @@ import pyomo.environ as pyo
 from matplotlib import pyplot as plt
 
 from util import constants
-from util.distance import dist
+from util.distance import dist3
 
 
 class BaseModel(pyo.ConcreteModel):
@@ -226,12 +226,12 @@ class BaseModel(pyo.ConcreteModel):
                 # distance to charging points
                 for s in range(self.N_s):
                     pos_S = self.positions_S[s]
-                    d = dist(cur_waypoint, pos_S)
+                    d = dist3(cur_waypoint, pos_S)
                     row.append(d)
 
                 # distance to next waypoint
                 next_waypoint = waypoints[w_s + 1]
-                d = dist(cur_waypoint, next_waypoint)
+                d = dist3(cur_waypoint, next_waypoint)
                 row.append(d)
                 matr.append(row)
             T_n.append(matr)
@@ -250,7 +250,7 @@ class BaseModel(pyo.ConcreteModel):
                 # distance to charging points
                 for s in range(self.N_s):
                     pos_S = self.positions_S[s]
-                    d = dist(next_waypoint, pos_S)
+                    d = dist3(next_waypoint, pos_S)
                     row.append(d)
 
                 row.append(0)

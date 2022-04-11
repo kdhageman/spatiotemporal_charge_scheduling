@@ -10,16 +10,16 @@ from util import distance, constants
 class Scenario:
     def __init__(self, doc):
         self.positions_S = []
-        for charging_station in doc.get('charging_stations', []):
-            x, y = charging_station['x'], charging_station['y']
-            self.positions_S.append((x, y))
+        for cs in doc.get('charging_stations', []):
+            x, y, z = cs['x'], cs['y'], cs.get('z', 0)
+            self.positions_S.append((x, y, z))
 
         self.positions_w = []
         for drone in doc.get('drones', []):
             waypoints = []
-            for waypoint in drone.get('waypoints', []):
-                x, y = waypoint['x'], waypoint['y']
-                waypoints.append((x, y))
+            for wp in drone.get('waypoints', []):
+                x, y, z = wp['x'], wp['y'], wp.get('z', 0)
+                waypoints.append((x, y, z))
             self.positions_w.append(waypoints)
 
         self.N_d = len(self.positions_w)
@@ -42,7 +42,7 @@ class Scenario:
             for d, s, w in product(range(self.N_d), range(self.N_s), range(self.N_w)):
                 pos_s = self.positions_S[s]
                 pos_w = self.positions_w[d][w]
-                dist = distance.dist(pos_s, pos_w)
+                dist = distance.dist3(pos_s, pos_w)
                 x = [pos_s[0], pos_w[0]]
                 y = [pos_s[1], pos_w[1]]
                 ax.plot(x, y, color='k', alpha=0.2)
@@ -82,7 +82,7 @@ class Scenario:
                 for w_s in range(self.N_w - 1):
                     pos_w_s = waypoints[w_s]
                     pos_w_d = waypoints[w_s + 1]
-                    dist = distance.dist(pos_w_s, pos_w_d)
+                    dist = distance.dist3(pos_w_s, pos_w_d)
 
                     alpha = 0.5  # SET ALPHA
 
