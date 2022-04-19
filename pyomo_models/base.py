@@ -280,8 +280,8 @@ class BaseModel(pyo.ConcreteModel):
         b_min = np.reshape(self.b_min[:, :](), (self.N_d, self.N_w_s))
         b_plus = np.reshape(self.b_plus[:, :](), (self.N_d, self.N_w_s))
 
-        T_N = (self.D_N * P).sum(axis=1) * np.reshape(self.v, (self.N_d, 1))
-        T_W = (self.D_W * P).sum(axis=1) * np.reshape(self.v, (self.N_d, 1))
+        T_N = (self.D_N * P).sum(axis=1) / np.reshape(self.v, (self.N_d, 1))
+        T_W = (self.D_W * P).sum(axis=1) / np.reshape(self.v, (self.N_d, 1))
 
         C_cum = np.cumsum(C, axis=1)
         W_cum = np.cumsum(W, axis=1)
