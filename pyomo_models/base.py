@@ -3,6 +3,7 @@ from itertools import product
 import numpy as np
 import pyomo.environ as pyo
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
 
 from util import constants
 from util.distance import dist3
@@ -264,3 +265,59 @@ class BaseModel(pyo.ConcreteModel):
             T_w.append(matr)
         T_w = np.array(T_w).transpose(0, 2, 1)
         return T_w
+
+    def plot_charge(self, d: int, ax=None, **kwargs):
+        """
+        Plot the optimized battery charge for drone 'd'
+        """
+        if ax is None:
+            _, ax = plt.subplots()
+
+        P = np.reshape(self.P[:, :, :](), (self.N_d, self.N_s + 1, self.N_w_s))
+        C = np.reshape(self.C[:, :](), (self.N_d, self.N_w_s)).round(7)
+        W = np.reshape(self.W[:, :](), (self.N_d, self.N_w_s)).round(7)
+        b_arr = np.reshape(self.b_arr[:, :](), (self.N_d, self.N_w))
+        b_min = np.reshape(self.b_min[:, :](), (self.N_d, self.N_w_s))
+        b_plus = np.reshape(self.b_plus[:, :](), (self.N_d, self.N_w_s))
+
+        T_N = (self.D_N * P).sum(axis=1) * np.reshape(self.v, (self.N_d, 1))
+        T_W = (self.D_W * P).sum(axis=1) * np.reshape(self.v, (self.N_d, 1))
+
+        C_cum = np.cumsum(C, axis=1)
+        W_cum = np.cumsum(W, axis=1)
+        T_N_cum = np.cumsum(T_N, axis=1)
+        T_W_cum = np.cumsum(T_W, axis=1)
+
+        t_cur = 0
+        b_cur = self.B_start[d]
+
+        X = [t_cur]
+        Y = [b_cur]
+
+        for w_s in self.w_s:
+            t_n = T_N[d, w_s]
+            t_w = T_W[d, w_s]
+            w = W[d, w_s]
+            c = C[d, w_s]
+
+            # update timestamps
+            for t in [t_n, w, c, t_w]:
+                t_cur += t
+                X.append(t_cur)
+            # update batteries
+            Y.append(b_min[d, w_s])  # after arriving at node
+            Y.append(b_min[d, w_s])  # after waiting at node
+            Y.append(b_plus[d, w_s])  # after charging at node
+            Y.append(b_arr[d, w_s + 1])  # after arriving at next waypoint
+
+            # charging windows
+            t_charging_window = T_N_cum[d, w_s] + W_cum[d, w_s]
+            if w_s > 1:
+                t_charging_window += C_cum[d, w_s - 1] + T_W_cum[d, w_s - 1]
+            s = np.where(P[d, :, w_s] == 1)[0][0]
+            if s != self.N_s:
+                rect = Rectangle((t_charging_window, 0), C[d, w_s], 1, color=constants.W_COLORS[s], ec=None, alpha=0.2,
+                                 zorder=-1)
+                ax.add_patch(rect)
+
+        ax.plot(X, Y, marker='o', **kwargs)
