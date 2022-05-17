@@ -23,6 +23,8 @@ class NaiveStrategy:
         decisions = [[] for _ in range(self.scenario.N_d)]
         waiting_times = [[] for _ in range(self.scenario.N_d)]
         charging_times = [[] for _ in range(self.scenario.N_d)]
+        status = ['at_waypoint'] * self.scenario.N_d
+        station_in_use = [0] * self.scenario.N_s
 
         t_curs = np.array(self.scenario.N_d * [0])
         waypoint_cur = np.array(self.scenario.N_d * [0])
@@ -34,57 +36,95 @@ class NaiveStrategy:
             w_s = waypoint_cur[d]
             w_next = w_s + 1
 
-            # find charge at next waypoint
-            pos_cur = self.scenario.positions_w[d][w_s]
-            print(d)
-            pos_next = self.scenario.positions_w[d][w_next]
-            dist_to_next = dist3(pos_cur, pos_next)
-            t_to_next_waypoint = dist_to_next / self.parameters['v'][d]
-            depletion = t_to_next_waypoint * self.parameters['r_deplete'][d]
+            if status[d] == 'at_waypoint':
+                # determine where to move next
 
-            b_at_next = b_curs[d] - depletion
+                # find charge at next waypoint
+                pos_cur = self.scenario.positions_w[d][w_s]
+                pos_next = self.scenario.positions_w[d][w_next]
+                dist_to_next = dist3(pos_cur, pos_next)
+                t_to_next_waypoint = dist_to_next / self.parameters['v'][d]
+                depletion = t_to_next_waypoint * self.parameters['r_deplete'][d]
 
-            # check if any charging station is reachable
-            distances_to_stations = []
-            for pos_station in self.scenario.positions_S:
-                dist = dist3(pos_next, pos_station)
-                distances_to_stations.append(dist)
-            min_dist = min(distances_to_stations)
-            depletion = min_dist / self.parameters['v'][d] * self.parameters['r_deplete'][d]
-            b_at_station = b_at_next - depletion
+                b_at_next = b_curs[d] - depletion
 
-            if b_at_station > 0:
-                # move to next waypoint
-                decision = [0] * self.scenario.N_s + [1]
-                decisions[d].append(decision)
-                waiting_times[d].append(0)
-                charging_times[d].append(0)
-                t_curs[d] = t_curs[d] + t_to_next_waypoint
-                b_curs[d] = b_at_next
-            else:
-                # move to closest charging station
+                # check if any charging station is reachable
                 distances_to_stations = []
                 for pos_station in self.scenario.positions_S:
-                    dist = dist3(pos_cur, pos_station)
+                    dist = dist3(pos_next, pos_station)
                     distances_to_stations.append(dist)
-                idx_min = np.argmin(distances_to_stations)
-                dist_min = distances_to_stations[idx_min]
-                t_min = dist_min / self.parameters['v'][d]
-                depletion = t_min * self.parameters['r_deplete'][d]
-                b_at_station = b_curs[d] - depletion
-                time_to_full = (self.parameters['B_max'] - b_at_station) / self.parameters['r_charge']
+                min_dist = min(distances_to_stations)
+                depletion = min_dist / self.parameters['v'][d] * self.parameters['r_deplete'][d]
+                b_at_station = b_at_next - depletion
 
-                # todo: check if in use
+                if b_at_station > 0:
+                    # move to next waypoint
+                    decision = [0] * self.scenario.N_s + [1]
+                    decisions[d].append(decision)
+                    waiting_times[d].append(0)
+                    charging_times[d].append(0)
+                    t_curs[d] = t_curs[d] + t_to_next_waypoint
+                    b_curs[d] = b_at_next
 
-                decision = [0] * (self.scenario.N_s + 1)
-                decision[idx_min] = 1
-                waiting_times.append(0)
-                charging_times.append(0)
+                    waypoint_cur[d] = waypoint_cur[d] + 1
 
-                pass
+                    print(f"drone {d} is moving from waypoint {w_s} to waypoint {w_next}")
+                else:
+                    # move to closest charging station
+                    distances_to_stations = []
+                    for pos_station in self.scenario.positions_S:
+                        dist = dist3(pos_cur, pos_station)
+                        distances_to_stations.append(dist)
+                    station = np.argmin(distances_to_stations)
+                    dist_min = distances_to_stations[station]
+                    t_min = dist_min / self.parameters['v'][d]
+                    depletion = t_min * self.parameters['r_deplete'][d]
+
+                    decision = [0] * (self.scenario.N_s + 1)
+                    decision[station] = 1
+                    decisions[d].append(decision)
+                    b_curs[d] = b_curs[d] - depletion
+                    t_curs[d] = t_curs[d] + t_min
+                    status[d] = 'arrived_at_station'
+
+                    print(f"drone {d} is moving from waypoint {w_s} to station {station}")
+
+            elif status[d] in ['arrived_at_station', 'finished_waiting']:
+                station = decisions[d][-1].index(1)
+                if station_in_use[station]:
+                    # must wait first
+                    t_wait = station_in_use[station] - t_curs[d]
+                    waiting_times[d].append(t_wait)
+                    t_curs[d] += t_wait
+                    status[d] = 'finished_waiting'
+                    print(f"drone {d} is waiting at station {station} after {t_wait:.1f}s")
+                else:
+                    # start charging without waiting
+                    t_charge = (self.parameters['B_max'] - b_curs[d]) / self.parameters['r_charge'][d]
+                    b_curs[d] = self.parameters['B_max']
+                    t_curs[d] = t_curs[d] + t_charge
+                    station_in_use[station] = t_curs[d]
+                    status[d] = 'finished_charging'
+                    waiting_times[d].append(0)
+                    charging_times[d].append(t_charge)
+                    print(f"drone {d} is charging at station {station}")
+            elif status[d] == 'finished_charging':
+                station = decisions[d][-1].index(1)
+                next_waypoint = waypoint_cur[d] + 1
+                pos_cur = self.scenario.positions_S[station]
+                pos_next = self.scenario.positions_w[d][next_waypoint]
+                dist = dist3(pos_cur, pos_next)
+                t = dist / self.parameters['v'][d]
+                depletion = t_to_next_waypoint * self.parameters['r_deplete'][d]
+                b_curs[d] -= depletion
+                t_curs[d] += t
+
+                station_in_use[station] = False
+                waypoint_cur[d] = next_waypoint
+                status[d] = 'at_waypoint'
+                print(f"drone {d} is moving from station {station} to waypoint {next_waypoint}")
 
             if waypoint_cur[d] == self.scenario.N_w - 1:
-                # reached last waypoint; no more decisions to make
                 finished[d] = True
 
-            waypoint_cur[d] = waypoint_cur[d] + 1
+        pass
