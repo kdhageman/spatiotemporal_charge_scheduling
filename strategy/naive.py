@@ -64,8 +64,10 @@ class NaiveStrategy:
                 depletion_st = t_st * self.parameters['r_deplete'][d]
                 depletion_total = depletion_wp + depletion_st
 
-                if b_curs[d] - depletion_total > 0:
-                    # move directly to next waypoint
+                if (b_curs[d] - depletion_total > 0) or (w_cur == self.scenario.N_w - 2):
+                    # move directly to next waypoint, if
+                    # 1. any station is reachable from the next waypoint when going directly
+                    # 2. the next waypoint is the final waypoint
                     t_curs[d] += t_wp
                     b_curs[d] -= depletion_wp
                     waypoint_cur[d] = w_cur + 1
