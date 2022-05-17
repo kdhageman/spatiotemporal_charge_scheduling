@@ -38,8 +38,7 @@ class BaseModel(pyo.ConcreteModel):
         self.d = pyo.RangeSet(0, self.N_d - 1)
         self.s = pyo.RangeSet(0, self.N_s - 1)
         self.w = pyo.RangeSet(0, self.N_w - 1)
-        self.w_s = pyo.RangeSet(0, self.N_w - 2)
-        self.w_d = pyo.RangeSet(1, self.N_w - 1)
+        self.w_s = pyo.RangeSet(0, self.N_w_s - 1)
         self.n = pyo.RangeSet(0, self.N_s)
 
         # VARIABLES

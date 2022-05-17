@@ -82,7 +82,7 @@ class WhiteNoiseEnvironment(Environment):
 
 
 class Simulation:
-    def __init__(self, schedule: Schedule, params: Parameters, env: Environment):
+    def __init__(self, schedule: Schedule, params: Parameters, env: Environment = DeterministicEnvironment):
         self.schedule = schedule
         self.params = params
         self.env = env
