@@ -39,6 +39,7 @@ class BaseModel(pyo.ConcreteModel):
         self.s = pyo.RangeSet(0, self.N_s - 1)
         self.w = pyo.RangeSet(0, self.N_w - 1)
         self.w_s = pyo.RangeSet(0, self.N_w_s - 1)
+        self.w_d = pyo.RangeSet(1, self.N_w - 1)
         self.n = pyo.RangeSet(0, self.N_s)
 
         # VARIABLES
@@ -46,12 +47,7 @@ class BaseModel(pyo.ConcreteModel):
         self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
         self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.W = pyo.Var(self.d, self.w_s, bounds=(0, self.W_max))
-
-        # state
-        self.b_arr = pyo.Var(self.d, self.w)
-        self.b_min = pyo.Var(self.d, self.w_s)
-        self.b_plus = pyo.Var(self.d, self.w_s)
-        self.alpha = pyo.Var()
+        self.alpha = pyo.Var()  # used for minmax
 
         # CONSTRAINTS
         self.path_constraint = pyo.Constraint(
@@ -60,48 +56,22 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: sum(m.P[d, n, w_s] for n in self.n) == 1
         )
 
-        # battery constraints
-        self.b_arr_start = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.b_arr[d, 0] == self.B_start[d]
-        )
-
-        self.b_min_calc = pyo.Constraint(
-            self.d,
-            self.w_s,
-            rule=lambda m, d, w_s: m.b_min[d, w_s] == m.b_arr[d, w_s] - self.r_deplete[d] / self.v[d] * sum(
-                m.P[d, n, w_s] * self.D_N[d, n, w_s] for n in m.n)
-        )
-
-        self.b_plus_calc = pyo.Constraint(
-            self.d,
-            self.w_s,
-            rule=lambda m, d, w_s: m.b_plus[d, w_s] == m.b_min[d, w_s] + self.r_charge[d] * m.C[d, w_s]
-        )
-
-        self.b_arr_calc = pyo.Constraint(
-            self.d,
-            self.w_s,
-            rule=lambda m, d, w_s: m.b_arr[d, w_s + 1] == m.b_plus[d, w_s] - self.r_deplete[d] / self.v[d] * sum(
-                m.P[d, n, w_s] * self.D_W[d, n, w_s] for n in m.n)
-        )
-
         # lower and upper bounds of variables values
         self.b_arr_llim = pyo.Constraint(
             self.d,
-            self.w,
-            rule=lambda m, d, w: m.b_arr[d, w] >= self.B_min
+            self.w_d,
+            rule=lambda m, d, w: m.b_arr(d, w) >= self.B_min
         )
 
         self.b_min_llim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_min[d, w_s] >= self.B_min
+            rule=lambda m, d, w_s: m.b_min(d, w_s) >= self.B_min
         )
         self.b_plus_ulim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_plus[d, w_s] <= self.B_max
+            rule=lambda m, d, w_s: m.b_plus(d, w_s) <= self.B_max
         )
 
         self.C_lim = pyo.Constraint(
@@ -146,6 +116,31 @@ class BaseModel(pyo.ConcreteModel):
         # randomize C
         for d, w_s in product(self.d, self.w_s):
             self.C[d, w_s] = np.random.rand() * self.C_max[d]
+
+    def b_arr(self, d, w):
+        """
+        Calculate the battery at arrival at waypoint 'w' for drone 'd'
+        """
+        if w == 0:
+            # base case
+            res = self.B_start[d]
+        else:
+            res = self.b_plus(d, w - 1) - self.r_deplete[d] / self.v[d] * sum(
+                self.P[d, n, w - 1] * self.D_W[d, n, w - 1] for n in self.n)
+        return res
+
+    def b_min(self, d, w_s):
+        """
+        Calculate the battery of drone 'd' when arriving at the next path node after waypoint 'w_s'
+        """
+        return self.b_arr(d, w_s) - self.r_deplete[d] / self.v[d] * sum(
+            self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
+
+    def b_plus(self, d, w_s):
+        """
+        Calculate the battery of drone 'd' after charging after waypoint 'w_s'
+        """
+        return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
 
     @property
     def W_max(self):
