@@ -1,3 +1,4 @@
+import logging
 from unittest import TestCase
 
 import numpy as np
@@ -9,9 +10,34 @@ from util.scenario import Scenario
 
 class TestSimulator(TestCase):
 
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("pyomo").setLevel(logging.INFO)
+
     def test_simulator(self):
-        # sc = Scenario.from_file("scenarios/two_longer_path.yml")
-        sc = Scenario.from_file("scenarios/two_drones.yml")
+        sc = Scenario.from_file("scenarios/two_longer_path.yml")
+        # sc = Scenario.from_file("scenarios/two_drones.yml")
+
+        p = dict(
+
+            v=[1, 1],
+            r_charge=[0.15, 0.15],
+            r_deplete=[0.3, 0.3],
+            B_min=[0.1, 0.1],
+            B_max=[1, 1],
+            B_start=[1, 1],
+        )
+        delta = 3
+        W = 10
+
+        params = Parameters(**p)
+
+        simulator = Simulator(Scheduler, params, sc, delta, W)
+        env = simulator.sim()
+        print(env.now)
+
+    def test_prepare_scenario(self):
+        original_sc = Scenario.from_file("scenarios/two_longer_path.yml")
 
         p = dict(
 
@@ -27,8 +53,25 @@ class TestSimulator(TestCase):
 
         params = Parameters(**p)
 
-        simulator = Simulator(Scheduler, params, sc, delta, W)
-        simulator.sim()
+        simulator = Simulator(Scheduler, params, original_sc, delta, W)
+        sc = simulator.prepare_scenario(first=True)
+        self.assertTrue(len(sc.positions_w), 2)
+        for wps in sc.positions_w:
+            self.assertEqual(len(wps), W)
+
+        positions = [(0, 0, 0), (0, 0, 0)]
+        sc = simulator.prepare_scenario(positions=positions)
+        self.assertTrue(len(sc.positions_w), 2)
+        for wps in sc.positions_w:
+            self.assertEqual(len(wps), W)
+
+        # test for padding (# of waypoints = 20)
+        simulator.current_waypoint_idx[0] = 19
+        simulator.current_waypoint_idx[1] = 18
+        sc = simulator.prepare_scenario(positions=positions)
+        self.assertTrue(len(sc.positions_w), 2)
+        for wps in sc.positions_w:
+            self.assertEqual(len(wps), W)
 
 
 class TestScheduler(TestCase):
@@ -69,9 +112,9 @@ class TestUAV(TestCase):
             charging_stations.append(resource)
 
         def uav_cb(event):
-            print(f"{event.env.now} {event.value.name}")
+            print(f"{event.env.now} {event.node.name}")
 
-        uav = UAV(charging_stations, v, r_charge=0.1, r_deplete=0.1)
+        uav = UAV(0, charging_stations, v, r_charge=0.1, r_deplete=0.1)
         uav.set_schedule(nodes)
         uav_proc = env.process(uav.sim(env, callbacks=[uav_cb]))
 
