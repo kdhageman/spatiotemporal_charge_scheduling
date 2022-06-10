@@ -60,18 +60,18 @@ class BaseModel(pyo.ConcreteModel):
         self.b_arr_llim = pyo.Constraint(
             self.d,
             self.w_d,
-            rule=lambda m, d, w: m.b_arr(d, w) >= self.B_min
+            rule=lambda m, d, w: m.b_arr(d, w) >= self.B_min[d]
         )
 
         self.b_min_llim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_min(d, w_s) >= self.B_min
+            rule=lambda m, d, w_s: m.b_min(d, w_s) >= self.B_min[d]
         )
         self.b_plus_ulim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_plus(d, w_s) <= self.B_max
+            rule=lambda m, d, w_s: m.b_plus(d, w_s) <= self.B_max[d]
         )
 
         self.C_lim = pyo.Constraint(
@@ -259,6 +259,27 @@ class BaseModel(pyo.ConcreteModel):
             T_w.append(matr)
         T_w = np.array(T_w).transpose(0, 2, 1)
         return T_w
+
+    @property
+    def P_np(self):
+        """
+        Returns the chosen path decision variable (P) as a numpy array
+        """
+        return np.reshape(self.P[:, :, :](), (self.N_d, self.N_s + 1, self.N_w_s))
+
+    @property
+    def C_np(self):
+        """
+        Return the charging time decision variable (C) as a numpy array
+        """
+        return np.reshape(self.C[:, :](), (self.N_d, self.N_w_s))
+
+    @property
+    def W_np(self):
+        """
+        Return the waiting time decision variable (W) as a numpy array
+        """
+        return np.reshape(self.W[:, :](), (self.N_d, self.N_w_s))
 
     def plot_charge(self, d: int, ax=None, **kwargs):
         """

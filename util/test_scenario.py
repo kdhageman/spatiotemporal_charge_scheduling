@@ -1,4 +1,7 @@
+import tempfile
 from unittest import TestCase
+
+import yaml
 
 from util.scenario import Scenario
 
@@ -41,8 +44,11 @@ class TestScenario(TestCase):
                 ]}
             ],
         }
+        with tempfile.NamedTemporaryFile(mode='w') as f:
+            yaml.dump(doc, f)
+            s = Scenario.from_file(f.name)
 
-        s = Scenario(doc)
+        # s = Scenario(doc)
         self.assertEqual(len(s.positions_S), 2)
         self.assertEqual(len(s.positions_w), 1)
         self.assertEqual(len(s.positions_w[0]), 5)

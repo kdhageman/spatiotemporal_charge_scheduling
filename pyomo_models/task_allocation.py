@@ -146,7 +146,7 @@ class Schedule:
             _, ax = plt.subplots()
 
         path = [sc.positions_start[d]]
-        for t in self.model.t:
+        for t in self.model.t_start:
             n = self.P[d, :, t].tolist().index(1)
             path.append(sc.positions_n[n])
 
@@ -310,7 +310,7 @@ class TaskAllocationModel(pyo.ConcreteModel):
         # INSPECTION CONSTRAINTS
         self.inspection_constraint = pyo.Constraint(
             self.w,
-            rule=lambda m, w: sum(m.P[d, w, t] * m.I[d, t] * m.i[d] for d, t in product(m.d, m.t)) >= m.R[w]
+            rule=lambda m, w: sum(m.P[d, w, t] * m.I[d, t] * m.i[d] for d, t in product(m.d, m.t_start)) >= m.R[w]
         )
 
     def inspection_time_at_t(self, d, t):

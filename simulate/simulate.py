@@ -1,8 +1,58 @@
+from enum import Enum
 import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
+import simpy
+from pyomo.opt import SolverFactory
+from pyomo_models.multi_uavs import MultiUavModel
+from util.distance import dist3
+from util.scenario import Scenario
 
-from util import constants
+
+class NodeType(Enum):
+    Waypoint = "waypoint"
+    ChargingStation = "charging_station"
+
+
+class Node:
+    def __init__(self, x, y, z, wt, ct):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.wt = wt
+        self.ct = ct
+
+    @property
+    def pos(self):
+        return np.array([self.x, self.y, self.z])
+
+    def dist(self, other):
+        return dist3(self.pos, other.pos)
+
+    def direction(self, other):
+        """
+        Unit vector in the direction of the other node
+        """
+        dir_vector = other.pos - self.pos
+        return dir_vector / np.linalg.norm(dir_vector)
+
+    def node_type(self):
+        raise NotImplementedError
+
+
+class ChargingStation(Node):
+    def __init__(self, x, y, z, identifier, wt=0, ct=0):
+        super().__init__(x, y, z, wt, ct)
+        self.identifier = identifier
+
+    def node_type(self):
+        return NodeType.ChargingStation
+
+
+class Waypoint(Node):
+    def __init__(self, x, y, z):
+        super().__init__(x, y, z, 0, 0)
+
+    def node_type(self):
+        return NodeType.Waypoint
 
 
 class Schedule:
@@ -17,16 +67,26 @@ class Schedule:
 
 
 class Parameters:
-    def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, D_N: np.ndarray, D_W: np.ndarray):
-        assert (D_N.ndim == 2)
-        assert (D_W.ndim == 2)
+    def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, B_min: float, B_max: float,
+                 epsilon: float = 0.1):
+        self.v = np.array(v)
+        self.r_charge = np.array(r_charge)
+        self.r_deplete = np.array(r_deplete)
+        self.B_start = np.array(B_start)
+        self.B_min = np.array(B_min)
+        self.B_max = np.array(B_max)
+        self.epsilon = np.array(epsilon)
 
-        self.v = v
-        self.r_charge = r_charge
-        self.r_deplete = r_deplete
-        self.B_start = B_start
-        self.D_N = D_N
-        self.D_W = D_W
+    def as_dict(self):
+        return dict(
+            v=self.v,
+            r_charge=self.r_charge,
+            r_deplete=self.r_deplete,
+            B_start=self.B_start,
+            B_min=self.B_min,
+            B_max=self.B_max,
+            epsilon=self.epsilon,
+        )
 
 
 class Environment:
@@ -52,116 +112,256 @@ class DeterministicEnvironment(Environment):
         return x
 
 
-def nonnegative(func):
-    def f(*args, **kwargs):
-        res = -1
-        while res < 0:
-            res = func(*args, **kwargs)
+class EventValue:
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+
+class UavStateType(Enum):
+    Idle = "idle"
+    Moving = "moving"
+    Waiting = "waiting"
+    Charging = "charging"
+
+
+class UavState:
+    def __init__(self, state_type: UavStateType, pos: list, battery: float):
+        self.state_type = state_type
+        self.pos = pos
+        self.battery = battery
+
+
+class UAV:
+    def __init__(self, charging_stations: list, v: float, r_charge: float, r_deplete: float,
+                 battery: float = 1):
+        """
+        :param nodes: list of Waypoints and ChargingStations to visit in order
+        :param charging_stations: list of simpy.Resources to allocate
+        :param v: velocity of the UAV
+        :param r_charge: charging rate
+        :param r_deplete: depletion rate
+        """
+        self.nodes = None
+
+        self.charging_stations = charging_stations  # simpy shared resources
+
+        self.t_start = 0
+        self.state_type = None
+        self.battery = battery
+        self.r_charge = r_charge
+        self.r_deplete = r_deplete
+        self.v = v
+        self.node_idx = 0  # node index
+
+    def set_schedule(self, nodes: list):
+        self.nodes = nodes
+
+    def get_state(self, env):
+        """
+        Returns the position and batter charge of the UAV.
+        """
+        t_passed = env.now - self.t_start
+        if self.state_type == UavStateType.Moving:
+            battery = self.battery - t_passed * self.r_deplete
+            start_pos = self.nodes[self.node_idx].pos
+            dir_vector = self.nodes[self.node_idx].direction(self.nodes[self.node_idx + 1])
+            traveled_distance = t_passed * self.v
+            travel_vector = dir_vector * traveled_distance
+            pos = start_pos + travel_vector
+            res = UavState(
+                state_type=self.state_type,
+                pos=pos,
+                battery=battery,
+            )
+        elif self.state_type == UavStateType.Charging:
+            battery = min(self.battery + t_passed * self.r_charge, 1)
+            res = UavState(
+                state_type=self.state_type,
+                pos=self.nodes[self.node_idx].pos,
+                battery=battery,
+            )
+        elif self.state_type in [UavStateType.Waiting, UavStateType.Idle]:
+            res = UavState(
+                state_type=self.state_type,
+                pos=self.nodes[self.node_idx].pos,
+                battery=self.battery,
+            )
         return res
 
-    return f
+    # TODO: add event for when the UAV crashes
+    def sim(self, env, callbacks=[]):
+        while True:
+            if self.node_idx >= len(self.nodes) - 1:
+                break
+            node_cur = self.nodes[self.node_idx]
+            node_next = self.nodes[self.node_idx + 1]
+            distance = node_cur.dist(node_next)
+            t_move = distance / self.v
+
+            # move to node
+            self.state_type = UavStateType.Moving
+            self.t_start = env.now
+            event = env.timeout(t_move, value=EventValue("reached", node_next))
+            for cb in callbacks:
+                event.callbacks.append(cb)
+
+            def cb(_):
+                self.node_idx += 1
+                self.battery -= t_move * self.r_deplete
+                self.state_type = UavStateType.Idle
+
+            event.callbacks.append(cb)
+            yield event
+
+            # wait at node
+            waiting_time = node_next.wt
+            if waiting_time > 0:
+                self.state_type = UavStateType.Waiting
+                self.t_start = env.now
+                event = env.timeout(waiting_time, value=EventValue("waited", node_next))
+                for cb in callbacks:
+                    event.callbacks.append(cb)
+
+                def cb(_):
+                    self.state_type = UavStateType.Idle
+
+                event.callbacks.append(cb)
+                yield event
+
+            # charge at node
+            charging_time = node_next.ct
+            if charging_time > 0:
+                self.state_type = UavStateType.Charging
+                self.t_start = env.now
+                resource = self.charging_stations[node_next.identifier]
+                req = resource.request()
+                yield req
+
+                event = env.timeout(charging_time, value=EventValue("charged", node_next))
+                for cb in callbacks:
+                    event.callbacks.append(cb)
+
+                def cb(_):
+                    self.battery = min(self.battery + charging_time * self.r_charge, 1)
+                    self.state_type = UavStateType.Idle
+                    resource.release(req)
+
+                event.callbacks.append(cb)
+                yield event
 
 
-class WhiteNoiseEnvironment(Environment):
-    def __init__(self, d_scale=0.1, v_scale=0.1, dep_scale=0.1):
-        self.d_scale = d_scale
-        self.v_scale = v_scale
-        self.dep_scale = dep_scale
+class TimeStepper:
+    def __init__(self, interval):
+        self.interval = interval
 
-    @nonnegative
-    def distance(self, x):
-        return x + x * np.random.normal(0, self.d_scale)
-
-    @nonnegative
-    def velocity(self, x):
-        return x + x * np.random.normal(0, self.v_scale)
-
-    @nonnegative
-    def depletion(self, x):
-        return x + x * np.random.normal(0, self.dep_scale)
+    def sim(self, env, callbacks=[]):
+        while True:
+            event = env.timeout(self.interval)
+            for cb in callbacks:
+                event.callbacks.append(cb)
+            yield event
 
 
-class Simulation:
-    def __init__(self, schedule: Schedule, params: Parameters, env: Environment = DeterministicEnvironment):
-        self.schedule = schedule
+class Scheduler:
+    def __init__(self, params: Parameters, scenario: Scenario):
         self.params = params
-        self.env = env
+        self.scenario = scenario
 
-        self.N_s, self.N_w_s = schedule.decisions.shape
+    def schedule(self, solver=SolverFactory("gurobi")):
+        """
+        Return the most recent schedule
+        :return: path to follow, dim = N_d x (W - 1) x (N_s + 1)
+        :return: charging times, dim = N_d x (W - 1)
+        :return: waiting times, dim = N_d x (W - 1)
+        """
+        model = MultiUavModel(scenario=self.scenario, parameters=self.params.as_dict())
+        _ = solver.solve(model, tee=True)
+        # TODO: handle solution of model solving
 
-    @classmethod
-    def from_base_model(cls, model, d, env=None):
-        schedule = Schedule(*model.schedule(d))
-        params = Parameters(model.v[d], model.r_charge[d], model.r_deplete[d], model.B_start[d], model.D_N[d],
-                            model.D_W[0])
-        if not env:
-            env = DeterministicEnvironment()
+        res = []
+        for d in model.d:
+            nodes = [
+                Waypoint(*self.scenario.positions_w[d][0])
+            ]
+            for w_s in model.w_s:
+                n = model.P_np[d, :, w_s].tolist().index(1)
+                if n < model.N_s:
+                    ct = model.C_np[d][w_s]
+                    wt = model.W_np[d][w_s]
+                    nodes.append(
+                        ChargingStation(*self.scenario.positions_S[n], n, wt, ct)
+                    )
+                nodes.append(
+                    Waypoint(*self.scenario.positions_w[d][w_s + 1])
+                )
+            res.append(nodes)
+        return res
 
-        return Simulation(schedule, params, env)
 
-    def simulate(self):
-        # Potential plot fixing
-        cur_charge = self.params.B_start
-        cur_time = 0
-        charges = [cur_charge]
-        charge_timestamps = [cur_time]
-        charging_windows = []
+class NaiveScheduler(Scheduler):
+    """
+    Subsclass of the scheduler which follows a naive strategy
+    """
 
-        for w_s in range(self.N_w_s):
-            # time to node
-            dist_to_node = (self.params.D_N[:, w_s] * self.schedule.decisions[:, w_s]).sum()
-            t_to_node = np.round(dist_to_node / self.params.v, 3)
-            depletion = t_to_node * self.params.r_deplete
-            cur_charge -= depletion
-            cur_time += t_to_node
-            charges.append(cur_charge)
-            charge_timestamps.append(cur_time)
-            # if cur_charge < 0:
-            #     return charges, charge_timestamps, charging_windows, False
+    def __init__(self, params: Parameters, scenario: Scenario):
+        self.params = params
+        self.scenario = scenario
 
-            # waiting time
-            t_wait = np.round(self.schedule.waiting_times[w_s], 3)
-            cur_time += t_wait
-            charges.append(cur_charge)
-            charge_timestamps.append(cur_time)
+    def schedule(self):
+        pass
 
-            # charge time
-            ts_charge = cur_time
-            t_charge = np.round(self.schedule.charging_times[w_s], 3)
-            charged = t_charge * self.params.r_charge
-            cur_charge += charged
-            cur_time += t_charge
-            charges.append(cur_charge)
-            charge_timestamps.append(cur_time)
 
-            station = np.where(np.round(self.schedule.decisions[:, w_s]) == 1)[0][0]
-            if station != self.N_s:
-                charging_windows.append((ts_charge, t_charge, station))
+class Simulator:
+    def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, delta: float, W: int):
+        self.scheduler_cls = scheduler_cls
+        self.delta = delta
+        self.params = params
+        self.sc = sc
+        self.W = W
 
-            # to next waypoint
-            dist_to_waypoint = (self.params.D_W[:, w_s] * self.schedule.decisions[:, w_s]).sum()
-            t_to_waypoint = np.round(dist_to_waypoint / self.params.v, 3)
-            depletion = t_to_waypoint * self.params.r_deplete
-            cur_charge -= depletion
-            cur_time += t_to_waypoint
-            charges.append(cur_charge)
-            charge_timestamps.append(cur_time)
-            # if cur_charge < 0:
-            #     return charges, charge_timestamps, charging_windows, False
+        self.timestepper = TimeStepper(delta)
 
-        return charges, charge_timestamps, charging_windows, True
+    def sim(self):
+        env = simpy.Environment()
 
-    def plot_charge(self, ax=None, **kwargs):
-        if not ax:
-            _, ax = plt.subplots()
-        charges, charge_timestamps, charging_windows, ok = self.simulate()
-        ax.plot(charge_timestamps, charges, marker='o', **kwargs)
-        for x_rect, width_rect, s in charging_windows:
-            rect = Rectangle((x_rect, 0), width_rect, 1, color=constants.W_COLORS[s], ec=None, alpha=0.2, zorder=-1)
-            ax.add_patch(rect)
-        ax.set_xticks([])
-        ax.set_ylim(0, 1)
-        ax.set_ylabel("Charge")
-        ax.set_xlabel("Arrival time at node")
-        ax.grid(axis='y')
-        return ok
+        # prepare waypoint indices
+        current_waypoint_idx = []
+        for d in range(self.sc.N_d):
+            current_waypoint_idx.append(0)
+
+        # prepare shared resources
+        charging_stations = []
+        for s in range(self.sc.N_s):
+            charging_stations.append(simpy.Resource(env, capacity=1))
+
+        # prepare UAVs
+        uavs = []
+        for d in range(self.sc.N_d):
+            uav = UAV(charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d])
+            uavs.append(uav)
+
+        # convert scenario
+        positions_S = self.sc.positions_S
+        positions_w = []
+        for d in range(self.sc.N_d):
+            positions_w.append(self.sc.positions_w[d][:self.W])
+        sc = Scenario(positions_S, positions_w)
+
+        # get initial schedule
+        scheduler = self.scheduler_cls(self.params, self.sc)
+        schedules = scheduler.schedule()
+
+        for i, nodes in enumerate(schedules):
+            uavs[i].set_schedule(nodes)
+
+        # define callbacks
+        def uav_cb(event):
+            print(f"{event}")
+
+        # run simulation
+        for uav in uavs:
+            env.process(uav.sim(env, callbacks=[uav_cb]))
+        env.run()
+
+        print(env.now)

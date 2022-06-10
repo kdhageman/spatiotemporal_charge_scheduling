@@ -1,22 +1,90 @@
 from itertools import product
 
+import numpy as np
 import yaml
 from matplotlib import pyplot as plt
 from yaml import Loader
 
 from util import distance, constants
+from util.distance import dist3
 
 
 class Scenario:
-    def __init__(self, doc):
-        self.positions_S = []
+    def __init__(self, positions_S: list, positions_w: list):
+        """
+        :param positions_S: list of charging point positions (x,y,z coordinates)
+        :param positions_w: list of list of waypoint positions (x,y,z coordinates)
+        """
+        self.positions_S = positions_S
+        self.positions_w = positions_w
+
+        self.N_d = len(self.positions_w)
+        self.N_s = len(self.positions_S)
+        self.N_w = len(self.positions_w[0])
+        self.N_w_s = self.N_w - 1
+
+        # calculate distance matrices
+        self.D_N = self._get_D_N()
+        self.D_W = self._get_D_W()
+
+    def _get_D_N(self):
+        T_n = []
+        for d in range(self.N_d):
+            matr = []
+            waypoints = self.positions_w[d]
+            for w_s in range(self.N_w_s):
+                row = []
+                cur_waypoint = waypoints[w_s]
+
+                # distance to charging points
+                for s in range(self.N_s):
+                    pos_S = self.positions_S[s]
+                    d = dist3(cur_waypoint, pos_S)
+                    row.append(d)
+
+                # distance to next waypoint
+                next_waypoint = waypoints[w_s + 1]
+                d = dist3(cur_waypoint, next_waypoint)
+                row.append(d)
+                matr.append(row)
+            T_n.append(matr)
+        T_n = np.array(T_n).transpose(0, 2, 1)
+        return T_n
+
+    def _get_D_W(self):
+        T_w = []
+        for d in range(self.N_d):
+            matr = []
+            waypoints = self.positions_w[d]
+            for w_s in range(self.N_w_s):
+                row = []
+                next_waypoint = waypoints[w_s + 1]
+
+                # distance to charging points
+                for s in range(self.N_s):
+                    pos_S = self.positions_S[s]
+                    d = dist3(next_waypoint, pos_S)
+                    row.append(d)
+
+                row.append(0)
+                matr.append(row)
+            T_w.append(matr)
+        T_w = np.array(T_w).transpose(0, 2, 1)
+        return T_w
+
+    @classmethod
+    def from_file(cls, fname):
+        with open(fname, 'r') as f:
+            doc = yaml.load(f, Loader=Loader)
+
+        positions_S = []
         for cs in doc.get('charging_stations', []):
             x, y, z = cs['x'], cs['y'], cs.get('z', 0)
-            self.positions_S.append((x, y, z))
+            positions_S.append((x, y, z))
 
-        self.positions_w = []
+        positions_w = []
         drones = doc.get('drones', [])
-        self.N_w = max([len(d['waypoints']) for d in drones])
+        N_w = max([len(d['waypoints']) for d in drones])
 
         for drone in drones:
             waypoints = []
@@ -25,24 +93,15 @@ class Scenario:
                 waypoints.append((x, y, z))
 
             # add padding waypoints to ensure all UAVs traverse the same number of waypoints
-            padcount = self.N_w - len(waypoints)
+            padcount = N_w - len(waypoints)
             if padcount > 0:
                 padding_wp = waypoints[-1]
                 for _ in range(padcount):
                     waypoints.append(padding_wp)
 
-            self.positions_w.append(waypoints)
+            positions_w.append(waypoints)
 
-
-        self.N_d = len(self.positions_w)
-        self.N_s = len(self.positions_S)
-
-    @classmethod
-    def from_file(cls, fname):
-        with open(fname, 'r') as f:
-            doc = yaml.load(f, Loader=Loader)
-        return Scenario(doc)
-
+        return Scenario(positions_S, positions_w)
 
     def plot(self, ax=None, draw_distances=True):
         if not ax:
