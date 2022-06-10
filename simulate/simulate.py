@@ -50,8 +50,9 @@ class ChargingStation(Node):
 
 
 class Waypoint(Node):
-    def __init__(self, x, y, z):
+    def __init__(self, x, y, z, aux=False):
         super().__init__(x, y, z, 0, 0)
+        self.aux = aux
 
     def node_type(self):
         return NodeType.Waypoint
@@ -152,6 +153,7 @@ class UAV:
         """
         self.uav_id = uav_id
         self.nodes = None
+        self.start_node = None
 
         self.charging_stations = charging_stations  # simpy shared resources
 
@@ -165,6 +167,7 @@ class UAV:
 
     def set_schedule(self, nodes: list):
         self.nodes = nodes
+        self.start_node = nodes[0]
         self.node_idx = 0
 
     def get_state(self, env):
@@ -248,7 +251,8 @@ class UAV:
                 req = resource.request()
                 yield req
 
-                event = env.timeout(charging_time, value=Event(env.now, self.uav_id, "charged", self.battery, node_next))
+                event = env.timeout(charging_time,
+                                    value=Event(env.now, self.uav_id, "charged", self.battery, node_next))
                 for cb in callbacks:
                     event.callbacks.append(cb)
 
@@ -272,7 +276,10 @@ class TimeStepper:
             event = env.timeout(self.interval)
             for cb in callbacks:
                 event.callbacks.append(cb)
-            yield event
+            try:
+                yield event
+            except simpy.exceptions.Interrupt:
+                break
 
 
 class NotSolvableException(Exception):
@@ -301,8 +308,9 @@ class Scheduler:
 
         res = []
         for d in model.d:
+            start_pos = self.scenario.positions_w[d][0]
             nodes = [
-                Waypoint(*self.scenario.positions_w[d][0])
+                Waypoint(*self.scenario.positions_w[d][0], aux=True)
             ]
             for w_s in model.w_s:
                 n = model.P_np[d, :, w_s].tolist().index(1)
@@ -312,9 +320,10 @@ class Scheduler:
                     nodes.append(
                         ChargingStation(*self.scenario.positions_S[n], n, wt, ct)
                     )
-                nodes.append(
-                    Waypoint(*self.scenario.positions_w[d][w_s + 1])
-                )
+                wp = Waypoint(*self.scenario.positions_w[d][w_s + 1])
+                if np.array_equal(wp.pos, start_pos):
+                    wp.aux = True
+                nodes.append(wp)
             res.append(nodes)
         return res
 
@@ -347,8 +356,10 @@ class Simulator:
         self.current_waypoint_idx = []
         self.reset_waypoint_indices()
 
+        # used in callbacks
+        self.remaining = []
+
         # maintain history of simulation
-        # define callbacks
         self.events = []
         for _ in range(self.sc.N_d):
             self.events.append([])
@@ -378,6 +389,7 @@ class Simulator:
         self.logger.info(f"visiting {self.sc.N_w} waypoints per UAV in total")
         # convert scenario
         sc = self.prepare_scenario(first=True)
+        self.logger.debug("")
 
         # get initial schedule
         scheduler = self.scheduler_cls(self.params, sc)
@@ -388,8 +400,12 @@ class Simulator:
 
         def uav_cb(event):
             if event.value.name == "reached" and type(event.value.node) == Waypoint:
-                self.current_waypoint_idx[event.value.uav] += 1
-                self.logger.debug(f"UAV {event.value.uav} reached a new waypoint ({self.current_waypoint_idx[event.value.uav]})")
+                if not event.value.node.aux:
+                    self.current_waypoint_idx[event.value.uav] += 1
+                    wp = self.current_waypoint_idx[event.value.uav]
+                else:
+                    wp = f"{self.current_waypoint_idx[event.value.uav]} (aux)"
+                self.logger.debug(f"[{event.value.ts:.1f}] UAV {event.value.uav} reached a new waypoint ({wp})")
                 self.events[event.value.uav].append(event.value)
 
         def ts_cb(event):
@@ -410,11 +426,19 @@ class Simulator:
             for i, nodes in enumerate(schedules):
                 uavs[i].set_schedule(nodes)
 
-        # run simulation
         ts = env.process(self.timestepper.sim(env, callbacks=[ts_cb]))
-        # TODO: terminate the timestepper process when the UAV processes are done
+
+        self.remaining = self.sc.N_d
+
+        def uav_finished_cb():
+            self.logger.debug("uav finished")
+            self.remaining -= 1
+            if self.remaining == 0:
+                ts.interrupt()
+
+        # run simulation
         for uav in uavs:
-            env.process(uav.sim(env, callbacks=[uav_cb]))
+            env.process(uav.sim(env, callbacks=[uav_cb], finish_callbacks=[uav_finished_cb]))
         env.run(until=100)
 
         return env

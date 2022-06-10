@@ -20,15 +20,14 @@ def main():
         B_max=[1, 1],
         B_start=[1, 1],
     )
-    delta = 100
-    W = 100
+    delta = 35
+    W = 7
 
     params = Parameters(**p)
 
     simulator = Simulator(Scheduler, params, sc, delta, W)
     try:
         env = simulator.sim()
-        print(env.now)
     except NotSolvableException as e:
         logger.fatal(f"failure during simulation: {e}")
     _, axes = plt.subplots(nrows=sc.N_d)
