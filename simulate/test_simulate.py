@@ -3,6 +3,7 @@ from unittest import TestCase
 
 import numpy as np
 import simpy
+from simpy import Resource
 
 from simulate.simulate import Parameters, Scheduler, Simulator, UAV, Waypoint, ChargingStation, TimeStepper, Node
 from util.scenario import Scenario
@@ -13,6 +14,7 @@ class TestSimulator(TestCase):
     def setUp(self):
         logging.basicConfig(level=logging.DEBUG)
         logging.getLogger("pyomo").setLevel(logging.INFO)
+        logging.getLogger("matplotlib").setLevel(logging.ERROR)
 
     def test_simulator(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -27,7 +29,8 @@ class TestSimulator(TestCase):
             B_max=[1, 1],
             B_start=[1, 1],
         )
-        delta = 3
+        # delta = 10
+        delta = 1
         W = 10
 
         params = Parameters(**p)
@@ -86,11 +89,10 @@ class TestScheduler(TestCase):
             B_start=[1, 1],
         )
         params = Parameters(**p)
-        W = 4
 
-        scheduler = Scheduler(params=params, scenario=sc, W=W)
-        scheduler.schedule()
-        # TODO: add assertions
+        scheduler = Scheduler(params=params, scenario=sc)
+        _, schedules = scheduler.schedule()
+        self.assertTrue(len(schedules), 2)
 
 
 class TestUAV(TestCase):
@@ -112,7 +114,7 @@ class TestUAV(TestCase):
             charging_stations.append(resource)
 
         def uav_cb(event):
-            print(f"{event.env.now} {event.node.name}")
+            print(f"{event.env.now} {event.value.name}")
 
         uav = UAV(0, charging_stations, v, r_charge=0.1, r_deplete=0.1)
         uav.set_schedule(nodes)
@@ -128,6 +130,56 @@ class TestUAV(TestCase):
         env.run(until=uav_proc)
 
         self.assertEqual(env.now, 12)
+
+    def test_get_state(self):
+        """
+        Moving a UAV in the following pattern, with the 'o' representing the time stepper evaluation
+        2 --o------ 3
+        |           |
+        |           o
+        |           |
+        |           |
+        1 --o------ 4
+        """
+        env = simpy.Environment()
+        charging_stations = [
+            Resource(env)
+        ]
+        uav = UAV(0, charging_stations, 1, 0.1, 0.1, 1)
+        nodes = [
+            Waypoint(0, 0, 0),
+            Waypoint(0, 2, 0),
+            ChargingStation(0, 5, 0, identifier=0, wt=0, ct=0),
+            Waypoint(1, 5, 0),
+            Waypoint(5, 5, 0),
+            ChargingStation(5, 3, 0, identifier=0, wt=0, ct=0),
+            ChargingStation(5, 0, 0, identifier=0, wt=0, ct=0),
+            Waypoint(4, 0, 0),
+            Waypoint(1, 0, 0),
+            Waypoint(0, 0, 0),
+        ]
+        uav.set_schedule(nodes)
+        proc = env.process(uav.sim(env))
+
+        self.counter = 0
+        expected_arrs = [
+            np.array([1, 5, 0]),
+            np.array([5, 3, 0]),
+            np.array([2, 0, 0]),
+        ]
+
+        timestepper = TimeStepper(interval=6)
+
+        def ts_cb(_):
+            state = uav.get_state(env)
+            actual = state.pos
+            expected = expected_arrs[self.counter]
+            self.assertTrue(np.array_equal(actual, expected))
+            self.counter += 1
+
+        env.process(timestepper.sim(env, callbacks=[ts_cb]))
+
+        env.run(until=proc)
 
 
 class TestNode(TestCase):

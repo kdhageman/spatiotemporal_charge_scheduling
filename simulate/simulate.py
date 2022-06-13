@@ -3,8 +3,10 @@ import logging
 from enum import Enum
 import numpy as np
 import simpy
+from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 from pyomo_models.multi_uavs import MultiUavModel
+from util.decorators import timed
 from util.distance import dist3
 from util.scenario import Scenario
 
@@ -269,13 +271,18 @@ class UAV:
 
 class TimeStepper:
     def __init__(self, interval):
+        self.timestep = 0
         self.interval = interval
+
+    def _inc(self, _):
+        self.timestep += 1
 
     def sim(self, env, callbacks=[]):
         while True:
             event = env.timeout(self.interval)
             for cb in callbacks:
                 event.callbacks.append(cb)
+            event.callbacks.append(self._inc)
             try:
                 yield event
             except simpy.exceptions.Interrupt:
@@ -292,6 +299,7 @@ class Scheduler:
         self.params = params
         self.scenario = scenario
 
+    @timed
     def schedule(self, solver=SolverFactory("gurobi")):
         """
         Return the most recent schedule
@@ -303,8 +311,6 @@ class Scheduler:
         solution = solver.solve(model)
         if solution['Solver'][0]['Termination condition'] != 'optimal':
             raise NotSolvableException("non-optimal solution")
-        solve_time = solution['Solver'][0]['Time']
-        self.logger.debug(f"solved MILP in {solve_time:.2f}s")
 
         res = []
         for d in model.d:
@@ -389,11 +395,11 @@ class Simulator:
         self.logger.info(f"visiting {self.sc.N_w} waypoints per UAV in total")
         # convert scenario
         sc = self.prepare_scenario(first=True)
-        self.logger.debug("")
 
         # get initial schedule
         scheduler = self.scheduler_cls(self.params, sc)
-        schedules = scheduler.schedule()
+        t_solve, schedules = scheduler.schedule()
+        self.logger.debug(f"[{env.now}] scheduled in {t_solve:.1f}s")
 
         for i, nodes in enumerate(schedules):
             uavs[i].set_schedule(nodes)
@@ -417,11 +423,19 @@ class Simulator:
                 batteries.append(state.battery)
             sc = self.prepare_scenario(positions)
 
+            # TODO: remove this plotting step
+            _, ax = plt.subplots()
+            sc.plot(ax=ax, draw_distances=False)
+            ax.set_xlim([-.5, 4])
+            ax.set_ylim([-2.75, 1.25])
+            plt.savefig(f"out/simulation/scenarios/scenario_{self.timestepper.timestep:04}.pdf", bbox_inches='tight')
+
             params = self.params.copy()
             params.B_start = np.array(batteries)
 
             scheduler = Scheduler(params, sc)
-            schedules = scheduler.schedule()
+            t_solve, schedules = scheduler.schedule()
+            self.logger.debug(f"[{env.now}] scheduled in {t_solve:.1f}s")
 
             for i, nodes in enumerate(schedules):
                 uavs[i].set_schedule(nodes)
