@@ -12,6 +12,7 @@ from util.scenario import Scenario
 
 
 class NodeType(Enum):
+    AuxWaypoint = "auxiliary_waypoint"
     Waypoint = "waypoint"
     ChargingStation = "charging_station"
 
@@ -38,6 +39,7 @@ class Node:
         dir_vector = other.pos - self.pos
         return dir_vector / np.linalg.norm(dir_vector)
 
+    @property
     def node_type(self):
         raise NotImplementedError
 
@@ -47,17 +49,27 @@ class ChargingStation(Node):
         super().__init__(x, y, z, wt, ct)
         self.identifier = identifier
 
+    @property
     def node_type(self):
         return NodeType.ChargingStation
 
 
 class Waypoint(Node):
-    def __init__(self, x, y, z, aux=False):
+    def __init__(self, x, y, z):
         super().__init__(x, y, z, 0, 0)
-        self.aux = aux
 
+    @property
     def node_type(self):
         return NodeType.Waypoint
+
+
+class AuxWaypoint(Node):
+    def __init__(self, x, y, z):
+        super().__init__(x, y, z, 0, 0)
+
+    @property
+    def node_type(self):
+        return NodeType.AuxWaypoint
 
 
 class Schedule:
@@ -316,7 +328,7 @@ class Scheduler:
         for d in model.d:
             start_pos = self.scenario.positions_w[d][0]
             nodes = [
-                Waypoint(*self.scenario.positions_w[d][0], aux=True)
+                AuxWaypoint(*self.scenario.positions_w[d][0])
             ]
             for w_s in model.w_s:
                 n = model.P_np[d, :, w_s].tolist().index(1)
@@ -395,24 +407,43 @@ class Simulator:
         self.logger.info(f"visiting {self.sc.N_w} waypoints per UAV in total")
         # convert scenario
         sc = self.prepare_scenario(first=True)
+        _, ax = plt.subplots()
+        sc.plot(ax=ax, draw_distances=False)
+        colors = ['red', 'blue']
+        for i, positions in enumerate(self.sc.positions_w):
+            x = [x for x, _, _ in positions]
+            y = [y for _, y, _ in positions]
+            ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
+
+        ax.set_xlim([-.5, 4])
+        ax.set_ylim([-2.75, 1.25])
+        plt.savefig(f"out/simulation/scenarios/scenario_{self.timestepper.timestep:04}.pdf", bbox_inches='tight')
+        self.timestepper._inc(_)
 
         # get initial schedule
         scheduler = self.scheduler_cls(self.params, sc)
         t_solve, schedules = scheduler.schedule()
         self.logger.debug(f"[{env.now}] scheduled in {t_solve:.1f}s")
+        for i, nodes in enumerate(schedules):
+            n_wp_aux = len([x for x in nodes if x.node_type == NodeType.AuxWaypoint])
+            n_stations = len([x for x in nodes if x.node_type == NodeType.ChargingStation])
+            self.logger.debug(
+                f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
 
         for i, nodes in enumerate(schedules):
             uavs[i].set_schedule(nodes)
 
         def uav_cb(event):
-            if event.value.name == "reached" and type(event.value.node) == Waypoint:
-                if not event.value.node.aux:
+            if event.value.name == "reached":
+                if event.value.node.node_type == NodeType.Waypoint:
                     self.current_waypoint_idx[event.value.uav] += 1
-                    wp = self.current_waypoint_idx[event.value.uav]
-                else:
-                    wp = f"{self.current_waypoint_idx[event.value.uav]} (aux)"
-                self.logger.debug(f"[{event.value.ts:.1f}] UAV {event.value.uav} reached a new waypoint ({wp})")
-                self.events[event.value.uav].append(event.value)
+                    reached_name = 'new waypoint'
+                elif event.value.node.node_type == NodeType.AuxWaypoint:
+                    reached_name = 'aux waypoint'
+                elif event.value.node.node_type == NodeType.ChargingStation:
+                    reached_name = "charging_station"
+                self.logger.debug(f"[{event.value.ts:.1f}] UAV {event.value.uav} reached a {reached_name}")
+            self.events[event.value.uav].append(event.value)
 
         def ts_cb(event):
             positions = []
@@ -426,6 +457,12 @@ class Simulator:
             # TODO: remove this plotting step
             _, ax = plt.subplots()
             sc.plot(ax=ax, draw_distances=False)
+            colors = ['red', 'blue']
+            for i, positions in enumerate(self.sc.positions_w):
+                x = [x for x, _, _ in positions]
+                y = [y for _, y, _ in positions]
+                ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
+
             ax.set_xlim([-.5, 4])
             ax.set_ylim([-2.75, 1.25])
             plt.savefig(f"out/simulation/scenarios/scenario_{self.timestepper.timestep:04}.pdf", bbox_inches='tight')
@@ -436,6 +473,11 @@ class Simulator:
             scheduler = Scheduler(params, sc)
             t_solve, schedules = scheduler.schedule()
             self.logger.debug(f"[{env.now}] scheduled in {t_solve:.1f}s")
+            for i, nodes in enumerate(schedules):
+                n_wp_aux = len([x for x in nodes if x.node_type == NodeType.AuxWaypoint])
+                n_stations = len([x for x in nodes if x.node_type == NodeType.ChargingStation])
+                self.logger.debug(
+                    f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
 
             for i, nodes in enumerate(schedules):
                 uavs[i].set_schedule(nodes)
@@ -464,6 +506,9 @@ class Simulator:
         :param first: true if the first W waypoints need to be used
         :return:
         """
+        if not positions and not first:
+            raise ValueError("must provide 'positions' OR 'first' parameter")
+
         positions_S = self.sc.positions_S
         positions_w = []
         for d in range(self.sc.N_d):

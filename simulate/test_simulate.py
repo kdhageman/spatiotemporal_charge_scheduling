@@ -15,6 +15,7 @@ class TestSimulator(TestCase):
         logging.basicConfig(level=logging.DEBUG)
         logging.getLogger("pyomo").setLevel(logging.INFO)
         logging.getLogger("matplotlib").setLevel(logging.ERROR)
+        logging.getLogger("gurobi").setLevel(logging.ERROR)
 
     def test_simulator(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -30,7 +31,7 @@ class TestSimulator(TestCase):
             B_start=[1, 1],
         )
         # delta = 10
-        delta = 1
+        delta = 0.5
         W = 10
 
         params = Parameters(**p)
