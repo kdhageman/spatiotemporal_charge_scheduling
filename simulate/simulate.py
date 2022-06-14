@@ -37,11 +37,16 @@ class Node:
         Unit vector in the direction of the other node
         """
         dir_vector = other.pos - self.pos
+        if np.linalg.norm(dir_vector) == 0:
+            return np.array([0, 0, 0])
         return dir_vector / np.linalg.norm(dir_vector)
 
     @property
     def node_type(self):
         raise NotImplementedError
+
+    def __repr__(self):
+        return f"({self.x}, {self.y}, {self.z})"
 
 
 class ChargingStation(Node):
@@ -52,6 +57,9 @@ class ChargingStation(Node):
     @property
     def node_type(self):
         return NodeType.ChargingStation
+
+    def __repr__(self):
+        return f"charging station ({self.identifier}) {super().__repr__()}"
 
 
 class Waypoint(Node):
@@ -133,11 +141,10 @@ class DeterministicEnvironment(Environment):
 
 
 class Event:
-    def __init__(self, ts, uav, name, battery, node):
+    def __init__(self, ts, uav, name, node):
         self.ts = ts
         self.uav = uav
         self.name = name
-        self.battery = battery
         self.node = node
 
 
@@ -165,6 +172,7 @@ class UAV:
         :param r_charge: charging rate
         :param r_deplete: depletion rate
         """
+        self.logger = logging.getLogger(__name__)
         self.uav_id = uav_id
         self.nodes = None
         self.start_node = None
@@ -172,17 +180,18 @@ class UAV:
         self.charging_stations = charging_stations  # simpy shared resources
 
         self.t_start = 0
-        self.state_type = None
+        self.state_type = UavStateType.Idle
         self.battery = battery
         self.r_charge = r_charge
         self.r_deplete = r_deplete
         self.v = v
-        self.node_idx = 0  # node index
+        self.node_idx_sched = 0  # node index in schedule
+        self.node_idx_mission = 0  # node index for total mission
 
     def set_schedule(self, nodes: list):
         self.nodes = nodes
         self.start_node = nodes[0]
-        self.node_idx = 0
+        self.node_idx_sched = 0
 
     def get_state(self, env):
         """
@@ -191,8 +200,8 @@ class UAV:
         t_passed = env.now - self.t_start
         if self.state_type == UavStateType.Moving:
             battery = self.battery - t_passed * self.r_deplete
-            start_pos = self.nodes[self.node_idx].pos
-            dir_vector = self.nodes[self.node_idx].direction(self.nodes[self.node_idx + 1])
+            start_pos = self.nodes[self.node_idx_sched].pos
+            dir_vector = self.nodes[self.node_idx_sched].direction(self.nodes[self.node_idx_sched + 1])
             traveled_distance = t_passed * self.v
             travel_vector = dir_vector * traveled_distance
             pos = start_pos + travel_vector
@@ -205,13 +214,13 @@ class UAV:
             battery = min(self.battery + t_passed * self.r_charge, 1)
             res = UavState(
                 state_type=self.state_type,
-                pos=self.nodes[self.node_idx].pos,
+                pos=self.nodes[self.node_idx_sched].pos,
                 battery=battery,
             )
         elif self.state_type in [UavStateType.Waiting, UavStateType.Idle]:
             res = UavState(
                 state_type=self.state_type,
-                pos=self.nodes[self.node_idx].pos,
+                pos=self.nodes[self.node_idx_sched].pos,
                 battery=self.battery,
             )
         return res
@@ -219,46 +228,55 @@ class UAV:
     # TODO: add event for when the UAV crashes
     def sim(self, env, callbacks=[], finish_callbacks=[]):
         while True:
-            if self.node_idx >= len(self.nodes) - 1:
+            if self.node_idx_sched >= len(self.nodes) - 1:
                 break
-            node_cur = self.nodes[self.node_idx]
-            node_next = self.nodes[self.node_idx + 1]
+            node_cur = self.nodes[self.node_idx_sched]
+            node_next = self.nodes[self.node_idx_sched + 1]
             distance = node_cur.dist(node_next)
             t_move = distance / self.v
 
             # move to node
+            self.logger.debug(f"[{env.now:.1f}] UAV {self.uav_id} is moving from {node_cur} to {node_next} [expected duration = {t_move:.1f}]")
             self.state_type = UavStateType.Moving
             self.t_start = env.now
-            event = env.timeout(t_move, value=Event(env.now, self.uav_id, "reached", self.battery, node_next))
-            for cb in callbacks:
-                event.callbacks.append(cb)
+            event = env.timeout(t_move, value=Event(env.now, self, "reached", node_next))
 
-            def cb(_):
-                self.node_idx += 1
+            def cb(event):
+                self.node_idx_sched += 1
+                if event.value.node.node_type == NodeType.Waypoint:
+                    self.node_idx_mission += 1
                 self.battery -= t_move * self.r_deplete
                 self.state_type = UavStateType.Idle
 
             event.callbacks.append(cb)
+            for cb in callbacks:
+                event.callbacks.append(cb)
+
             yield event
 
             # wait at node
             waiting_time = node_next.wt
             if waiting_time > 0:
+                self.logger.debug(f"[{env.now:.1f}] UAV {self.uav_id} is waiting at {node_next}")
+
                 self.state_type = UavStateType.Waiting
                 self.t_start = env.now
-                event = env.timeout(waiting_time, value=Event(env.now, self.uav_id, "waited", self.battery, node_next))
-                for cb in callbacks:
-                    event.callbacks.append(cb)
+                event = env.timeout(waiting_time, value=Event(env.now, self, "waited", node_next))
 
                 def cb(_):
                     self.state_type = UavStateType.Idle
 
                 event.callbacks.append(cb)
+                for cb in callbacks:
+                    event.callbacks.append(cb)
+
                 yield event
 
             # charge at node
             charging_time = node_next.ct
             if charging_time > 0:
+                self.logger.debug(f"[{env.now:.1f}] UAV {self.uav_id} is charging at {node_next}")
+
                 self.state_type = UavStateType.Charging
                 self.t_start = env.now
                 resource = self.charging_stations[node_next.identifier]
@@ -266,9 +284,7 @@ class UAV:
                 yield req
 
                 event = env.timeout(charging_time,
-                                    value=Event(env.now, self.uav_id, "charged", self.battery, node_next))
-                for cb in callbacks:
-                    event.callbacks.append(cb)
+                                    value=Event(env.now, self, "charged", node_next))
 
                 def cb(_):
                     self.battery = min(self.battery + charging_time * self.r_charge, 1)
@@ -276,6 +292,8 @@ class UAV:
                     resource.release(req)
 
                 event.callbacks.append(cb)
+                for cb in callbacks:
+                    event.callbacks.append(cb)
                 yield event
         for cb in finish_callbacks:
             cb()
@@ -303,6 +321,42 @@ class TimeStepper:
 
 class NotSolvableException(Exception):
     pass
+
+
+class ScenarioFactory:
+    """
+    Creates new scenarios on the fly based on
+    """
+
+    def __init__(self, scenario: Scenario, W: int):
+        self.original_start_pos = [wps[0] for wps in scenario.positions_w]
+        self.positions_S = scenario.positions_S
+        self.positions_w = [wps[1:] for wps in scenario.positions_w]
+        self.offsets = [0] * scenario.N_d
+        self.sc_orig = scenario
+        self.N_d = scenario.N_d
+        self.N_s = scenario.N_s
+        self.N_w = scenario.N_w
+        self.W = W
+
+    def incr(self, d):
+        """
+        Increments the
+        :param d: identifier of the UAV
+        """
+        self.offsets[d] += 1
+
+    def next(self, start_positions):
+        """
+        Returns the next scenario
+        """
+        positions_w = []
+        for i, wps in enumerate(self.positions_w):
+            wps_truncated = [start_positions[i]] + wps[self.offsets[i]:self.offsets[i] + self.W - 1]
+            while len(wps_truncated) < self.W:
+                wps_truncated = [wps_truncated[0]] + wps_truncated
+            positions_w.append(wps_truncated)
+        return Scenario(positions_S=self.positions_S, positions_w=positions_w)
 
 
 class Scheduler:
@@ -365,8 +419,7 @@ class Simulator:
         self.scheduler_cls = scheduler_cls
         self.delta = delta
         self.params = params
-        self.sc = sc
-        self.W = W
+        self.sf = ScenarioFactory(sc, W)
 
         self.timestepper = TimeStepper(delta)
 
@@ -379,12 +432,12 @@ class Simulator:
 
         # maintain history of simulation
         self.events = []
-        for _ in range(self.sc.N_d):
+        for _ in range(self.sf.N_d):
             self.events.append([])
 
     def reset_waypoint_indices(self):
         self.current_waypoint_idx = []
-        for d in range(self.sc.N_d):
+        for d in range(self.sf.N_d):
             self.current_waypoint_idx.append(0)
 
     def sim(self):
@@ -395,77 +448,65 @@ class Simulator:
 
         # prepare shared resources
         charging_stations = []
-        for s in range(self.sc.N_s):
+        for s in range(self.sf.N_s):
             charging_stations.append(simpy.Resource(env, capacity=1))
 
         # prepare UAVs
         uavs = []
-        for d in range(self.sc.N_d):
+        for d in range(self.sf.N_d):
             uav = UAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d])
             uavs.append(uav)
 
-        self.logger.info(f"visiting {self.sc.N_w} waypoints per UAV in total")
-        # convert scenario
-        sc = self.prepare_scenario(first=True)
-        _, ax = plt.subplots()
-        sc.plot(ax=ax, draw_distances=False)
-        colors = ['red', 'blue']
-        for i, positions in enumerate(self.sc.positions_w):
-            x = [x for x, _, _ in positions]
-            y = [y for _, y, _ in positions]
-            ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
+        self.logger.info(f"visiting {self.sf.N_w} waypoints per UAV in total")
 
-        ax.set_xlim([-.5, 4])
-        ax.set_ylim([-2.75, 1.25])
-        plt.savefig(f"out/simulation/scenarios/scenario_{self.timestepper.timestep:04}.pdf", bbox_inches='tight')
-        self.timestepper._inc(_)
+        # convert scenario
+        sc = self.sf.next(self.sf.original_start_pos)
 
         # get initial schedule
         scheduler = self.scheduler_cls(self.params, sc)
         t_solve, schedules = scheduler.schedule()
-        self.logger.debug(f"[{env.now}] scheduled in {t_solve:.1f}s")
+        self.logger.debug(f"[{env.now:.1f}] scheduled in {t_solve:.1f}s")
         for i, nodes in enumerate(schedules):
             n_wp_aux = len([x for x in nodes if x.node_type == NodeType.AuxWaypoint])
             n_stations = len([x for x in nodes if x.node_type == NodeType.ChargingStation])
-            self.logger.debug(
-                f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
+            # self.logger.debug(
+            #     f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
 
         for i, nodes in enumerate(schedules):
             uavs[i].set_schedule(nodes)
 
+        _, ax = plt.subplots()
+        fname = f"out/simulation/scenarios/scenario_{self.timestepper.timestep:03}.pdf"
+        self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname)
+        self.timestepper._inc(_)
+
         def uav_cb(event):
             if event.value.name == "reached":
                 if event.value.node.node_type == NodeType.Waypoint:
-                    self.current_waypoint_idx[event.value.uav] += 1
-                    reached_name = 'new waypoint'
+                    self.sf.incr(event.value.uav.uav_id)
+                    # TODO: add end statement (UAV must keep state itself)
+                    reached_name = f'new waypoint ({event.value.uav.node_idx_mission})'
                 elif event.value.node.node_type == NodeType.AuxWaypoint:
                     reached_name = 'aux waypoint'
                 elif event.value.node.node_type == NodeType.ChargingStation:
-                    reached_name = "charging_station"
-                self.logger.debug(f"[{event.value.ts:.1f}] UAV {event.value.uav} reached a {reached_name}")
-            self.events[event.value.uav].append(event.value)
+                    reached_name = f"charging station ({event.value.node.identifier})"
+                self.logger.debug(f"[{env.now:.1f}] UAV {event.value.uav.uav_id} reached a {reached_name}")
+            elif event.value.name == 'waited':
+                self.logger.debug(
+                    f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished waiting at station {event.value.node.identifier} for {event.value.node.wt:.1f}s")
+            elif event.value.name == 'charged':
+                self.logger.debug(
+                    f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished charging at station {event.value.node.identifier} for {event.value.node.ct:.1f}s")
+            self.events[event.value.uav.uav_id].append(event.value)
 
-        def ts_cb(event):
-            positions = []
+        def ts_cb(_):
+            start_positions = []
             batteries = []
-            for uav in uavs:
+            for i, uav in enumerate(uavs):
                 state = uav.get_state(env)
-                positions.append(state.pos)
+                start_positions.append(state.pos)
                 batteries.append(state.battery)
-            sc = self.prepare_scenario(positions)
-
-            # TODO: remove this plotting step
-            _, ax = plt.subplots()
-            sc.plot(ax=ax, draw_distances=False)
-            colors = ['red', 'blue']
-            for i, positions in enumerate(self.sc.positions_w):
-                x = [x for x, _, _ in positions]
-                y = [y for _, y, _ in positions]
-                ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
-
-            ax.set_xlim([-.5, 4])
-            ax.set_ylim([-2.75, 1.25])
-            plt.savefig(f"out/simulation/scenarios/scenario_{self.timestepper.timestep:04}.pdf", bbox_inches='tight')
+            sc = self.sf.next(start_positions)
 
             params = self.params.copy()
             params.B_start = np.array(batteries)
@@ -476,15 +517,19 @@ class Simulator:
             for i, nodes in enumerate(schedules):
                 n_wp_aux = len([x for x in nodes if x.node_type == NodeType.AuxWaypoint])
                 n_stations = len([x for x in nodes if x.node_type == NodeType.ChargingStation])
-                self.logger.debug(
-                    f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
+                # self.logger.debug(
+                #     f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
 
             for i, nodes in enumerate(schedules):
                 uavs[i].set_schedule(nodes)
 
+            _, ax = plt.subplots()
+            fname = f"out/simulation/scenarios/scenario_{self.timestepper.timestep:03}.pdf"
+            self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname)
+
         ts = env.process(self.timestepper.sim(env, callbacks=[ts_cb]))
 
-        self.remaining = self.sc.N_d
+        self.remaining = self.sf.N_d
 
         def uav_finished_cb():
             self.logger.debug("uav finished")
@@ -495,34 +540,38 @@ class Simulator:
         # run simulation
         for uav in uavs:
             env.process(uav.sim(env, callbacks=[uav_cb], finish_callbacks=[uav_finished_cb]))
-        env.run(until=100)
+        env.run(until=ts)
 
         return env
 
-    def prepare_scenario(self, positions: list = [], first=False):
-        """
-        Return a scenario based on the current state of the UAVs
-        :param positions: (x,y,z)-coorindates of all UAVs
-        :param first: true if the first W waypoints need to be used
-        :return:
-        """
-        if not positions and not first:
-            raise ValueError("must provide 'positions' OR 'first' parameter")
+    def plot(self, schedules, batteries, ax=None, fname=None):
+        if not ax:
+            _, ax = plt.subplots()
 
-        positions_S = self.sc.positions_S
-        positions_w = []
-        for d in range(self.sc.N_d):
-            if not first:
-                waypoints = [positions[d]]
-                waypoints += self.sc.positions_w[d][
-                             self.current_waypoint_idx[d]:self.current_waypoint_idx[d] + self.W - 1]
-            else:
-                waypoints = self.sc.positions_w[d][:self.W]
-            # pad waypoints with first waypoint
-            while len(waypoints) != self.W:
-                waypoints = [waypoints[0]] + waypoints
-            positions_w.append(waypoints)
-        return Scenario(positions_S, positions_w)
+        colors = ['red', 'blue']
+        for i, nodes in enumerate(schedules):
+            x_all = [n.pos[0] for n in nodes]
+            y_all = [n.pos[1] for n in nodes]
+            x_wp = [n.pos[0] for n in nodes if n.node_type == NodeType.Waypoint]
+            y_wp = [n.pos[1] for n in nodes if n.node_type == NodeType.Waypoint]
+            x_c = [n.pos[0] for n in nodes if n.node_type == NodeType.ChargingStation]
+            y_c = [n.pos[1] for n in nodes if n.node_type == NodeType.ChargingStation]
+            x_aux = [n.pos[0] for n in nodes if n.node_type == NodeType.AuxWaypoint]
+            y_aux = [n.pos[1] for n in nodes if n.node_type == NodeType.AuxWaypoint]
+            alphas = np.linspace(1, 0.2, len(x_all) - 1)
+            for j in range(len(x_all) - 1):
+                x = x_all[j:j + 2]
+                y = y_all[j:j + 2]
+                label = f"{batteries[i] * 100:.1f}%" if j == 0 else None
+                ax.plot(x, y, color=colors[i], label=label, alpha=alphas[j])
+            ax.scatter(x_wp, y_wp, c=colors[i])
+            ax.scatter(x_c, y_c, marker='s', c=colors[i], facecolor='white')
+            ax.scatter(x_aux, y_aux, marker='o', c=colors[i], facecolor='white', zorder=10)
+        for i, positions in enumerate(self.sf.sc_orig.positions_w):
+            x = [x for x, _, _ in positions]
+            y = [y for _, y, _ in positions]
+            ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
+        ax.legend()
 
-    def plot(self, axes):
-        assert self.sc.N_d == len(axes)
+        if fname:
+            plt.savefig(fname, bbox_inches='tight')

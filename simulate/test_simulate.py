@@ -5,7 +5,8 @@ import numpy as np
 import simpy
 from simpy import Resource
 
-from simulate.simulate import Parameters, Scheduler, Simulator, UAV, Waypoint, ChargingStation, TimeStepper, Node
+from simulate.simulate import Parameters, Scheduler, Simulator, UAV, Waypoint, ChargingStation, TimeStepper, Node, \
+    ScenarioFactory
 from util.scenario import Scenario
 
 
@@ -190,3 +191,56 @@ class TestNode(TestCase):
         dir_vector = node1.direction(node2)
         expected = np.array([0, 0, 1])
         self.assertTrue(np.array_equal(dir_vector, expected))
+
+
+class TestScenarioFactory(TestCase):
+    def test_scenario_factory(self):
+        positions_S = [(0.5, 0.5, 0)]
+        positions_w = [
+            [(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0)],
+            [(0, 0, 0), (-1, 0, 0), (-2, 0, 0), (-3, 0, 0), (-4, 0, 0)],
+        ]
+        sc_orig = Scenario(positions_S, positions_w)
+        sf = ScenarioFactory(sc_orig, W=3)
+
+        # first iteration
+        start_positions = [(0, 0, 0), (0, 0, 0)]
+        actual = sf.next(start_positions).positions_w
+        expected = [
+            [(0, 0, 0), (1, 0, 0), (2, 0, 0)],
+            [(0, 0, 0), (-1, 0, 0), (-2, 0, 0)],
+        ]
+        self.assertEqual(actual, expected)
+
+        # after increment
+        sf.incr(0)
+        start_positions = [(1.5, 0, 0), (-0.5, 0, 0)]
+        actual = sf.next(start_positions).positions_w
+        expected = [
+            [(1.5, 0, 0), (2, 0, 0), (3, 0, 0)],
+            [(-0.5, 0, 0), (-1, 0, 0), (-2, 0, 0)],
+        ]
+        self.assertEqual(actual, expected)
+
+        # padding iterations
+        for _ in range(2):
+            sf.incr(0)
+        for _ in range(3):
+            sf.incr(1)
+
+        start_positions = [(3.5, 0, 0), (-3.5, 0, 0)]
+        actual = sf.next(start_positions).positions_w
+        expected = [
+            [(3.5, 0, 0), (3.5, 0, 0), (4, 0, 0)],
+            [(-3.5, 0, 0), (-3.5, 0, 0), (-4, 0, 0)],
+        ]
+        self.assertEqual(actual, expected)
+
+        sf.incr(0)
+        sf.incr(1)
+        actual = sf.next(start_positions).positions_w
+        expected = [
+            [(3.5, 0, 0), (3.5, 0, 0), (3.5, 0, 0)],
+            [(-3.5, 0, 0), (-3.5, 0, 0), (-3.5, 0, 0)],
+        ]
+        self.assertEqual(actual, expected)
