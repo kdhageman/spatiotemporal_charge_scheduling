@@ -6,78 +6,11 @@ import simpy
 from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 from pyomo_models.multi_uavs import MultiUavModel
+from simulate.node import AuxWaypoint, ChargingStation, Waypoint, NodeType
+from simulate.uav import UAV
 from util.decorators import timed
 from util.distance import dist3
 from util.scenario import Scenario
-
-
-class NodeType(Enum):
-    AuxWaypoint = "auxiliary_waypoint"
-    Waypoint = "waypoint"
-    ChargingStation = "charging_station"
-
-
-class Node:
-    def __init__(self, x, y, z, wt, ct):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.wt = wt
-        self.ct = ct
-
-    @property
-    def pos(self):
-        return np.array([self.x, self.y, self.z])
-
-    def dist(self, other):
-        return dist3(self.pos, other.pos)
-
-    def direction(self, other):
-        """
-        Unit vector in the direction of the other node
-        """
-        dir_vector = other.pos - self.pos
-        if np.linalg.norm(dir_vector) == 0:
-            return np.array([0, 0, 0])
-        return dir_vector / np.linalg.norm(dir_vector)
-
-    @property
-    def node_type(self):
-        raise NotImplementedError
-
-    def __repr__(self):
-        return f"({self.x}, {self.y}, {self.z})"
-
-
-class ChargingStation(Node):
-    def __init__(self, x, y, z, identifier, wt=0, ct=0):
-        super().__init__(x, y, z, wt, ct)
-        self.identifier = identifier
-
-    @property
-    def node_type(self):
-        return NodeType.ChargingStation
-
-    def __repr__(self):
-        return f"charging station ({self.identifier}) {super().__repr__()}"
-
-
-class Waypoint(Node):
-    def __init__(self, x, y, z):
-        super().__init__(x, y, z, 0, 0)
-
-    @property
-    def node_type(self):
-        return NodeType.Waypoint
-
-
-class AuxWaypoint(Node):
-    def __init__(self, x, y, z):
-        super().__init__(x, y, z, 0, 0)
-
-    @property
-    def node_type(self):
-        return NodeType.AuxWaypoint
 
 
 class Schedule:
@@ -138,165 +71,6 @@ class DeterministicEnvironment(Environment):
 
     def depletion(self, x):
         return x
-
-
-class Event:
-    def __init__(self, ts, uav, name, node):
-        self.ts = ts
-        self.uav = uav
-        self.name = name
-        self.node = node
-
-
-class UavStateType(Enum):
-    Idle = "idle"
-    Moving = "moving"
-    Waiting = "waiting"
-    Charging = "charging"
-
-
-class UavState:
-    def __init__(self, state_type: UavStateType, pos: list, battery: float):
-        self.state_type = state_type
-        self.pos = pos
-        self.battery = battery
-
-
-class UAV:
-    def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float,
-                 battery: float = 1):
-        """
-        :param nodes: list of Waypoints and ChargingStations to visit in order
-        :param charging_stations: list of simpy.Resources to allocate
-        :param v: velocity of the UAV
-        :param r_charge: charging rate
-        :param r_deplete: depletion rate
-        """
-        self.logger = logging.getLogger(__name__)
-        self.uav_id = uav_id
-        self.nodes = None
-        self.start_node = None
-
-        self.charging_stations = charging_stations  # simpy shared resources
-
-        self.t_start = 0
-        self.state_type = UavStateType.Idle
-        self.battery = battery
-        self.r_charge = r_charge
-        self.r_deplete = r_deplete
-        self.v = v
-        self.node_idx_sched = 0  # node index in schedule
-        self.node_idx_mission = 0  # node index for total mission
-
-    def set_schedule(self, nodes: list):
-        self.nodes = nodes
-        self.start_node = nodes[0]
-        self.node_idx_sched = 0
-
-    def get_state(self, env):
-        """
-        Returns the position and batter charge of the UAV.
-        """
-        t_passed = env.now - self.t_start
-        if self.state_type == UavStateType.Moving:
-            battery = self.battery - t_passed * self.r_deplete
-            start_pos = self.nodes[self.node_idx_sched].pos
-            dir_vector = self.nodes[self.node_idx_sched].direction(self.nodes[self.node_idx_sched + 1])
-            traveled_distance = t_passed * self.v
-            travel_vector = dir_vector * traveled_distance
-            pos = start_pos + travel_vector
-            res = UavState(
-                state_type=self.state_type,
-                pos=pos,
-                battery=battery,
-            )
-        elif self.state_type == UavStateType.Charging:
-            battery = min(self.battery + t_passed * self.r_charge, 1)
-            res = UavState(
-                state_type=self.state_type,
-                pos=self.nodes[self.node_idx_sched].pos,
-                battery=battery,
-            )
-        elif self.state_type in [UavStateType.Waiting, UavStateType.Idle]:
-            res = UavState(
-                state_type=self.state_type,
-                pos=self.nodes[self.node_idx_sched].pos,
-                battery=self.battery,
-            )
-        return res
-
-    # TODO: add event for when the UAV crashes
-    def sim(self, env, callbacks=[], finish_callbacks=[]):
-        while True:
-            if self.node_idx_sched >= len(self.nodes) - 1:
-                break
-            node_cur = self.nodes[self.node_idx_sched]
-            node_next = self.nodes[self.node_idx_sched + 1]
-            distance = node_cur.dist(node_next)
-            t_move = distance / self.v
-
-            # move to node
-            self.logger.debug(f"[{env.now:.1f}] UAV {self.uav_id} is moving from {node_cur} to {node_next} [expected duration = {t_move:.1f}]")
-            self.state_type = UavStateType.Moving
-            self.t_start = env.now
-            event = env.timeout(t_move, value=Event(env.now, self, "reached", node_next))
-
-            def cb(event):
-                self.node_idx_sched += 1
-                if event.value.node.node_type == NodeType.Waypoint:
-                    self.node_idx_mission += 1
-                self.battery -= t_move * self.r_deplete
-                self.state_type = UavStateType.Idle
-
-            event.callbacks.append(cb)
-            for cb in callbacks:
-                event.callbacks.append(cb)
-
-            yield event
-
-            # wait at node
-            waiting_time = node_next.wt
-            if waiting_time > 0:
-                self.logger.debug(f"[{env.now:.1f}] UAV {self.uav_id} is waiting at {node_next}")
-
-                self.state_type = UavStateType.Waiting
-                self.t_start = env.now
-                event = env.timeout(waiting_time, value=Event(env.now, self, "waited", node_next))
-
-                def cb(_):
-                    self.state_type = UavStateType.Idle
-
-                event.callbacks.append(cb)
-                for cb in callbacks:
-                    event.callbacks.append(cb)
-
-                yield event
-
-            # charge at node
-            charging_time = node_next.ct
-            if charging_time > 0:
-                self.logger.debug(f"[{env.now:.1f}] UAV {self.uav_id} is charging at {node_next}")
-
-                self.state_type = UavStateType.Charging
-                self.t_start = env.now
-                resource = self.charging_stations[node_next.identifier]
-                req = resource.request()
-                yield req
-
-                event = env.timeout(charging_time,
-                                    value=Event(env.now, self, "charged", node_next))
-
-                def cb(_):
-                    self.battery = min(self.battery + charging_time * self.r_charge, 1)
-                    self.state_type = UavStateType.Idle
-                    resource.release(req)
-
-                event.callbacks.append(cb)
-                for cb in callbacks:
-                    event.callbacks.append(cb)
-                yield event
-        for cb in finish_callbacks:
-            cb()
 
 
 class TimeStepper:
@@ -381,12 +155,11 @@ class Scheduler:
         res = []
         for d in model.d:
             start_pos = self.scenario.positions_w[d][0]
-            nodes = [
-                AuxWaypoint(*self.scenario.positions_w[d][0])
-            ]
+            nodes = []
             for w_s in model.w_s:
                 n = model.P_np[d, :, w_s].tolist().index(1)
                 if n < model.N_s:
+                    # visit charging station first
                     ct = model.C_np[d][w_s]
                     wt = model.W_np[d][w_s]
                     nodes.append(
@@ -396,7 +169,7 @@ class Scheduler:
                 if np.array_equal(wp.pos, start_pos):
                     wp.aux = True
                 nodes.append(wp)
-            res.append(nodes)
+            res.append((start_pos, nodes))
         return res
 
 
@@ -466,14 +239,9 @@ class Simulator:
         scheduler = self.scheduler_cls(self.params, sc)
         t_solve, schedules = scheduler.schedule()
         self.logger.debug(f"[{env.now:.1f}] scheduled in {t_solve:.1f}s")
-        for i, nodes in enumerate(schedules):
-            n_wp_aux = len([x for x in nodes if x.node_type == NodeType.AuxWaypoint])
-            n_stations = len([x for x in nodes if x.node_type == NodeType.ChargingStation])
-            # self.logger.debug(
-            #     f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
 
-        for i, nodes in enumerate(schedules):
-            uavs[i].set_schedule(nodes)
+        for i, (start_pos, nodes) in enumerate(schedules):
+            uavs[i].set_schedule(env, start_pos, nodes)
 
         _, ax = plt.subplots()
         fname = f"out/simulation/scenarios/scenario_{self.timestepper.timestep:03}.pdf"
@@ -514,14 +282,9 @@ class Simulator:
             scheduler = Scheduler(params, sc)
             t_solve, schedules = scheduler.schedule()
             self.logger.debug(f"[{env.now}] scheduled in {t_solve:.1f}s")
-            for i, nodes in enumerate(schedules):
-                n_wp_aux = len([x for x in nodes if x.node_type == NodeType.AuxWaypoint])
-                n_stations = len([x for x in nodes if x.node_type == NodeType.ChargingStation])
-                # self.logger.debug(
-                #     f"UAV {i} is scheduled {n_wp_aux} auxiliary waypoints and {n_stations} charging stations, starting with {uavs[i].battery * 100:.1f}% battery charge")
 
-            for i, nodes in enumerate(schedules):
-                uavs[i].set_schedule(nodes)
+            for i, (start_pos, nodes) in enumerate(schedules):
+                uavs[i].set_schedule(env, start_pos, nodes)
 
             _, ax = plt.subplots()
             fname = f"out/simulation/scenarios/scenario_{self.timestepper.timestep:03}.pdf"
@@ -549,15 +312,15 @@ class Simulator:
             _, ax = plt.subplots()
 
         colors = ['red', 'blue']
-        for i, nodes in enumerate(schedules):
-            x_all = [n.pos[0] for n in nodes]
-            y_all = [n.pos[1] for n in nodes]
+        for i, (start_pos, nodes) in enumerate(schedules):
+            x_all = [start_pos[0]] + [n.pos[0] for n in nodes]
+            y_all = [start_pos[1]] + [n.pos[1] for n in nodes]
             x_wp = [n.pos[0] for n in nodes if n.node_type == NodeType.Waypoint]
             y_wp = [n.pos[1] for n in nodes if n.node_type == NodeType.Waypoint]
             x_c = [n.pos[0] for n in nodes if n.node_type == NodeType.ChargingStation]
             y_c = [n.pos[1] for n in nodes if n.node_type == NodeType.ChargingStation]
-            x_aux = [n.pos[0] for n in nodes if n.node_type == NodeType.AuxWaypoint]
-            y_aux = [n.pos[1] for n in nodes if n.node_type == NodeType.AuxWaypoint]
+            x_aux = [start_pos[0]] + [n.pos[0] for n in nodes if n.node_type == NodeType.AuxWaypoint]
+            y_aux = [start_pos[1]] + [n.pos[1] for n in nodes if n.node_type == NodeType.AuxWaypoint]
             alphas = np.linspace(1, 0.2, len(x_all) - 1)
             for j in range(len(x_all) - 1):
                 x = x_all[j:j + 2]
