@@ -26,24 +26,9 @@ class TestEventGenerator(TestCase):
         r_charge = 0.1
         eg = _EventGenerator(pos, nodes, v, battery, r_deplete, r_charge, [])
 
-        self.sim_cb_count = 0
-        self.finish_cb_count = 0
-
-        def sim_cb(event):
-            self.sim_cb_count += 1
-
-        def finish_cb():
-            self.finish_cb_count += 1
-
-        eg.add_arrival_cb(sim_cb)
-        eg.add_finish_cb(finish_cb)
-        eg.add_finish_cb(finish_cb)
-
         proc = env.process(eg.sim(env))
         env.run(until=proc)
 
-        self.assertEqual(self.sim_cb_count, 3)
-        self.assertEqual(self.finish_cb_count, 2)
 
 
 class TestUAV(TestCase):

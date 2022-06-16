@@ -1,5 +1,5 @@
 class Event:
-    def __init__(self, ts, uav, name, node):
+    def __init__(self, ts, name, node, uav=None):
         self.ts = ts
         self.uav = uav
         self.name = name

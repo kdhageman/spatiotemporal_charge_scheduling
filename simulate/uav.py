@@ -4,8 +4,7 @@ from enum import Enum
 import simpy.exceptions
 
 from simulate.event import Event
-from simulate.node import AuxWaypoint
-from simulate.parameters import Parameters
+from simulate.node import AuxWaypoint, NodeType
 
 
 class UavStateType(Enum):
@@ -36,23 +35,6 @@ class _EventGenerator:
         self.r_charge = r_charge
         self.charging_stations = charging_stations
 
-        self.arrival_cbs = []
-        self.waited_cbs = []
-        self.charged_cbs = []
-        self.finish_cbs = []
-
-    def add_arrival_cb(self, cb):
-        self.arrival_cbs.append(cb)
-
-    def add_waited_cb(self, cb):
-        self.waited_cbs.append(cb)
-
-    def add_charged_cb(self, cb):
-        self.charged_cbs.append(cb)
-
-    def add_finish_cb(self, cb):
-        self.finish_cbs.append(cb)
-
     def sim(self, env):
         while True:
             if len(self.nodes) == 0:
@@ -62,7 +44,7 @@ class _EventGenerator:
             distance = self.cur_node.dist(node_next)
             t_move = distance / self.v
 
-            event = env.timeout(t_move, value=Event(env.now, self, "reached", node_next))
+            event = env.timeout(t_move, value=Event(env.now, "reached", node_next))
 
             def cb(ev):
                 self.cur_node = node_next
@@ -74,16 +56,14 @@ class _EventGenerator:
             # wait at node
             waiting_time = self.cur_node.wt
             if waiting_time > 0:
-                event = env.timeout(waiting_time, value=Event(env.now, self, "waited", self.cur_node))
+                event = env.timeout(waiting_time, value=Event(env.now, "waited", self.cur_node))
                 yield event
 
             # charge at node
             charging_time = self.cur_node.ct
             if charging_time > 0:
-                event = env.timeout(charging_time, value=Event(env.now, self, "charged", self.cur_node))
+                event = env.timeout(charging_time, value=Event(env.now, "charged", self.cur_node))
                 yield event
-        for cb in self.finish_cbs:
-            cb()
 
 
 class UAV:
@@ -112,6 +92,7 @@ class UAV:
         self.proc = None
         self.eg = None
         self.events = []
+        self.waypoint_id = 0
 
         self.arrival_cbs = []
         self.waited_cbs = []
@@ -176,6 +157,8 @@ class UAV:
                     self.cur_node = ev.value.node
                     self.battery -= ev._delay * self.r_deplete
                     self.state_type = UavStateType.Idle
+                    if ev.value.node.node_type == NodeType.Waypoint:
+                        self.waypoint_id += 1
 
                 ev.callbacks.append(arrival_cb)
 
@@ -208,6 +191,7 @@ class UAV:
                     ev.callbacks.append(cb)
                 self.state_type = UavStateType.Charging
 
+            ev.value.uav = self
             yield ev
             self.t_start = env.now
 

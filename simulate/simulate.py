@@ -222,24 +222,23 @@ class Simulator:
         self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname)
         self.timestepper._inc(_)
 
-        def uav_cb(event):
-            if event.value.name == "reached":
-                if event.value.node.node_type == NodeType.Waypoint:
-                    self.sf.incr(event.value.uav.uav_id)
-                    # TODO: add end statement (UAV must keep state itself)
-                    reached_name = f'new waypoint ({event.value.uav.node_idx_mission})'
-                elif event.value.node.node_type == NodeType.AuxWaypoint:
-                    reached_name = 'aux waypoint'
-                elif event.value.node.node_type == NodeType.ChargingStation:
-                    reached_name = f"charging station ({event.value.node.identifier})"
-                self.logger.debug(f"[{env.now:.1f}] UAV {event.value.uav.uav_id} reached a {reached_name}")
-            elif event.value.name == 'waited':
-                self.logger.debug(
-                    f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished waiting at station {event.value.node.identifier} for {event.value.node.wt:.1f}s")
-            elif event.value.name == 'charged':
-                self.logger.debug(
-                    f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished charging at station {event.value.node.identifier} for {event.value.node.ct:.1f}s")
-            self.events[event.value.uav.uav_id].append(event.value)
+        def arrival_cb(event):
+            if event.value.node.node_type == NodeType.Waypoint:
+                self.sf.incr(event.value.uav.uav_id)
+                reached_name = f'new waypoint ({event.value.uav.waypoint_id})'
+            elif event.value.node.node_type == NodeType.AuxWaypoint:
+                reached_name = 'aux waypoint'
+            elif event.value.node.node_type == NodeType.ChargingStation:
+                reached_name = f"charging station ({event.value.node.identifier})"
+            self.logger.debug(f"[{env.now:.1f}] UAV {event.value.uav.uav_id} reached a {reached_name}")
+
+        def waited_cb(event):
+            self.logger.debug(
+                f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished waiting at station {event.value.node.identifier} for {event.value.node.wt:.1f}s")
+
+        def charged_cb(event):
+            self.logger.debug(
+                f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished charging at station {event.value.node.identifier} for {event.value.node.ct:.1f}s")
 
         def ts_cb(_):
             start_positions = []
@@ -276,7 +275,11 @@ class Simulator:
 
         # run simulation
         for uav in uavs:
-            env.process(uav.sim(env, callbacks=[uav_cb], finish_callbacks=[uav_finished_cb]))
+            uav.add_arrival_cb(arrival_cb)
+            uav.add_waited_cb(waited_cb)
+            uav.add_charged_cb(charged_cb)
+            uav.add_finish_cb(uav_finished_cb)
+            env.process(uav.sim(env))
         env.run(until=ts)
 
         return env
