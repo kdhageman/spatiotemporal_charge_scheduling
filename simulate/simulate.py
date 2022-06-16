@@ -1,15 +1,15 @@
-import copy
 import logging
-from enum import Enum
+
 import numpy as np
 import simpy
 from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
+
 from pyomo_models.multi_uavs import MultiUavModel
-from simulate.node import AuxWaypoint, ChargingStation, Waypoint, NodeType
+from simulate.node import ChargingStation, Waypoint, NodeType
+from simulate.parameters import Parameters
 from simulate.uav import UAV
 from util.decorators import timed
-from util.distance import dist3
 from util.scenario import Scenario
 
 
@@ -22,32 +22,6 @@ class Schedule:
         self.decisions = decisions
         self.charging_times = charging_times
         self.waiting_times = waiting_times
-
-
-class Parameters:
-    def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, B_min: float, B_max: float,
-                 epsilon: float = 0.1):
-        self.v = np.array(v)
-        self.r_charge = np.array(r_charge)
-        self.r_deplete = np.array(r_deplete)
-        self.B_start = np.array(B_start)
-        self.B_min = np.array(B_min)
-        self.B_max = np.array(B_max)
-        self.epsilon = np.array(epsilon)
-
-    def as_dict(self):
-        return dict(
-            v=self.v,
-            r_charge=self.r_charge,
-            r_deplete=self.r_deplete,
-            B_start=self.B_start,
-            B_min=self.B_min,
-            B_max=self.B_max,
-            epsilon=self.epsilon,
-        )
-
-    def copy(self):
-        return copy.deepcopy(self)
 
 
 class Environment:
