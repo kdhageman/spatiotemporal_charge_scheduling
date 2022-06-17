@@ -161,18 +161,16 @@ class NaiveScheduler(Scheduler):
 
 
 class Simulator:
-    def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, delta: float, W: int):
+    def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, schedule_delta: float, W: int, plot_delta: float = 0.1):
         self.logger = logging.getLogger(__name__)
         self.scheduler_cls = scheduler_cls
-        self.delta = delta
         self.params = params
         self.sf = ScenarioFactory(sc, W)
 
-        self.timestepper = TimeStepper(delta)
+        self.schedule_timestepper = TimeStepper(schedule_delta)
+        self.plot_timestepper = TimeStepper(plot_delta)
 
-        # prepare waypoint indices
-        self.current_waypoint_idx = []
-        self.reset_waypoint_indices()
+        self.schedules = None
 
         # used in callbacks
         self.remaining = []
@@ -182,16 +180,8 @@ class Simulator:
         for _ in range(self.sf.N_d):
             self.events.append([])
 
-    def reset_waypoint_indices(self):
-        self.current_waypoint_idx = []
-        for d in range(self.sf.N_d):
-            self.current_waypoint_idx.append(0)
-
     def sim(self):
         env = simpy.Environment()
-
-        # prepare waypoint indices
-        self.reset_waypoint_indices()
 
         # prepare shared resources
         charging_stations = []
@@ -211,40 +201,44 @@ class Simulator:
 
         # get initial schedule
         scheduler = self.scheduler_cls(self.params, sc)
-        t_solve, schedules = scheduler.schedule()
-        self.logger.debug(f"[{env.now:.1f}] scheduled in {t_solve:.1f}s")
+        t_solve, self.schedules = scheduler.schedule()
+        self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
+        for i, (start_pos, nodes) in enumerate(self.schedules):
+            node_list = " - ".join([str(n) for n in [start_pos] + nodes])
+            self.logger.debug(f"[{env.now:.2f}] schedule for UAV [{i}]: {node_list}")
 
-        for i, (start_pos, nodes) in enumerate(schedules):
+        for i, (start_pos, nodes) in enumerate(self.schedules):
             uavs[i].set_schedule(env, start_pos, nodes)
 
         _, ax = plt.subplots()
-        fname = f"out/simulation/scenarios/scenario_{self.timestepper.timestep:03}.pdf"
-        self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname)
-        self.timestepper._inc(_)
+        fname = f"out/simulation/scenarios/scenario_{self.plot_timestepper.timestep:03}.pdf"
+        schedules = []
+        for uav in uavs:
+            start_pos = uav.get_state(env).pos
+            schedules.append((start_pos, uav.eg.nodes))
+        self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname, title=f"$t={env.now:.2f}$s")
+        self.plot_timestepper._inc(_)
 
         def arrival_cb(event):
             if event.value.node.node_type == NodeType.Waypoint:
                 self.sf.incr(event.value.uav.uav_id)
-                reached_name = f'new waypoint ({event.value.uav.waypoint_id})'
-            elif event.value.node.node_type == NodeType.AuxWaypoint:
-                reached_name = 'aux waypoint'
-            elif event.value.node.node_type == NodeType.ChargingStation:
-                reached_name = f"charging station ({event.value.node.identifier})"
-            self.logger.debug(f"[{env.now:.1f}] UAV {event.value.uav.uav_id} reached a {reached_name}")
+            self.logger.debug(f"[{env.now:.2f}] UAV [{event.value.uav.uav_id}] reached {event.value.node}")
 
         def waited_cb(event):
             self.logger.debug(
-                f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished waiting at station {event.value.node.identifier} for {event.value.node.wt:.1f}s")
+                f"[{env.now:.2f}] UAV {event.value.uav.uav_id} finished waiting at station {event.value.node.identifier} for {event.value.node.wt:.2f}s")
 
         def charged_cb(event):
             self.logger.debug(
-                f"[{env.now:.1f}] UAV {event.value.uav.uav_id} finished charging at station {event.value.node.identifier} for {event.value.node.ct:.1f}s")
+                f"[{env.now:.2f}] UAV {event.value.uav.uav_id} finished charging at station {event.value.node.identifier} for {event.value.node.ct:.2f}s")
 
-        def ts_cb(_):
+        def schedule_ts_cb(_):
             start_positions = []
             batteries = []
             for i, uav in enumerate(uavs):
                 state = uav.get_state(env)
+                logging.debug(f"[{env.now:.2f}] determined position of UAV [{i}] to be {state.pos_str}")
+                logging.debug(f"[{env.now:.2f}] determined battery of UAV [{i}] to be {state.battery:.2f}")
                 start_positions.append(state.pos)
                 batteries.append(state.battery)
             sc = self.sf.next(start_positions)
@@ -253,17 +247,27 @@ class Simulator:
             params.B_start = np.array(batteries)
 
             scheduler = Scheduler(params, sc)
-            t_solve, schedules = scheduler.schedule()
-            self.logger.debug(f"[{env.now}] scheduled in {t_solve:.1f}s")
+            t_solve, self.schedules = scheduler.schedule()
+            self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
+            for i, (start_pos, nodes) in enumerate(self.schedules):
+                node_list = " - ".join([str(n) for n in [start_pos] + nodes])
+                self.logger.debug(f"[{env.now:.2f}] schedule for UAV [{i}]: {node_list}")
 
-            for i, (start_pos, nodes) in enumerate(schedules):
+            for i, (start_pos, nodes) in enumerate(self.schedules):
                 uavs[i].set_schedule(env, start_pos, nodes)
 
+        def plot_ts_cb(_):
             _, ax = plt.subplots()
-            fname = f"out/simulation/scenarios/scenario_{self.timestepper.timestep:03}.pdf"
-            self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname)
+            fname = f"out/simulation/scenarios/scenario_{self.plot_timestepper.timestep:03}.pdf"
+            schedules = []
+            for uav in uavs:
+                start_pos = uav.get_state(env).pos
+                schedules.append((start_pos, uav.eg.nodes))
+            self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname,
+                      title=f"$t={env.now:.2f}$s")
 
-        ts = env.process(self.timestepper.sim(env, callbacks=[ts_cb]))
+        schedule_ts = env.process(self.schedule_timestepper.sim(env, callbacks=[schedule_ts_cb]))
+        env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb]))
 
         self.remaining = self.sf.N_d
 
@@ -271,7 +275,7 @@ class Simulator:
             self.logger.debug("uav finished")
             self.remaining -= 1
             if self.remaining == 0:
-                ts.interrupt()
+                schedule_ts.interrupt()
 
         # run simulation
         for uav in uavs:
@@ -280,11 +284,11 @@ class Simulator:
             uav.add_charged_cb(charged_cb)
             uav.add_finish_cb(uav_finished_cb)
             env.process(uav.sim(env))
-        env.run(until=ts)
+        env.run(until=schedule_ts)
 
-        return env
+        return env, [uav.events for uav in uavs]
 
-    def plot(self, schedules, batteries, ax=None, fname=None):
+    def plot(self, schedules, batteries, ax=None, fname=None, title=None):
         if not ax:
             _, ax = plt.subplots()
 
@@ -312,6 +316,9 @@ class Simulator:
             y = [y for _, y, _ in positions]
             ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
         ax.legend()
+
+        if title:
+            ax.set_title(title)
 
         if fname:
             plt.savefig(fname, bbox_inches='tight')

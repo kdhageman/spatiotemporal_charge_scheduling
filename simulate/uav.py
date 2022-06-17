@@ -20,6 +20,10 @@ class UavState:
         self.pos = pos
         self.battery = battery
 
+    @property
+    def pos_str(self):
+        return f"({self.pos[0]:.2f}, {self.pos[1]:.2f}, {self.pos[2]:.2f})"
+
 
 class _EventGenerator:
     """
@@ -34,6 +38,18 @@ class _EventGenerator:
         self.r_deplete = r_deplete
         self.r_charge = r_charge
         self.charging_stations = charging_stations
+        self.pre_move_cbs = []
+        self.pre_charge_cbs = []
+        self.pre_wait_cbs = []
+
+    def add_pre_move_cb(self, cb):
+        self.pre_move_cbs.append(cb)
+
+    def add_pre_charge_cb(self, cb):
+        self.pre_charge_cbs.append(cb)
+
+    def add_pre_wait_cb(self, cb):
+        self.pre_wait_cbs.append(cb)
 
     def sim(self, env):
         while True:
@@ -46,23 +62,27 @@ class _EventGenerator:
 
             event = env.timeout(t_move, value=Event(env.now, "reached", node_next))
 
-            def cb(ev):
-                self.cur_node = node_next
-                self.nodes = self.nodes[1:] if len(self.nodes) > 1 else []
-
-            event.callbacks.append(cb)
+            for cb in self.pre_move_cbs:
+                cb(event)
             yield event
+
+            self.cur_node = node_next
+            self.nodes = self.nodes[1:] if len(self.nodes) > 1 else []
 
             # wait at node
             waiting_time = self.cur_node.wt
             if waiting_time > 0:
                 event = env.timeout(waiting_time, value=Event(env.now, "waited", self.cur_node))
+                for cb in self.pre_wait_cbs:
+                    cb(event)
                 yield event
 
             # charge at node
             charging_time = self.cur_node.ct
             if charging_time > 0:
                 event = env.timeout(charging_time, value=Event(env.now, "charged", self.cur_node))
+                for cb in self.pre_charge_cbs:
+                    cb(event)
                 yield event
 
 
@@ -80,6 +100,8 @@ class UAV:
         self.uav_id = uav_id
 
         self.charging_stations = charging_stations  # simpy shared resources
+        self.resource = None
+        self.req = None
         self.battery = battery
         self.r_charge = r_charge
         self.r_deplete = r_deplete
@@ -111,13 +133,22 @@ class UAV:
     def add_finish_cb(self, cb):
         self.finish_cbs.append(cb)
 
+    def _get_battery(self, env):
+        t_passed = env.now - self.t_start
+        battery = self.battery
+        if self.state_type == UavStateType.Moving:
+            battery = self.battery - t_passed * self.r_deplete
+        elif self.state_type == UavStateType.Charging:
+            battery = min(self.battery + t_passed * self.r_charge, 1)
+        return battery
+
     def get_state(self, env):
         """
         Returns the position and batter charge of the UAV.
         """
         t_passed = env.now - self.t_start
+        battery = self._get_battery(env)
         if self.state_type == UavStateType.Moving:
-            battery = self.battery - t_passed * self.r_deplete
             dir_vector = self.cur_node.direction(self.eg.nodes[0])
             traveled_distance = t_passed * self.v
             travel_vector = dir_vector * traveled_distance
@@ -128,7 +159,6 @@ class UAV:
                 battery=battery,
             )
         elif self.state_type == UavStateType.Charging:
-            battery = min(self.battery + t_passed * self.r_charge, 1)
             res = UavState(
                 state_type=self.state_type,
                 pos=self.cur_node.pos,
@@ -138,14 +168,33 @@ class UAV:
             res = UavState(
                 state_type=self.state_type,
                 pos=self.cur_node.pos,
-                battery=self.battery,
+                battery=battery,
             )
         return res
 
     def set_schedule(self, env, pos: list, nodes: list):
+        self.battery = self._get_battery(env)
         self.cur_node = AuxWaypoint(*pos)
+        self.t_start = env.now
 
         eg = _EventGenerator(pos, nodes, self.v, self.battery, self.r_deplete, self.r_charge, self.charging_stations)
+
+        def pre_move_cb(ev):
+            self.state_type = UavStateType.Moving
+
+        def pre_charge_cb(ev):
+            self.state_type = UavStateType.Charging
+
+            self.resource = self.charging_stations[ev.value.node.identifier]
+            self.req = self.resource.request()
+            yield self.req
+
+        def pre_wait_cb(ev):
+            self.state_type = UavStateType.Waiting
+
+        eg.add_pre_move_cb(pre_move_cb)
+        eg.add_pre_charge_cb(pre_charge_cb)
+        eg.add_pre_wait_cb(pre_wait_cb)
         if self.proc:
             self.proc.interrupt()
         self.eg = eg
@@ -153,48 +202,44 @@ class UAV:
     def _sim(self, env):
         for ev in self.eg.sim(env):
             if ev.value.name == 'reached':
-                def arrival_cb(ev):
-                    self.cur_node = ev.value.node
-                    self.battery -= ev._delay * self.r_deplete
-                    self.state_type = UavStateType.Idle
-                    if ev.value.node.node_type == NodeType.Waypoint:
-                        self.waypoint_id += 1
-
-                ev.callbacks.append(arrival_cb)
-
-                for cb in self.arrival_cbs:
-                    ev.callbacks.append(cb)
+                self.logger.debug(
+                    f"[{env.now:.2f}] drone [{self.uav_id}] is moving from {self.cur_node} to {self.eg.nodes[0]}")
                 self.state_type = UavStateType.Moving
 
             elif ev.value.name == 'waited':
-                def waited_cb(_):
-                    self.state_type = UavStateType.Idle
-
-                ev.callbacks.append(waited_cb)
-                for cb in self.waited_cbs:
-                    ev.callbacks.append(cb)
-
+                self.logger.debug(f"[{env.now:.2f}] drone [{self.uav_id}] is waiting at {self.cur_node}")
                 self.state_type = UavStateType.Waiting
             elif ev.value.name == 'charged':
-                resource = self.charging_stations[self.cur_node.identifier]
-                req = resource.request()
-                yield req
 
-                def charged_cb(ev):
-                    self.battery = min(self.battery + ev.value.node.ct * self.r_charge, 1)
-                    self.state_type = UavStateType.Idle
-                    resource.release(req)
+                self.state_type = UavStateType.Waiting
 
-                ev.callbacks.append(charged_cb)
-
-                for cb in self.charged_cbs:
-                    ev.callbacks.append(cb)
+                self.logger.debug(f"[{env.now:.2f}] drone [{self.uav_id}] is charging at {self.cur_node}")
                 self.state_type = UavStateType.Charging
 
             ev.value.uav = self
-            yield ev
-            self.t_start = env.now
 
+            yield ev
+
+            self.state_type = UavStateType.Idle
+
+            if ev.value.name == 'reached':
+                self.cur_node = ev.value.node
+                self.battery -= ev._delay * self.r_deplete
+                if ev.value.node.node_type == NodeType.Waypoint:
+                    self.waypoint_id += 1
+                for cb in self.arrival_cbs:
+                    cb(ev)
+            elif ev.value.name == 'waited':
+                for cb in self.waited_cbs:
+                    cb(ev)
+            elif ev.value.name == 'charged':
+                self.battery = min(self.battery + ev.value.node.ct * self.r_charge, 1)
+                if self.resource:
+                    self.resource.release(self.req)
+                for cb in self.charged_cbs:
+                    cb(ev)
+
+            self.t_start = env.now
             self.events.append(ev)
 
     def sim(self, env):

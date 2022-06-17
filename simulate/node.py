@@ -40,7 +40,7 @@ class Node:
         raise NotImplementedError
 
     def __repr__(self):
-        return f"({self.x}, {self.y}, {self.z})"
+        return f"({self.x:.2f}, {self.y:.2f}, {self.z:.2f})"
 
 
 class ChargingStation(Node):

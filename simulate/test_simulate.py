@@ -37,13 +37,13 @@ class TestSimulator(TestCase):
             B_start=[1, 1],
         )
         # delta = 10
-        delta = 0.5
+        schedule_delta = 1
         W = 10
 
         params = Parameters(**p)
 
-        simulator = Simulator(Scheduler, params, sc, delta, W)
-        env = simulator.sim()
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W)
+        env, events = simulator.sim()
         print(env.now)
 
 
