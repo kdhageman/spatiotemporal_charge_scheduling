@@ -38,11 +38,12 @@ class TestSimulator(TestCase):
         )
         # delta = 10
         schedule_delta = 1
+        plot_delta = 0.5
         W = 10
 
         params = Parameters(**p)
 
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W)
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta)
         env, events = simulator.sim()
         print(env.now)
 

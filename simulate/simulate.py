@@ -161,7 +161,8 @@ class NaiveScheduler(Scheduler):
 
 
 class Simulator:
-    def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, schedule_delta: float, W: int, plot_delta: float = 0.1):
+    def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, schedule_delta: float, W: int,
+                 plot_delta: float = 0.1):
         self.logger = logging.getLogger(__name__)
         self.scheduler_cls = scheduler_cls
         self.params = params
@@ -205,7 +206,12 @@ class Simulator:
         self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
         for i, (start_pos, nodes) in enumerate(self.schedules):
             node_list = " - ".join([str(n) for n in [start_pos] + nodes])
+            n_wp = len([n for n in nodes if n.node_type == NodeType.Waypoint])
+            n_charge = len([n for n in nodes if n.node_type == NodeType.ChargingStation])
+            n_aux = len([n for n in nodes if n.node_type == NodeType.AuxWaypoint])
             self.logger.debug(f"[{env.now:.2f}] schedule for UAV [{i}]: {node_list}")
+            self.logger.debug(
+                f"[{env.now:.2f}] schedule for UAV [{i}] is composed of {n_wp} waypoints, {n_charge} charging staitons and {n_aux} auxiliary waypoints")
 
         for i, (start_pos, nodes) in enumerate(self.schedules):
             uavs[i].set_schedule(env, start_pos, nodes)
@@ -216,7 +222,8 @@ class Simulator:
         for uav in uavs:
             start_pos = uav.get_state(env).pos
             schedules.append((start_pos, uav.eg.nodes))
-        self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname, title=f"$t={env.now:.2f}$s")
+        self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname,
+                  title=f"$t={env.now:.2f}$s")
         self.plot_timestepper._inc(_)
 
         def arrival_cb(event):
@@ -251,7 +258,12 @@ class Simulator:
             self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
             for i, (start_pos, nodes) in enumerate(self.schedules):
                 node_list = " - ".join([str(n) for n in [start_pos] + nodes])
+                n_wp = len([n for n in nodes if n.node_type == NodeType.Waypoint])
+                n_charge = len([n for n in nodes if n.node_type == NodeType.ChargingStation])
+                n_aux = len([n for n in nodes if n.node_type == NodeType.AuxWaypoint])
                 self.logger.debug(f"[{env.now:.2f}] schedule for UAV [{i}]: {node_list}")
+                self.logger.debug(
+                    f"[{env.now:.2f}] schedule for UAV [{i}] is composed of {n_wp} waypoints, {n_charge} charging staitons and {n_aux} auxiliary waypoints")
 
             for i, (start_pos, nodes) in enumerate(self.schedules):
                 uavs[i].set_schedule(env, start_pos, nodes)
@@ -271,8 +283,8 @@ class Simulator:
 
         self.remaining = self.sf.N_d
 
-        def uav_finished_cb():
-            self.logger.debug("uav finished")
+        def uav_finished_cb(uav):
+            self.logger.debug(f"[{env.now:.2f}] uav [{uav.uav_id}] finished")
             self.remaining -= 1
             if self.remaining == 0:
                 schedule_ts.interrupt()

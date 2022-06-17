@@ -60,11 +60,12 @@ class _EventGenerator:
             distance = self.cur_node.dist(node_next)
             t_move = distance / self.v
 
-            event = env.timeout(t_move, value=Event(env.now, "reached", node_next))
+            if t_move > 0:
+                event = env.timeout(t_move, value=Event(env.now, "reached", node_next))
 
-            for cb in self.pre_move_cbs:
-                cb(event)
-            yield event
+                for cb in self.pre_move_cbs:
+                    cb(event)
+                yield event
 
             self.cur_node = node_next
             self.nodes = self.nodes[1:] if len(self.nodes) > 1 else []
@@ -196,7 +197,10 @@ class UAV:
         eg.add_pre_charge_cb(pre_charge_cb)
         eg.add_pre_wait_cb(pre_wait_cb)
         if self.proc:
-            self.proc.interrupt()
+            try:
+                self.proc.interrupt()
+            except RuntimeError as e:
+                self.logger.warning(f"[{env.now}] failed to interrupt process: {e}")
         self.eg = eg
 
     def _sim(self, env):
@@ -248,7 +252,7 @@ class UAV:
                 self.proc = env.process(self._sim(env))
                 yield self.proc
                 for cb in self.finish_cbs:
-                    cb()
+                    cb(self)
                 break
             except simpy.exceptions.Interrupt:
                 pass
