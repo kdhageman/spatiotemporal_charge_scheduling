@@ -21,7 +21,8 @@ class TestSimulator(TestCase):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
         _, ax = plt.subplots()
         sc.plot(ax=ax, draw_distances=False)
-        plt.savefig("out/simulation/scenarios/scenario.pdf", bbox_inches='tight')
+        ax.axis('off')
+        plt.savefig("out/simulation/scenario/scenario.pdf", bbox_inches='tight')
 
     def test_simulator(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -39,12 +40,12 @@ class TestSimulator(TestCase):
         # schedule_delta = 1
         # schedule_delta = 10
         schedule_delta = 5
-        plot_delta = 0.1
+        plot_delta = 0.05
         W = 10
 
         params = Parameters(**p)
 
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta)
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, dir="out/simulation/")
         env, events = simulator.sim()
         print(env.now)
 

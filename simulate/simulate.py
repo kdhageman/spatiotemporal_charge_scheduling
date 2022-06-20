@@ -56,7 +56,7 @@ class TimeStepper:
     def _inc(self, _):
         self.timestep += 1
 
-    def sim(self, env, callbacks=[]):
+    def sim(self, env, callbacks=[], finish_callbacks=[]):
         while True:
             event = env.timeout(self.interval)
             for cb in callbacks:
@@ -66,8 +66,9 @@ class TimeStepper:
                 yield event
             except simpy.exceptions.Interrupt:
                 break
-        for cb in callbacks:
+        for cb in finish_callbacks:
             cb(event)
+            self._inc()
 
 
 class NotSolvableException(Exception):
@@ -165,10 +166,11 @@ class NaiveScheduler(Scheduler):
 
 class Simulator:
     def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, schedule_delta: float, W: int,
-                 plot_delta: float = 0.1):
+                 plot_delta: float = 0.1, dir=None):
         self.logger = logging.getLogger(__name__)
         self.scheduler_cls = scheduler_cls
         self.params = params
+        self.dir = dir
         self.sf = ScenarioFactory(sc, W)
 
         self.schedule_timestepper = TimeStepper(schedule_delta)
@@ -219,15 +221,16 @@ class Simulator:
         for i, (start_pos, nodes) in enumerate(self.schedules):
             uavs[i].set_schedule(env, start_pos, nodes)
 
-        _, ax = plt.subplots()
-        fname = f"out/simulation/scenarios/scenario_{self.plot_timestepper.timestep:03}.pdf"
-        schedules = []
-        for uav in uavs:
-            start_pos = uav.get_state(env).pos
-            schedules.append((start_pos, uav.eg.nodes))
-        self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname,
-                  title=f"$t={env.now:.2f}$s")
-        self.plot_timestepper._inc(_)
+        if self.dir:
+            _, ax = plt.subplots()
+            fname = f"{self.dir}/it_{self.plot_timestepper.timestep:03}.pdf"
+            schedules = []
+            for uav in uavs:
+                start_pos = uav.get_state(env).pos
+                schedules.append((start_pos, uav.eg.nodes))
+            self.plot(schedules, [uav.get_state(env).battery for uav in uavs], ax=ax, fname=fname,
+                      title=f"$t={env.now:.2f}$s")
+            self.plot_timestepper._inc(_)
 
         def arrival_cb(event):
             if event.value.node.node_type == NodeType.Waypoint:
@@ -273,7 +276,7 @@ class Simulator:
 
         def plot_ts_cb(_):
             _, ax = plt.subplots()
-            fname = f"out/simulation/scenarios/scenario_{self.plot_timestepper.timestep:03}.pdf"
+            fname = f"{self.dir}/it_{self.plot_timestepper.timestep:03}.pdf"
             schedules = []
             for uav in uavs:
                 start_pos = uav.get_state(env).pos
@@ -282,7 +285,9 @@ class Simulator:
                       title=f"$t={env.now:.2f}$s")
 
         schedule_ts = env.process(self.schedule_timestepper.sim(env, callbacks=[schedule_ts_cb]))
-        plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb]))
+        if self.dir:
+            finish_cbs = [plot_ts_cb for _ in range(10)]
+            plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb], finish_callbacks=finish_cbs))
 
         self.remaining = self.sf.N_d
 
@@ -291,7 +296,8 @@ class Simulator:
             self.remaining -= 1
             if self.remaining == 0:
                 schedule_ts.interrupt()
-                plot_ts.interrupt()
+                if self.dir:
+                    plot_ts.interrupt()
 
         # run simulation
         for uav in uavs:
