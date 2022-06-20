@@ -68,6 +68,7 @@ class TimeStepper:
         for cb in callbacks:
             cb(event)
 
+
 class NotSolvableException(Exception):
     pass
 
@@ -314,17 +315,15 @@ class Simulator:
             y_wp = [n.pos[1] for n in nodes if n.node_type == NodeType.Waypoint]
             x_c = [n.pos[0] for n in nodes if n.node_type == NodeType.ChargingStation]
             y_c = [n.pos[1] for n in nodes if n.node_type == NodeType.ChargingStation]
-            x_aux = [start_pos[0]] + [n.pos[0] for n in nodes if n.node_type == NodeType.AuxWaypoint]
-            y_aux = [start_pos[1]] + [n.pos[1] for n in nodes if n.node_type == NodeType.AuxWaypoint]
             alphas = np.linspace(1, 0.2, len(x_all) - 1)
             for j in range(len(x_all) - 1):
                 x = x_all[j:j + 2]
                 y = y_all[j:j + 2]
                 label = f"{batteries[i] * 100:.1f}%" if j == 0 else None
                 ax.plot(x, y, color=colors[i], label=label, alpha=alphas[j])
-            ax.scatter(x_wp, y_wp, c=colors[i])
-            ax.scatter(x_c, y_c, marker='s', c=colors[i], facecolor='white')
-            ax.scatter(x_aux, y_aux, marker='o', c=colors[i], facecolor='white', zorder=10)
+            ax.scatter(x_wp, y_wp, c='white', s=40, edgecolor=colors[i], zorder=2)  # waypoints
+            ax.scatter(x_c, y_c, marker='s', s=70, c='white', edgecolor=colors[i], zorder=2)  # charging stations
+            ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, c=colors[i], zorder=10)  # starting point
         for i, positions in enumerate(self.sf.sc_orig.positions_w):
             x = [x for x, _, _ in positions]
             y = [y for _, y, _ in positions]
