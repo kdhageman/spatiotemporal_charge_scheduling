@@ -4,7 +4,7 @@ from unittest import TestCase
 import numpy as np
 from matplotlib import pyplot as plt
 
-from simulate.node import Node, NodeType
+from simulate.node import Node, NodeType, Waypoint
 from simulate.simulate import Parameters, Scheduler, Simulator, ScenarioFactory
 from util.scenario import Scenario
 
@@ -37,8 +37,9 @@ class TestSimulator(TestCase):
             B_start=[1, 1],
         )
         # schedule_delta = 1
-        schedule_delta = 10
-        plot_delta = 0.2
+        # schedule_delta = 10
+        schedule_delta = 5
+        plot_delta = 0.1
         W = 10
 
         params = Parameters(**p)
@@ -152,3 +153,33 @@ class TestScenarioFactory(TestCase):
             [(-3.5, 0, 0), (-3.5, 0, 0), (-3.5, 0, 0)],
         ]
         self.assertEqual(actual, expected)
+
+    def test_plot(self):
+        positions_S = [
+            [0, 0, 0]
+        ]
+        positions_w = [
+            [
+                [-1, 0, 0],
+                [-1, 1, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [1, 0, 0],
+                [1, -1, 0],
+                [0, -1, 0],
+                [-1, -1, 0],
+            ]
+        ]
+        sc = Scenario(positions_S, positions_w)
+
+        sim = Simulator(None, None, sc, 0, 5)
+
+        schedules = [
+            [(-1, 0, 0), [Waypoint(-1, 1, 0), Waypoint(-1, 1, 0), Waypoint(0, 1, 0), Waypoint(1, 1, 0)]]
+        ]
+        batteries = [0.8]
+        fname = "out/test/test_sim.pdf"
+        title = "0.00s"
+
+        _, ax = plt.subplots()
+        sim.plot(schedules, batteries, ax=ax, fname=fname, title=title)

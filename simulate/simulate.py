@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import simpy
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
@@ -324,14 +325,48 @@ class Simulator:
             ax.scatter(x_wp, y_wp, c='white', s=40, edgecolor=colors[i], zorder=2)  # waypoints
             ax.scatter(x_c, y_c, marker='s', s=70, c='white', edgecolor=colors[i], zorder=2)  # charging stations
             ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, c=colors[i], zorder=10)  # starting point
+
         for i, positions in enumerate(self.sf.sc_orig.positions_w):
             x = [x for x, _, _ in positions]
             y = [y for _, y, _ in positions]
             ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
-        ax.legend()
+
+        x = [x for x, _, _ in self.sf.sc_orig.positions_S]
+        y = [y for _, y, _ in self.sf.sc_orig.positions_S]
+        ax.scatter(x, y, marker='s', s=70, c='white', edgecolor='black', zorder=-1, alpha=0.2)
+
+        xmin, xmax = ax.get_xlim()
+        ymin, ymax = ax.get_ylim()
+        y_offset = (ymax - ymin) * 0.05
+
+        width_outer = (xmax - xmin) * 0.07
+        height_outer = (ymax - ymin) * 0.05
+
+        lw_outer = 2
+
+        padding = height_outer / 3.4
+        width_inner_max = width_outer - padding
+        height_inner = height_outer - padding
+        lw_inner = 0
+
+        for i, (start_pos, nodes) in enumerate(schedules):
+            # draw battery under current battery position
+            x_outer = start_pos[0] - (width_outer / 2)
+            y_outer = start_pos[1] - (height_outer / 2) - y_offset
+            outer = Rectangle((x_outer, y_outer), width_outer, height_outer, color=colors[i], linewidth=lw_outer, fill=False)
+            ax.add_patch(outer)
+
+            width_inner = width_inner_max * batteries[i]
+            x_inner = start_pos[0] - (width_inner_max / 2)
+            y_inner = start_pos[1] - (height_inner / 2) - y_offset
+            inner = Rectangle((x_inner, y_inner), width_inner, height_inner, color=colors[i], linewidth=lw_inner, fill=True)
+            ax.add_patch(inner)
+
 
         if title:
             ax.set_title(title)
+
+        ax.axis('off')
 
         if fname:
             plt.savefig(fname, bbox_inches='tight')
