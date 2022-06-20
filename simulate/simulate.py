@@ -65,7 +65,8 @@ class TimeStepper:
                 yield event
             except simpy.exceptions.Interrupt:
                 break
-
+        for cb in callbacks:
+            cb(event)
 
 class NotSolvableException(Exception):
     pass
@@ -211,7 +212,7 @@ class Simulator:
             n_aux = len([n for n in nodes if n.node_type == NodeType.AuxWaypoint])
             self.logger.debug(f"[{env.now:.2f}] schedule for UAV [{i}]: {node_list}")
             self.logger.debug(
-                f"[{env.now:.2f}] schedule for UAV [{i}] is composed of {n_wp} waypoints, {n_charge} charging staitons and {n_aux} auxiliary waypoints")
+                f"[{env.now:.2f}] schedule for UAV [{i}] is composed of {n_wp} waypoints, {n_charge} charging stations and {n_aux} auxiliary waypoints")
 
         for i, (start_pos, nodes) in enumerate(self.schedules):
             uavs[i].set_schedule(env, start_pos, nodes)
@@ -263,7 +264,7 @@ class Simulator:
                 n_aux = len([n for n in nodes if n.node_type == NodeType.AuxWaypoint])
                 self.logger.debug(f"[{env.now:.2f}] schedule for UAV [{i}]: {node_list}")
                 self.logger.debug(
-                    f"[{env.now:.2f}] schedule for UAV [{i}] is composed of {n_wp} waypoints, {n_charge} charging staitons and {n_aux} auxiliary waypoints")
+                    f"[{env.now:.2f}] schedule for UAV [{i}] is composed of {n_wp} waypoints, {n_charge} charging stations and {n_aux} auxiliary waypoints")
 
             for i, (start_pos, nodes) in enumerate(self.schedules):
                 uavs[i].set_schedule(env, start_pos, nodes)
@@ -279,15 +280,16 @@ class Simulator:
                       title=f"$t={env.now:.2f}$s")
 
         schedule_ts = env.process(self.schedule_timestepper.sim(env, callbacks=[schedule_ts_cb]))
-        env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb]))
+        plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb]))
 
         self.remaining = self.sf.N_d
 
         def uav_finished_cb(uav):
-            self.logger.debug(f"[{env.now:.2f}] uav [{uav.uav_id}] finished")
+            self.logger.debug(f"[{env.now:.2f}] UAV [{uav.uav_id}] finished")
             self.remaining -= 1
             if self.remaining == 0:
                 schedule_ts.interrupt()
+                plot_ts.interrupt()
 
         # run simulation
         for uav in uavs:
@@ -334,3 +336,4 @@ class Simulator:
 
         if fname:
             plt.savefig(fname, bbox_inches='tight')
+        plt.close()

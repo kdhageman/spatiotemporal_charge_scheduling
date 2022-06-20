@@ -36,9 +36,9 @@ class TestSimulator(TestCase):
             B_max=[1, 1],
             B_start=[1, 1],
         )
-        # delta = 10
-        schedule_delta = 1
-        plot_delta = 0.5
+        # schedule_delta = 1
+        schedule_delta = 10
+        plot_delta = 0.2
         W = 10
 
         params = Parameters(**p)
