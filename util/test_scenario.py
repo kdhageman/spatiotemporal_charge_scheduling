@@ -54,45 +54,25 @@ class TestScenario(TestCase):
         self.assertEqual(len(s.positions_w[0]), 5)
 
     def test_init_padding(self):
-        doc = {
-            'drones': [
-                {
-                    "waypoints": [
-                        {
-                            "x": 0,
-                            "y": 0,
-                        }
-                    ]
-                },
-                {
-                    "waypoints": [
-                        {
-                            "x": 0,
-                            "y": 0
-                        },
-                        {
-                            "x": 2.5,
-                            "y": 0
-                        },
-                        {
-                            "x": 4.5,
-                            "y": 0
-                        },
-                        {
-                            "x": 6,
-                            "y": 0
-                        },
-                        {
-                            "x": 7.5,
-                            "y": 0
-                        },
-                    ]
-                },
+        positions_S = [
+            (1, 1),
+        ]
+        positions_w = [
+            [
+                (0, 0),
+                (1, 0),
             ],
-        }
+            [
+                (0, 0),
+                (2.5, 0),
+                (4.5, 0),
+                (6, 0),
+                (7.5, 0),
+            ]
+        ]
 
-        s = Scenario(doc)
-        self.assertEqual(s.N_s, 0)
+        s = Scenario(positions_S, positions_w)
+        self.assertEqual(s.N_s, 1)
         self.assertEqual(s.N_d, 2)
         self.assertEqual(s.N_w, 5)
         for wps in s.positions_w:

@@ -15,12 +15,25 @@ class Scenario:
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
         """
-        self.positions_S = positions_S
-        self.positions_w = positions_w
+        self.positions_S = []
+        for pos in positions_S:
+            if len(pos) == 2:
+                pos = (pos[0], pos[1], 0)
+            self.positions_S.append(pos)
+        self.N_w = max([len(l) for l in positions_w])
+        self.positions_w = []
+        for l in positions_w:
+            waypoints = []
+            for wp in l:
+                if len(wp) == 2:
+                    wp = (wp[0], wp[1], 0)
+                waypoints.append(wp)
+            padding_val = waypoints[-1]
+            padcount = self.N_w - len(l)
+            self.positions_w.append(waypoints + [padding_val] * padcount)
 
         self.N_d = len(self.positions_w)
         self.N_s = len(self.positions_S)
-        self.N_w = len(self.positions_w[0])
         self.N_w_s = self.N_w - 1
 
         # calculate distance matrices
@@ -84,21 +97,12 @@ class Scenario:
 
         positions_w = []
         drones = doc.get('drones', [])
-        N_w = max([len(d['waypoints']) for d in drones])
 
         for drone in drones:
             waypoints = []
             for wp in drone.get('waypoints', []):
                 x, y, z = wp['x'], wp['y'], wp.get('z', 0)
                 waypoints.append((x, y, z))
-
-            # add padding waypoints to ensure all UAVs traverse the same number of waypoints
-            padcount = N_w - len(waypoints)
-            if padcount > 0:
-                padding_wp = waypoints[-1]
-                for _ in range(padcount):
-                    waypoints.append(padding_wp)
-
             positions_w.append(waypoints)
 
         return Scenario(positions_S, positions_w)
