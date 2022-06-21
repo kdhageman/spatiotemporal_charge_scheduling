@@ -179,6 +179,7 @@ class UAV:
         :param nodes:
         :return:
         """
+        # TODO: fix bug in 'test_simulator_no_charging' test
         if len(self.eg.nodes) == 0 and len(nodes) > 0:
             return True
         return not self.eg.nodes[0].equal_pos(nodes[0])
@@ -194,6 +195,7 @@ class UAV:
             self.events.append(env.timeout(0, value=event))
         elif self.state_type == UavStateType.Moving and self.changes_course(nodes):
             # add event with current position to events list when moving
+            self.logger.debug(f"[{env.now:.2f}] UAV [{self.uav_id}] changed course from {self.eg.nodes[0]} to {nodes[0]}")
             event = Event(env.now, "changed_course", self.cur_node, self)
             self.events.append(env.timeout(0, value=event))
 

@@ -83,7 +83,9 @@ class TestSimulator(TestCase):
         simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
         env, event_list = simulator.sim()
         self.assertEqual(len(event_list), 1)
-        self.assertEqual(len(event_list[0]), 4)
+        self.assertEqual(len(event_list[0]), 5)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "started"]), 1)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "reached"]), 4)
         self.assertEqual(env.now, 4)
 
     def test_simulator_short_charging(self):

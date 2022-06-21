@@ -217,7 +217,7 @@ class Simulator:
         t_solve, self.schedules = scheduler.schedule()
         self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
         for i, (start_pos, nodes) in enumerate(self.schedules):
-            node_list = " - ".join([str(n) for n in [start_pos] + nodes])
+            node_list = " - ".join([str(n) for n in [Waypoint(*start_pos)] + nodes])
             n_wp = len([n for n in nodes if n.node_type == NodeType.Waypoint])
             n_charge = len([n for n in nodes if n.node_type == NodeType.ChargingStation])
             n_aux = len([n for n in nodes if n.node_type == NodeType.AuxWaypoint])
@@ -271,7 +271,7 @@ class Simulator:
             t_solve, self.schedules = scheduler.schedule()
             self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
             for i, (start_pos, nodes) in enumerate(self.schedules):
-                node_list = " - ".join([str(n) for n in [start_pos] + nodes])
+                node_list = " - ".join([str(n) for n in [Waypoint(*start_pos)] + nodes])
                 n_wp = len([n for n in nodes if n.node_type == NodeType.Waypoint])
                 n_charge = len([n for n in nodes if n.node_type == NodeType.ChargingStation])
                 n_aux = len([n for n in nodes if n.node_type == NodeType.AuxWaypoint])
@@ -351,12 +351,12 @@ class Simulator:
                 ax.plot(x, y, color=colors[i], label=label, alpha=alphas[j])
             ax.scatter(x_wp, y_wp, c='white', s=40, edgecolor=colors[i], zorder=2)  # waypoints
             ax.scatter(x_c, y_c, marker='s', s=70, c='white', edgecolor=colors[i], zorder=2)  # charging stations
-            ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, c=colors[i], zorder=10)  # starting point
+            ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, color=colors[i], zorder=10)  # starting point
 
         for i, positions in enumerate(self.sf.sc_orig.positions_w):
             x = [x for x, _, _ in positions]
             y = [y for _, y, _ in positions]
-            ax.scatter(x, y, marker='x', s=10, c=colors[i], zorder=-1, alpha=0.2)
+            ax.scatter(x, y, marker='x', s=10, color=colors[i], zorder=-1, alpha=0.2)
 
         x = [x for x, _, _ in self.sf.sc_orig.positions_S]
         y = [y for _, y, _ in self.sf.sc_orig.positions_S]
