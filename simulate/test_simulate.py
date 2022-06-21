@@ -1,4 +1,5 @@
 import logging
+import os
 from unittest import TestCase
 
 import numpy as np
@@ -24,7 +25,7 @@ class TestSimulator(TestCase):
         ax.axis('off')
         plt.savefig("out/simulation/scenario/scenario.pdf", bbox_inches='tight')
 
-    def test_simulator(self):
+    def test_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
         # sc = Scenario.from_file("scenarios/two_drones.yml")
 
@@ -45,9 +46,80 @@ class TestSimulator(TestCase):
 
         params = Parameters(**p)
 
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, dir="out/simulation/")
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory="out/simulation/")
         env, events = simulator.sim()
         print(env.now)
+
+    def test_simulator_short_no_charging(self):
+        positions_w = [
+            [
+                (0, 0, 0),
+                (1, 0, 0),
+                (2, 0, 0),
+                (3, 0, 0),
+                (4, 0, 0),
+            ]
+        ]
+        positions_S = [
+            (2, 0.25, 0)
+        ]
+        sc = Scenario(positions_S, positions_w)
+
+        params = Parameters(
+            v=[1],
+            r_charge=[0.1],
+            r_deplete=[0.2],
+            B_start=[1],
+            B_min=[0.1],
+            B_max=[1],
+        )
+
+        schedule_delta = 1.2
+        W = 3
+
+        directory = 'out/test/short_no_charging'
+        os.makedirs(directory, exist_ok=True)
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
+        env, event_list = simulator.sim()
+        self.assertEqual(len(event_list), 1)
+        self.assertEqual(len(event_list[0]), 4)
+        self.assertEqual(env.now, 4)
+
+    def test_simulator_short_charging(self):
+        positions_w = [
+            [
+                (0, 0, 0),
+                (1, 0, 0),
+                (2, 0, 0),
+                (3, 0, 0),
+                (4, 0, 0),
+            ]
+        ]
+        positions_S = [
+            (2, 0.25, 0)
+        ]
+        sc = Scenario(positions_S, positions_w)
+
+        params = Parameters(
+            v=[1],
+            r_charge=[0.1],
+            r_deplete=[0.3],
+            B_start=[1],
+            B_min=[0.1],
+            B_max=[1],
+        )
+
+        schedule_delta = 1.2
+        W = 4
+
+        directory = 'out/test/short_charging'
+        os.makedirs(directory, exist_ok=True)
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
+        env, event_list = simulator.sim()
+        self.assertEqual(len(event_list), 1)
+        self.assertEqual(len(event_list[0]), 6)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "reached"]), 5)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "charged"]), 1)
 
 
 class TestScheduler(TestCase):

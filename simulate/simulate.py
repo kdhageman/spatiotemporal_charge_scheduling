@@ -1,7 +1,9 @@
 import logging
+import os.path
 
 import numpy as np
 import simpy
+from PyPDF2 import PdfMerger
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from pyomo.opt import SolverFactory
@@ -166,25 +168,21 @@ class NaiveScheduler(Scheduler):
 
 class Simulator:
     def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, schedule_delta: float, W: int,
-                 plot_delta: float = 0.1, dir=None):
+                 plot_delta: float = 0.1, directory=None):
         self.logger = logging.getLogger(__name__)
         self.scheduler_cls = scheduler_cls
         self.params = params
-        self.dir = dir
+        self.directory = directory
         self.sf = ScenarioFactory(sc, W)
 
         self.schedule_timestepper = TimeStepper(schedule_delta)
         self.plot_timestepper = TimeStepper(plot_delta)
 
         self.schedules = None
+        self.pdfs = []
 
         # used in callbacks
         self.remaining = []
-
-        # maintain history of simulation
-        self.events = []
-        for _ in range(self.sf.N_d):
-            self.events.append([])
 
     def sim(self):
         env = simpy.Environment()
@@ -221,9 +219,9 @@ class Simulator:
         for i, (start_pos, nodes) in enumerate(self.schedules):
             uavs[i].set_schedule(env, start_pos, nodes)
 
-        if self.dir:
+        if self.directory:
             _, ax = plt.subplots()
-            fname = f"{self.dir}/it_{self.plot_timestepper.timestep:03}.pdf"
+            fname = f"{self.directory}/it_{self.plot_timestepper.timestep:03}.pdf"
             schedules = []
             for uav in uavs:
                 start_pos = uav.get_state(env).pos
@@ -235,7 +233,7 @@ class Simulator:
         def arrival_cb(event):
             if event.value.node.node_type == NodeType.Waypoint:
                 self.sf.incr(event.value.uav.uav_id)
-            self.logger.debug(f"[{env.now:.2f}] UAV [{event.value.uav.uav_id}] reached {event.value.node}")
+            self.logger.debug(f"[{env.now:.2f}] UAV [{event.value.uav.uav_id}] reached {event.value.node} with {event.value.uav.battery*100:.1f}% battery")
 
         def waited_cb(event):
             self.logger.debug(
@@ -251,7 +249,7 @@ class Simulator:
             for i, uav in enumerate(uavs):
                 state = uav.get_state(env)
                 logging.debug(f"[{env.now:.2f}] determined position of UAV [{i}] to be {state.pos_str}")
-                logging.debug(f"[{env.now:.2f}] determined battery of UAV [{i}] to be {state.battery:.2f}")
+                logging.debug(f"[{env.now:.2f}] determined battery of UAV [{i}] to be {state.battery*100:.1f}%")
                 start_positions.append(state.pos)
                 batteries.append(state.battery)
             sc = self.sf.next(start_positions)
@@ -276,7 +274,7 @@ class Simulator:
 
         def plot_ts_cb(_):
             _, ax = plt.subplots()
-            fname = f"{self.dir}/it_{self.plot_timestepper.timestep:03}.pdf"
+            fname = f"{self.directory}/it_{self.plot_timestepper.timestep:03}.pdf"
             schedules = []
             for uav in uavs:
                 start_pos = uav.get_state(env).pos
@@ -285,9 +283,9 @@ class Simulator:
                       title=f"$t={env.now:.2f}$s")
 
         schedule_ts = env.process(self.schedule_timestepper.sim(env, callbacks=[schedule_ts_cb]))
-        if self.dir:
-            finish_cbs = [plot_ts_cb for _ in range(10)]
-            plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb], finish_callbacks=finish_cbs))
+        if self.directory:
+
+            plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb], finish_callbacks=[plot_ts_cb]))
 
         self.remaining = self.sf.N_d
 
@@ -296,7 +294,7 @@ class Simulator:
             self.remaining -= 1
             if self.remaining == 0:
                 schedule_ts.interrupt()
-                if self.dir:
+                if self.directory:
                     plot_ts.interrupt()
 
         # run simulation
@@ -306,7 +304,21 @@ class Simulator:
             uav.add_charged_cb(charged_cb)
             uav.add_finish_cb(uav_finished_cb)
             env.process(uav.sim(env))
-        env.run(until=schedule_ts)
+
+        try:
+            env.run(until=schedule_ts)
+        finally:
+            if self.directory:
+                merger = PdfMerger()
+                for pdf in self.pdfs:
+                    merger.append(pdf)
+                fname = os.path.join(self.directory, "combined.pdf")
+                merger.write(fname)
+                merger.close()
+
+                # remove the intermediate files
+                for pdf in self.pdfs:
+                    os.remove(pdf)
 
         return env, [uav.events for uav in uavs]
 
@@ -341,19 +353,19 @@ class Simulator:
         y = [y for _, y, _ in self.sf.sc_orig.positions_S]
         ax.scatter(x, y, marker='s', s=70, c='white', edgecolor='black', zorder=-1, alpha=0.2)
 
+        ax.axis("equal")
+
         xmin, xmax = ax.get_xlim()
-        ymin, ymax = ax.get_ylim()
-        y_offset = (ymax - ymin) * 0.05
 
         width_outer = (xmax - xmin) * 0.07
-        height_outer = (ymax - ymin) * 0.05
+        height_outer = width_outer * 0.5
+        y_offset = height_outer
 
-        lw_outer = 2
+        lw_outer = 1.5
 
-        padding = height_outer / 3.4
+        padding = height_outer / 3
         width_inner_max = width_outer - padding
         height_inner = height_outer - padding
-        lw_inner = 0
 
         for i, (start_pos, nodes) in enumerate(schedules):
             # draw battery under current battery position
@@ -365,15 +377,18 @@ class Simulator:
             width_inner = width_inner_max * batteries[i]
             x_inner = start_pos[0] - (width_inner_max / 2)
             y_inner = start_pos[1] - (height_inner / 2) - y_offset
-            inner = Rectangle((x_inner, y_inner), width_inner, height_inner, color=colors[i], linewidth=lw_inner, fill=True)
+            inner = Rectangle((x_inner, y_inner), width_inner, height_inner, color=colors[i], linewidth=0, fill=True)
             ax.add_patch(inner)
 
 
         if title:
             ax.set_title(title)
 
+
+        ax.margins(0.1, 0.1)
         ax.axis('off')
 
         if fname:
             plt.savefig(fname, bbox_inches='tight')
+            self.pdfs.append(fname)
         plt.close()

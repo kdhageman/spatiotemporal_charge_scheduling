@@ -20,12 +20,12 @@ def main():
         B_max=[1, 1],
         B_start=[1, 1],
     )
-    delta = 35
+    schedule_delta = 35
     W = 7
 
     params = Parameters(**p)
 
-    simulator = Simulator(Scheduler, params, sc, delta, W)
+    simulator = Simulator(Scheduler, params, sc, schedule_delta, W)
     try:
         env = simulator.sim()
     except NotSolvableException as e:

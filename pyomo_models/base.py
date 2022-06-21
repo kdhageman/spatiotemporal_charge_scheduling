@@ -4,6 +4,7 @@ import numpy as np
 import pyomo.environ as pyo
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
+from pyomo.core.expr.numeric_expr import SumExpression
 
 from util import constants
 from util.distance import dist3
@@ -63,27 +64,33 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w: m.b_arr(d, w) >= self.B_min[d]
         )
 
+        def b_min_llim_rule(m, d, w_s):
+            res = m.b_min(d, w_s)
+            if type(res) != SumExpression:
+                return pyo.Constraint.Skip
+            return res >= m.B_min[d]
+
         self.b_min_llim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_min(d, w_s) >= self.B_min[d]
+            rule=b_min_llim_rule
         )
         self.b_plus_ulim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.b_plus(d, w_s) <= self.B_max[d]
+            rule=lambda m, d, w_s: m.b_plus(d, w_s) <= m.B_max[d]
         )
 
         self.C_lim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * self.C_max[d]
+            rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * m.C_max[d]
         )
 
         self.W_lim = pyo.Constraint(
             self.d,
             self.w_s,
-            rule=lambda m, d, w_s: m.W[d, w_s] <= (1 - m.P[d, self.N_s, w_s]) * sum(self.C_max)
+            rule=lambda m, d, w_s: m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * sum(m.C_max)
         )
 
         self.alpha_min = pyo.Constraint(
