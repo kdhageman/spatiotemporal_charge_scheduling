@@ -16,6 +16,15 @@ from util.decorators import timed
 from util.scenario import Scenario
 
 
+def gen_colors(n):
+    np.random.seed(0)
+    res = []
+    for d in range(n):
+        c = np.random.rand(3).tolist()
+        res.append(c)
+    return res
+
+
 class Schedule:
     def __init__(self, decisions: np.ndarray, charging_times: np.ndarray, waiting_times: np.ndarray):
         assert (decisions.ndim == 2)
@@ -233,7 +242,8 @@ class Simulator:
         def arrival_cb(event):
             if event.value.node.node_type == NodeType.Waypoint:
                 self.sf.incr(event.value.uav.uav_id)
-            self.logger.debug(f"[{env.now:.2f}] UAV [{event.value.uav.uav_id}] reached {event.value.node} with {event.value.uav.battery*100:.1f}% battery")
+            self.logger.debug(
+                f"[{env.now:.2f}] UAV [{event.value.uav.uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery")
 
         def waited_cb(event):
             self.logger.debug(
@@ -249,7 +259,7 @@ class Simulator:
             for i, uav in enumerate(uavs):
                 state = uav.get_state(env)
                 logging.debug(f"[{env.now:.2f}] determined position of UAV [{i}] to be {state.pos_str}")
-                logging.debug(f"[{env.now:.2f}] determined battery of UAV [{i}] to be {state.battery*100:.1f}%")
+                logging.debug(f"[{env.now:.2f}] determined battery of UAV [{i}] to be {state.battery * 100:.1f}%")
                 start_positions.append(state.pos)
                 batteries.append(state.battery)
             sc = self.sf.next(start_positions)
@@ -284,7 +294,6 @@ class Simulator:
 
         schedule_ts = env.process(self.schedule_timestepper.sim(env, callbacks=[schedule_ts_cb]))
         if self.directory:
-
             plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb], finish_callbacks=[plot_ts_cb]))
 
         self.remaining = self.sf.N_d
@@ -326,7 +335,7 @@ class Simulator:
         if not ax:
             _, ax = plt.subplots()
 
-        colors = ['red', 'blue']
+        colors = gen_colors(len(schedules))
         for i, (start_pos, nodes) in enumerate(schedules):
             x_all = [start_pos[0]] + [n.pos[0] for n in nodes]
             y_all = [start_pos[1]] + [n.pos[1] for n in nodes]
@@ -371,7 +380,8 @@ class Simulator:
             # draw battery under current battery position
             x_outer = start_pos[0] - (width_outer / 2)
             y_outer = start_pos[1] - (height_outer / 2) - y_offset
-            outer = Rectangle((x_outer, y_outer), width_outer, height_outer, color=colors[i], linewidth=lw_outer, fill=False)
+            outer = Rectangle((x_outer, y_outer), width_outer, height_outer, color=colors[i], linewidth=lw_outer,
+                              fill=False)
             ax.add_patch(outer)
 
             width_inner = width_inner_max * batteries[i]
@@ -380,10 +390,8 @@ class Simulator:
             inner = Rectangle((x_inner, y_inner), width_inner, height_inner, color=colors[i], linewidth=0, fill=True)
             ax.add_patch(inner)
 
-
         if title:
             ax.set_title(title)
-
 
         ax.margins(0.1, 0.1)
         ax.axis('off')
