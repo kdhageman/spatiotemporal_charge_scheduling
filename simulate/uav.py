@@ -173,10 +173,29 @@ class UAV:
             )
         return res
 
+    def changes_course(self, nodes: list):
+        """
+        Returns whether the current drone changes its course towards given the new schedule
+        :param nodes:
+        :return:
+        """
+        if len(self.eg.nodes) == 0 and len(nodes) > 0:
+            return True
+        return not self.eg.nodes[0].equal_pos(nodes[0])
+
     def set_schedule(self, env, pos: list, nodes: list):
         self.battery = self._get_battery(env)
         self.cur_node = AuxWaypoint(*pos)
         self.t_start = env.now
+
+        if self.state_type == UavStateType.Idle:
+            # add start event
+            event = Event(env.now, "started", self.cur_node, self)
+            self.events.append(env.timeout(0, value=event))
+        elif self.state_type == UavStateType.Moving and self.changes_course(nodes):
+            # add event with current position to events list when moving
+            event = Event(env.now, "changed_course", self.cur_node, self)
+            self.events.append(env.timeout(0, value=event))
 
         eg = _EventGenerator(pos, nodes, self.v, self.battery, self.r_deplete, self.r_charge, self.charging_stations)
 

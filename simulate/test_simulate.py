@@ -46,7 +46,8 @@ class TestSimulator(TestCase):
 
         params = Parameters(**p)
 
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory="out/simulation/")
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta,
+                              directory="out/simulation/")
         env, events = simulator.sim()
         print(env.now)
 
@@ -119,6 +120,44 @@ class TestSimulator(TestCase):
         self.assertEqual(len(event_list), 1)
         self.assertEqual(len(event_list[0]), 6)
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "reached"]), 5)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "charged"]), 1)
+
+    def test_simulator_change_midmove(self):
+        positions_w = [
+            [
+                (0, 0, 0),
+                (1, 0, 0),
+                (2, 0, 0),
+                (3, 0, 0),
+            ]
+        ]
+        positions_S = [
+            (2, 0.25, 0)
+        ]
+        sc = Scenario(positions_S, positions_w)
+
+        params = Parameters(
+            v=[1],
+            r_charge=[0.1],
+            r_deplete=[0.45],
+            B_start=[1],
+            B_min=[0],
+            B_max=[1],
+        )
+
+        schedule_delta = 1.75
+        W = 3
+
+        directory = 'out/test/change_midmove'
+        os.makedirs(directory, exist_ok=True)
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
+        env, event_list = simulator.sim()
+
+        self.assertEqual(len(event_list), 1)
+        self.assertEqual(len(event_list[0]), 7)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "reached"]), 4)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "started"]), 1)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "changed_course"]), 1)
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "charged"]), 1)
 
 
