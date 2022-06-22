@@ -179,10 +179,11 @@ class UAV:
         :param nodes:
         :return:
         """
+        non_aux_nodes = [n for n in nodes if n.node_type != NodeType.AuxWaypoint]
         # TODO: fix bug in 'test_simulator_no_charging' test
-        if len(self.eg.nodes) == 0 and len(nodes) > 0:
+        if len(self.eg.nodes) == 0 and len(non_aux_nodes) > 0:
             return True
-        return not self.eg.nodes[0].equal_pos(nodes[0])
+        return not self.eg.nodes[0].equal_pos(non_aux_nodes[0])
 
     def set_schedule(self, env, pos: list, nodes: list):
         self.battery = self._get_battery(env)

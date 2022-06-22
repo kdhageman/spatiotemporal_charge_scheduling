@@ -9,7 +9,7 @@ from matplotlib.patches import Rectangle
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
-from simulate.node import ChargingStation, Waypoint, NodeType
+from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
 from simulate.uav import UAV
 from util.decorators import timed
@@ -154,9 +154,11 @@ class Scheduler:
                     nodes.append(
                         ChargingStation(*self.scenario.positions_S[n], n, wt, ct)
                     )
-                wp = Waypoint(*self.scenario.positions_w[d][w_s + 1])
-                if np.array_equal(wp.pos, start_pos):
-                    wp.aux = True
+                pos = self.scenario.positions_w[d][w_s + 1]
+                if start_pos == pos:
+                    wp = AuxWaypoint(*pos)
+                else:
+                    wp = Waypoint(*pos)
                 nodes.append(wp)
             res.append((start_pos, nodes))
         return res
@@ -240,6 +242,7 @@ class Simulator:
             self.plot_timestepper._inc(_)
 
         def arrival_cb(event):
+            # TODO: print remaining number of waypoints
             if event.value.node.node_type == NodeType.Waypoint:
                 self.sf.incr(event.value.uav.uav_id)
             self.logger.debug(
@@ -260,7 +263,7 @@ class Simulator:
                 state = uav.get_state(env)
                 logging.debug(f"[{env.now:.2f}] determined position of UAV [{i}] to be {state.pos_str}")
                 logging.debug(f"[{env.now:.2f}] determined battery of UAV [{i}] to be {state.battery * 100:.1f}%")
-                start_positions.append(state.pos)
+                start_positions.append(state.pos.tolist())
                 batteries.append(state.battery)
             sc = self.sf.next(start_positions)
 

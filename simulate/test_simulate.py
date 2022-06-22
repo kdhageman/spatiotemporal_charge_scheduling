@@ -46,8 +46,9 @@ class TestSimulator(TestCase):
 
         params = Parameters(**p)
 
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta,
-                              directory="out/simulation/")
+        directory = 'out/test/long'
+        os.makedirs(directory, exist_ok=True)
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory)
         env, events = simulator.sim()
         print(env.now)
 
@@ -120,7 +121,8 @@ class TestSimulator(TestCase):
         simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
         env, event_list = simulator.sim()
         self.assertEqual(len(event_list), 1)
-        self.assertEqual(len(event_list[0]), 6)
+        self.assertEqual(len(event_list[0]), 7)
+        self.assertEqual(len([e for e in event_list[0] if e.value.name == "started"]), 1)
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "reached"]), 5)
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "charged"]), 1)
 
