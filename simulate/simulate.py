@@ -108,11 +108,17 @@ class ScenarioFactory:
         """
         self.offsets[d] += 1
 
-    def remaining_waypoints(self, d):
+    def n_remaining_waypoints(self, d):
         """
         Returns the remaining number of waypoints for the given UAV
         """
         return self.N_w - self.offsets[d] - 1
+
+    def remaining_waypoints(self, d):
+        """
+        Returns the list of remaining waypoints for the given UAV that need to be visited
+        """
+        return self.positions_w[d][self.offsets[d]:]
 
     def next(self, start_positions):
         """
@@ -251,7 +257,7 @@ class Simulator:
             if event.value.node.node_type == NodeType.Waypoint:
                 self.sf.incr(uav_id)
             self.logger.debug(
-                f"[{env.now:.2f}] UAV [{uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery ({self.sf.remaining_waypoints(uav_id)}/{self.sf.N_w-1} waypoints remaining)")
+                f"[{env.now:.2f}] UAV [{uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery ({self.sf.n_remaining_waypoints(uav_id)}/{self.sf.N_w - 1} waypoints remaining)")
 
         def waited_cb(event):
             self.logger.debug(
@@ -361,9 +367,11 @@ class Simulator:
             ax.scatter(x_c, y_c, marker='s', s=70, c='white', edgecolor=colors[i], zorder=2)  # charging stations
             ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, color=colors[i], zorder=10)  # starting point
 
-        for i, positions in enumerate(self.sf.sc_orig.positions_w):
-            x = [x for x, _, _ in positions]
-            y = [y for _, y, _ in positions]
+        # for i, positions in enumerate(self.sf.sc_orig.positions_w):
+        for d in range(self.sf.N_d):
+            remaining_waypoints = self.sf.remaining_waypoints(d)
+            x = [x for x, _, _ in remaining_waypoints]
+            y = [y for _, y, _ in remaining_waypoints]
             ax.scatter(x, y, marker='x', s=10, color=colors[i], zorder=-1, alpha=0.2)
 
         x = [x for x, _, _ in self.sf.sc_orig.positions_S]

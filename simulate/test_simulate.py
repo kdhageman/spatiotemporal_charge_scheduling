@@ -18,12 +18,12 @@ class TestSimulator(TestCase):
         logging.getLogger("matplotlib").setLevel(logging.ERROR)
         logging.getLogger("gurobi").setLevel(logging.ERROR)
 
-    def test_plot(self):
-        sc = Scenario.from_file("scenarios/two_longer_path.yml")
-        _, ax = plt.subplots()
-        sc.plot(ax=ax, draw_distances=False)
-        ax.axis('off')
-        plt.savefig("out/simulation/scenario/scenario.pdf", bbox_inches='tight')
+    # def test_plot(self):
+    #     sc = Scenario.from_file("scenarios/two_longer_path.yml")
+    #     _, ax = plt.subplots()
+    #     sc.plot(ax=ax, draw_distances=False)
+    #     ax.axis('off')
+    #     plt.savefig("out/simulation/scenario/scenario.pdf", bbox_inches='tight')
 
     def test_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -164,6 +164,36 @@ class TestSimulator(TestCase):
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "changed_course"]), 1)
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "charged"]), 1)
 
+    def test_plot(self):
+        positions_S = [
+            [0, 0, 0]
+        ]
+        positions_w = [
+            [
+                [-1, 0, 0],
+                [-1, 1, 0],
+                [0, 1, 0],
+                [1, 1, 0],
+                [1, 0, 0],
+                [1, -1, 0],
+                [0, -1, 0],
+                [-1, -1, 0],
+            ]
+        ]
+        sc = Scenario(positions_S, positions_w)
+
+        sim = Simulator(None, None, sc, 0, 5)
+
+        schedules = [
+            [(-1, 0, 0), [Waypoint(-1, 1, 0), Waypoint(-1, 1, 0), Waypoint(0, 1, 0), Waypoint(1, 1, 0)]]
+        ]
+        batteries = [0.8]
+        fname = "out/test/test_sim.pdf"
+        title = "0.00s"
+
+        _, ax = plt.subplots()
+        sim.plot(schedules, batteries, ax=ax, fname=fname, title=title)
+
 
 class TestScheduler(TestCase):
     def test_scheduler(self):
@@ -270,32 +300,33 @@ class TestScenarioFactory(TestCase):
         ]
         self.assertEqual(actual, expected)
 
-    def test_plot(self):
-        positions_S = [
-            [0, 0, 0]
-        ]
+    def test_remaining_waypoints(self):
+        positions_S = [(0.5, 0.5, 0)]
         positions_w = [
-            [
-                [-1, 0, 0],
-                [-1, 1, 0],
-                [0, 1, 0],
-                [1, 1, 0],
-                [1, 0, 0],
-                [1, -1, 0],
-                [0, -1, 0],
-                [-1, -1, 0],
-            ]
+            [(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0)],
+            [(0, 0, 0), (-1, 0, 0), (-2, 0, 0), (-3, 0, 0), (-4, 0, 0)],
         ]
-        sc = Scenario(positions_S, positions_w)
+        sc_orig = Scenario(positions_S, positions_w)
+        sf = ScenarioFactory(sc_orig, W=3)
 
-        sim = Simulator(None, None, sc, 0, 5)
-
-        schedules = [
-            [(-1, 0, 0), [Waypoint(-1, 1, 0), Waypoint(-1, 1, 0), Waypoint(0, 1, 0), Waypoint(1, 1, 0)]]
+        expected = [
+            [(1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0)],
+            [(-1, 0, 0), (-2, 0, 0), (-3, 0, 0), (-4, 0, 0)]
         ]
-        batteries = [0.8]
-        fname = "out/test/test_sim.pdf"
-        title = "0.00s"
+        for d in range(2):
+            actual = sf.remaining_waypoints(d)
+            self.assertEqual(expected[d], actual)
+        sf.incr(0)
+        sf.incr(0)
+        sf.incr(1)
+        sf.incr(1)
+        sf.incr(1)
+        sf.incr(1)
 
-        _, ax = plt.subplots()
-        sim.plot(schedules, batteries, ax=ax, fname=fname, title=title)
+        expected = [
+            [(3, 0, 0), (4, 0, 0)],
+            [],
+        ]
+        for d in range(2):
+            actual = sf.remaining_waypoints(d)
+            self.assertEqual(expected[d], actual)
