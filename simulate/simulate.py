@@ -202,6 +202,7 @@ class Simulator:
 
         self.schedules = None
         self.pdfs = []
+        self.plot_params = {}
 
         # used in callbacks
         self.remaining = []
@@ -379,31 +380,38 @@ class Simulator:
         ax.scatter(x, y, marker='s', s=70, c='white', edgecolor='black', zorder=-1, alpha=0.2)
 
         ax.axis("equal")
+        # fix plot limits for battery calculation
+        if len(self.plot_params) == 0:
+            self.plot_params['xlim'] = ax.get_xlim()
+            self.plot_params['ylim'] = ax.get_ylim()
 
-        xmin, xmax = ax.get_xlim()
+            xmin, xmax = ax.get_xlim()
 
-        width_outer = (xmax - xmin) * 0.07
-        height_outer = width_outer * 0.5
-        y_offset = height_outer
+            self.plot_params['width_outer'] = (xmax - xmin) * 0.07
+            self.plot_params['height_outer'] = self.plot_params['width_outer'] * 0.5
+            self.plot_params['y_offset'] = self.plot_params['height_outer']
 
-        lw_outer = 1.5
+            self.plot_params['lw_outer'] = 1.5
 
-        padding = height_outer / 3
-        width_inner_max = width_outer - padding
-        height_inner = height_outer - padding
+            padding = self.plot_params['height_outer'] / 3
+            self.plot_params['width_inner_max'] = self.plot_params['width_outer'] - padding
+            self.plot_params['height_inner'] = self.plot_params['height_outer'] - padding
+
+        ax.set_xlim(self.plot_params['xlim'])
+        ax.set_ylim(self.plot_params['ylim'])
 
         for i, (start_pos, nodes) in enumerate(schedules):
             # draw battery under current battery position
-            x_outer = start_pos[0] - (width_outer / 2)
-            y_outer = start_pos[1] - (height_outer / 2) - y_offset
-            outer = Rectangle((x_outer, y_outer), width_outer, height_outer, color=colors[i], linewidth=lw_outer,
+            x_outer = start_pos[0] - (self.plot_params['width_outer'] / 2)
+            y_outer = start_pos[1] - (self.plot_params['height_outer'] / 2) - self.plot_params['y_offset']
+            outer = Rectangle((x_outer, y_outer), self.plot_params['width_outer'], self.plot_params['height_outer'], color=colors[i], linewidth=self.plot_params['lw_outer'],
                               fill=False)
             ax.add_patch(outer)
 
-            width_inner = width_inner_max * batteries[i]
-            x_inner = start_pos[0] - (width_inner_max / 2)
-            y_inner = start_pos[1] - (height_inner / 2) - y_offset
-            inner = Rectangle((x_inner, y_inner), width_inner, height_inner, color=colors[i], linewidth=0, fill=True)
+            width_inner = self.plot_params['width_inner_max'] * batteries[i]
+            x_inner = start_pos[0] - (self.plot_params['width_inner_max'] / 2)
+            y_inner = start_pos[1] - (self.plot_params['height_inner'] / 2) - self.plot_params['y_offset']
+            inner = Rectangle((x_inner, y_inner), width_inner, self.plot_params['height_inner'], color=colors[i], linewidth=0, fill=True)
             ax.add_patch(inner)
 
         if title:
