@@ -372,7 +372,7 @@ class Simulator:
             remaining_waypoints = self.sf.remaining_waypoints(d)
             x = [x for x, _, _ in remaining_waypoints]
             y = [y for _, y, _ in remaining_waypoints]
-            ax.scatter(x, y, marker='x', s=10, color=colors[i], zorder=-1, alpha=0.2)
+            ax.scatter(x, y, marker='x', s=10, color=colors[d], zorder=-1, alpha=0.2)
 
         x = [x for x, _, _ in self.sf.sc_orig.positions_S]
         y = [y for _, y, _ in self.sf.sc_orig.positions_S]
