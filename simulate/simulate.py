@@ -104,10 +104,15 @@ class ScenarioFactory:
 
     def incr(self, d):
         """
-        Increments the
-        :param d: identifier of the UAV
+        Increments the waypoint offset of the given UAV
         """
         self.offsets[d] += 1
+
+    def remaining_waypoints(self, d):
+        """
+        Returns the remaining number of waypoints for the given UAV
+        """
+        return self.N_w - self.offsets[d] - 1
 
     def next(self, start_positions):
         """
@@ -209,7 +214,7 @@ class Simulator:
             uav = UAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d])
             uavs.append(uav)
 
-        self.logger.info(f"visiting {self.sf.N_w} waypoints per UAV in total")
+        self.logger.info(f"visiting {self.sf.N_w-1} waypoints per UAV in total")
 
         # convert scenario
         sc = self.sf.next(self.sf.original_start_pos)
@@ -242,11 +247,11 @@ class Simulator:
             self.plot_timestepper._inc(_)
 
         def arrival_cb(event):
-            # TODO: print remaining number of waypoints
+            uav_id = event.value.uav.uav_id
             if event.value.node.node_type == NodeType.Waypoint:
-                self.sf.incr(event.value.uav.uav_id)
+                self.sf.incr(uav_id)
             self.logger.debug(
-                f"[{env.now:.2f}] UAV [{event.value.uav.uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery")
+                f"[{env.now:.2f}] UAV [{uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery ({self.sf.remaining_waypoints(uav_id)}/{self.sf.N_w-1} waypoints remaining)")
 
         def waited_cb(event):
             self.logger.debug(
