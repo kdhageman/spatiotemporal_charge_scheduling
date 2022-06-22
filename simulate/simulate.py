@@ -203,6 +203,7 @@ class Simulator:
         self.schedules = None
         self.pdfs = []
         self.plot_params = {}
+        self.solve_times = []
 
         # used in callbacks
         self.remaining = []
@@ -229,6 +230,7 @@ class Simulator:
         # get initial schedule
         scheduler = self.scheduler_cls(self.params, sc)
         t_solve, self.schedules = scheduler.schedule()
+        self.solve_times.append(t_solve)
         self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
         for i, (start_pos, nodes) in enumerate(self.schedules):
             node_list = " - ".join([str(n) for n in [Waypoint(*start_pos)] + nodes])
@@ -284,6 +286,7 @@ class Simulator:
 
             scheduler = Scheduler(params, sc)
             t_solve, self.schedules = scheduler.schedule()
+            self.solve_times.append(t_solve)
             self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
             for i, (start_pos, nodes) in enumerate(self.schedules):
                 node_list = " - ".join([str(n) for n in [Waypoint(*start_pos)] + nodes])
@@ -344,7 +347,7 @@ class Simulator:
                 for pdf in self.pdfs:
                     os.remove(pdf)
 
-        return env, [uav.events for uav in uavs]
+        return self.solve_times, env, [uav.events for uav in uavs]
 
     def plot(self, schedules, batteries, ax=None, fname=None, title=None):
         if not ax:

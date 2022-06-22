@@ -49,7 +49,7 @@ class TestSimulator(TestCase):
         directory = 'out/test/long'
         os.makedirs(directory, exist_ok=True)
         simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory)
-        env, events = simulator.sim()
+        _, env, events = simulator.sim()
         print(env.now)
 
     def test_simulator_short_no_charging(self):
@@ -82,7 +82,7 @@ class TestSimulator(TestCase):
         directory = 'out/test/short_no_charging'
         os.makedirs(directory, exist_ok=True)
         simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
-        env, event_list = simulator.sim()
+        _, env, event_list = simulator.sim()
         self.assertEqual(len(event_list), 1)
         self.assertEqual(len(event_list[0]), 5)
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "started"]), 1)
@@ -119,7 +119,7 @@ class TestSimulator(TestCase):
         directory = 'out/test/short_charging'
         os.makedirs(directory, exist_ok=True)
         simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
-        env, event_list = simulator.sim()
+        _, env, event_list = simulator.sim()
         self.assertEqual(len(event_list), 1)
         self.assertEqual(len(event_list[0]), 7)
         self.assertEqual(len([e for e in event_list[0] if e.value.name == "started"]), 1)
@@ -155,7 +155,7 @@ class TestSimulator(TestCase):
         directory = 'out/test/change_midmove'
         os.makedirs(directory, exist_ok=True)
         simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
-        env, event_list = simulator.sim()
+        _, env, event_list = simulator.sim()
 
         self.assertEqual(len(event_list), 1)
         self.assertEqual(len(event_list[0]), 7)
