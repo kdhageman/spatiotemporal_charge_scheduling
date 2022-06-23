@@ -22,6 +22,7 @@ class BaseModel(pyo.ConcreteModel):
 
         self.B_start = parameters["B_start"]
         self.B_min = parameters["B_min"]
+        self.B_end = parameters.get("B_end", self.B_min)
         self.B_max = parameters["B_max"]
         self.r_charge = parameters['r_charge']
         self.r_deplete = parameters['r_deplete']
@@ -58,10 +59,17 @@ class BaseModel(pyo.ConcreteModel):
         )
 
         # lower and upper bounds of variables values
+        def b_arr_llim_rule(m, d, w_d):
+            if w_d == m.N_w - 1:
+                lim = m.B_end[d]
+            else:
+                lim = m.B_min[d]
+            return m.b_arr(d, w_d) >= lim
+
         self.b_arr_llim = pyo.Constraint(
             self.d,
             self.w_d,
-            rule=lambda m, d, w: m.b_arr(d, w) >= self.B_min[d]
+            rule=b_arr_llim_rule
         )
 
         def b_min_llim_rule(m, d, w_s):
