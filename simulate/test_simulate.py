@@ -5,7 +5,7 @@ from unittest import TestCase
 import numpy as np
 from matplotlib import pyplot as plt
 
-from simulate.node import Node, NodeType, Waypoint
+from simulate.node import Node, NodeType, Waypoint, ChargingStation
 from simulate.simulate import Parameters, Scheduler, Simulator, ScenarioFactory
 from util.scenario import Scenario
 
@@ -204,20 +204,20 @@ class TestScheduler(TestCase):
             ],
             positions_w=[
                 [
-                    (0, 2, 0),
-                    (1, 2, 0),
-                    (2, 2, 0),
-                    (3, 2, 0),
-                    (4, 2, 0),
-                    (5, 2, 0),
+                    (0, 2),
+                    (1, 2),
+                    (2, 2),
+                    (3, 2),
+                    (4, 2),
+                    (5, 2),
                 ],
                 [
-                    (0, 0, 0),
-                    (1, 0, 0),
-                    (2, 0, 0),
-                    (3, 0, 0),
-                    (4, 0, 0),
-                    (5, 0, 0),
+                    (0, 0),
+                    (1, 0),
+                    (2, 0),
+                    (3, 0),
+                    (4, 0),
+                    (5, 0),
                 ]
             ])
         p = dict(
@@ -237,6 +237,47 @@ class TestScheduler(TestCase):
         self.assertEqual(schedules[1][0], (0, 0, 0))
         self.assertEqual(len([x for x in schedules[0][1] if x.node_type == NodeType.Waypoint]), 5)
         self.assertEqual(len([x for x in schedules[1][1] if x.node_type == NodeType.Waypoint]), 5)
+
+    def test_b_end(self):
+        positions_w = [
+            [
+                (0, 0), (1, 0), (2, 0),
+            ]
+        ]
+        positions_S = [(1.5, 0.1)]
+        sc = Scenario(positions_S, positions_w)
+
+        p = dict(
+            v=[1],
+            r_deplete=[0.4],
+            r_charge=[1],
+            B_min=[0.1],
+            B_max=[1],
+            B_start=[1],
+            B_end=[0.1]
+        )
+        params = Parameters(**p)
+
+        # no need to charge
+        scheduler = Scheduler(params=params, scenario=sc)
+        _, schedules = scheduler.schedule()
+        _, actual_nodes = schedules[0]
+        excepted = [Waypoint, Waypoint]
+        self.assertEqual(len(excepted), len(actual_nodes))
+        for i, n in enumerate(actual_nodes):
+            self.assertEqual(type(n), excepted[i])
+
+        # do need to charge!
+        p['B_end'] = [0.3]
+        params = Parameters(**p)
+        scheduler = Scheduler(params=params, scenario=sc)
+        _, schedules = scheduler.schedule()
+        _, actual_nodes = schedules[0]
+        excepted = [Waypoint, ChargingStation, Waypoint]
+        self.assertEqual(len(excepted), len(actual_nodes))
+        for i, n in enumerate(actual_nodes):
+            self.assertEqual(type(n), excepted[i])
+
 
 
 class TestNode(TestCase):
