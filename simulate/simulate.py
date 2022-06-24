@@ -468,8 +468,7 @@ class Simulator:
                 label = f"{batteries[i] * 100:.1f}%" if j == 0 else None
                 ax.plot(x, y, color=colors[i], label=label, alpha=alphas[j])
             ax.scatter(x_wp_nonstride, y_wp_nonstride, c='white', s=40, edgecolor=colors[i], zorder=2)  # waypoints
-            ax.scatter(x_wp_stride, y_wp_stride, c='white', s=40, edgecolor=colors[i], linestyle=':',
-                       zorder=2)  # waypoints (strided)
+            ax.scatter(x_wp_stride, y_wp_stride, c='white', s=40, edgecolor=colors[i], zorder=2)  # waypoints (strided)
             ax.scatter(x_c, y_c, marker='s', s=70, c='white', edgecolor=colors[i], zorder=2)  # charging stations
             ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, color=colors[i], zorder=10)  # starting point
 
