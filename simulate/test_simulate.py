@@ -50,7 +50,31 @@ class TestSimulator(TestCase):
         os.makedirs(directory, exist_ok=True)
         simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory)
         _, env, events = simulator.sim()
-        print(env.now)
+
+    def test_simulator_long_stride(self):
+        sc = Scenario.from_file("scenarios/two_longer_path.yml")
+        # sc = Scenario.from_file("scenarios/two_drones.yml")
+
+        p = dict(
+
+            v=[1, 1],
+            r_charge=[0.15, 0.15],
+            r_deplete=[0.3, 0.3],
+            B_min=[0.1, 0.1],
+            B_max=[1, 1],
+            B_start=[1, 1],
+        )
+        schedule_delta = 5
+        plot_delta = 0.05
+        W = 10
+        sigma=2
+
+        params = Parameters(**p)
+
+        directory = 'out/test/long_stride'
+        os.makedirs(directory, exist_ok=True)
+        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory, sigma=sigma)
+        _, env, events = simulator.sim()
 
     def test_simulator_short_no_charging(self):
         positions_w = [
@@ -196,7 +220,7 @@ class TestSimulator(TestCase):
 
 
 class TestScheduler(TestCase):
-    def test_scheduler(self):
+    def test_scheduler_no_stride(self):
         sc = Scenario(
             positions_S=[
                 (1.5, 1, 0),
@@ -230,8 +254,53 @@ class TestScheduler(TestCase):
         )
         params = Parameters(**p)
 
-        scheduler = Scheduler(params=params, scenario=sc)
-        _, schedules = scheduler.schedule()
+        scheduler = Scheduler(params=params, scenario=sc, sigma=1)
+        _, schedules = scheduler.schedule(sc)
+        self.assertTrue(len(schedules), 2)
+        self.assertEqual(schedules[0][0], (0, 2, 0))
+        self.assertEqual(schedules[1][0], (0, 0, 0))
+        self.assertEqual(len([x for x in schedules[0][1] if x.node_type == NodeType.Waypoint]), 5)
+        self.assertEqual(len([x for x in schedules[1][1] if x.node_type == NodeType.Waypoint]), 5)
+
+    def test_scheduler_stride_2(self):
+        sc_orig = Scenario(
+            positions_S=[
+                (1.5, 1, 0),
+                (3.5, 1, 0),
+            ],
+            positions_w=[
+                [
+                    (0, 2),
+                    (1, 2),
+                    (2, 2),
+                    (3, 2),
+                    (4, 2),
+                    (5, 2),
+                ],
+                [
+                    (0, 0),
+                    (1, 0),
+                    (2, 0),
+                    (3, 0),
+                    (4, 0),
+                    (5, 0),
+                ]
+            ])
+        p = dict(
+            v=[1, 1],
+            r_charge=[0.15, 0.15],
+            r_deplete=[0.3, 0.3],
+            B_min=[0.1, 0.1],
+            B_max=[1, 1],
+            B_start=[1, 1],
+        )
+        params = Parameters(**p)
+
+        sf = ScenarioFactory(sc_orig, W=4, sigma=2)
+        sc = sf.next()
+
+        scheduler = Scheduler(params=params, scenario=sc_orig, sigma=2)
+        _, schedules = scheduler.schedule(sc)
         self.assertTrue(len(schedules), 2)
         self.assertEqual(schedules[0][0], (0, 2, 0))
         self.assertEqual(schedules[1][0], (0, 0, 0))
@@ -260,7 +329,7 @@ class TestScheduler(TestCase):
 
         # no need to charge
         scheduler = Scheduler(params=params, scenario=sc)
-        _, schedules = scheduler.schedule()
+        _, schedules = scheduler.schedule(sc)
         _, actual_nodes = schedules[0]
         excepted = [Waypoint, Waypoint]
         self.assertEqual(len(excepted), len(actual_nodes))
@@ -271,7 +340,7 @@ class TestScheduler(TestCase):
         p['B_end'] = [0.3]
         params = Parameters(**p)
         scheduler = Scheduler(params=params, scenario=sc)
-        _, schedules = scheduler.schedule()
+        _, schedules = scheduler.schedule(sc)
         _, actual_nodes = schedules[0]
         excepted = [Waypoint, ChargingStation, Waypoint]
         self.assertEqual(len(excepted), len(actual_nodes))

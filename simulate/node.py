@@ -63,8 +63,9 @@ class ChargingStation(Node):
 
 
 class Waypoint(Node):
-    def __init__(self, x, y, z):
+    def __init__(self, x, y, z, strided=False):
         super().__init__(x, y, z, 0, 0)
+        self.strided = strided
 
     @property
     def node_type(self):
