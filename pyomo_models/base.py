@@ -35,8 +35,8 @@ class BaseModel(pyo.ConcreteModel):
         self.positions_S = scenario.positions_S
         self.positions_w = scenario.positions_w
 
-        self.D_N = self._get_D_N()
-        self.D_W = self._get_D_W()
+        self.D_N = scenario.D_N
+        self.D_W = scenario.D_W
 
         # MODEL DEFINITION
         self.d = pyo.RangeSet(0, self.N_d - 1)
@@ -231,51 +231,6 @@ class BaseModel(pyo.ConcreteModel):
         charging_times = np.array(self.C[d, :]())
         waiting_times = np.array(self.W[d, :]())
         return path, charging_times, waiting_times
-
-    def _get_D_N(self):
-        T_n = []
-        for d in range(self.N_d):
-            matr = []
-            waypoints = self.positions_w[d]
-            for w_s in range(self.N_w_s):
-                row = []
-                cur_waypoint = waypoints[w_s]
-
-                # distance to charging points
-                for s in range(self.N_s):
-                    pos_S = self.positions_S[s]
-                    d = dist3(cur_waypoint, pos_S)
-                    row.append(d)
-
-                # distance to next waypoint
-                next_waypoint = waypoints[w_s + 1]
-                d = dist3(cur_waypoint, next_waypoint)
-                row.append(d)
-                matr.append(row)
-            T_n.append(matr)
-        T_n = np.array(T_n).transpose(0, 2, 1)
-        return T_n
-
-    def _get_D_W(self):
-        T_w = []
-        for d in range(self.N_d):
-            matr = []
-            waypoints = self.positions_w[d]
-            for w_s in range(self.N_w_s):
-                row = []
-                next_waypoint = waypoints[w_s + 1]
-
-                # distance to charging points
-                for s in range(self.N_s):
-                    pos_S = self.positions_S[s]
-                    d = dist3(next_waypoint, pos_S)
-                    row.append(d)
-
-                row.append(0)
-                matr.append(row)
-            T_w.append(matr)
-        T_w = np.array(T_w).transpose(0, 2, 1)
-        return T_w
 
     @property
     def P_np(self):

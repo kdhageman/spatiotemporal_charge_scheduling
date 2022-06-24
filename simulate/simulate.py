@@ -92,7 +92,7 @@ class ScenarioFactory:
     Creates new scenarios on the fly based on
     """
 
-    def __init__(self, scenario: Scenario, W: int, sigma: int = 1):
+    def __init__(self, scenario: Scenario):
         self.original_start_pos = [wps[0] for wps in scenario.positions_w]
         self.positions_S = scenario.positions_S
         self.positions_w = [wps[1:] for wps in scenario.positions_w]
@@ -101,8 +101,6 @@ class ScenarioFactory:
         self.N_d = scenario.N_d
         self.N_s = scenario.N_s
         self.N_w = scenario.N_w
-        self.W = W
-        self.sigma = sigma
 
     def incr(self, d):
         """
@@ -122,7 +120,7 @@ class ScenarioFactory:
         """
         return self.positions_w[d][self.offsets[d]:]
 
-    def next(self, start_positions=None):
+    def next(self, W, start_positions=None, sigma=1):
         """
         Returns the next scenario
         """
@@ -135,7 +133,7 @@ class ScenarioFactory:
 
         for d, wps_src in enumerate(self.positions_w):
             wps_src_full = [start_positions[d]] + wps_src[self.offsets[d]:]
-            while len(wps_src_full) < self.sigma * (self.W - 1) + 1:
+            while len(wps_src_full) < sigma * (W - 1) + 1:
                 wps_src_full.append(wps_src_full[-1])
 
             wps = []
@@ -143,11 +141,11 @@ class ScenarioFactory:
             D_W_matr = []
 
             n = 0
-            while len(wps) < self.W:
+            while len(wps) < W:
                 wp_hat = wps_src_full[n]
                 wps.append(wp_hat)
 
-                if len(wps) < self.W:
+                if len(wps) < W:
                     # calculate D_N
                     D_N_col = []
                     for pos_S in self.positions_S:
@@ -156,7 +154,7 @@ class ScenarioFactory:
                         D_N_col.append(distance)
 
                     distance = 0
-                    for i in range(n, n + self.sigma):
+                    for i in range(n, n + sigma):
                         pos_a = wps_src_full[i]
                         pos_b = wps_src_full[i + 1]
                         distance += dist3(pos_a, pos_b)
@@ -171,7 +169,7 @@ class ScenarioFactory:
                         pos_wp = wps_src_full[n + 1]
                         distance = dist3(pos_S, pos_wp)
 
-                        for i in range(n + 1, n + self.sigma):
+                        for i in range(n + 1, n + sigma):
                             pos_a = wps_src_full[i]
                             pos_b = wps_src_full[i + 1]
                             distance += dist3(pos_a, pos_b)
@@ -179,7 +177,7 @@ class ScenarioFactory:
                     D_W_col.append(0)
                     D_W_matr.append(D_W_col)
 
-                n += self.sigma
+                n += sigma
             D_N.append(D_N_matr)
             D_W.append(D_W_matr)
             positions_w.append(wps)
@@ -232,20 +230,18 @@ class Scheduler:
                         ChargingStation(*sc.positions_S[n], n, wt, ct)
                     )
 
-                if w_s_hat < sc.N_w_s - 1:
-                    # add stride waypoints
-                    for i in range(w_s_hat * self.sigma + 1, w_s_hat * self.sigma + self.sigma):
-                        pos = self.scenario_unstride.positions_w[d][i]
-                        wp = Waypoint(*pos)
-                        wp.strided = True
-                        nodes.append(wp)
-
-                pos = sc.positions_w[d][w_s_hat + 1]
-                if start_pos == pos:
-                    wp = AuxWaypoint(*pos)
-                else:
+                # add stride waypoints
+                for i in range(w_s_hat * self.sigma + 1, w_s_hat * self.sigma + self.sigma):
+                    pos = wps_full[i]
                     wp = Waypoint(*pos)
+                    wp.strided = True
+                    nodes.append(wp)
+
+                # add next waypoint
+                pos = wps_full[self.sigma * (w_s_hat + 1)]
+                wp = Waypoint(*pos)
                 nodes.append(wp)
+
             res.append((start_pos, nodes))
         return res
 
@@ -270,7 +266,8 @@ class Simulator:
         self.scheduler_cls = scheduler_cls
         self.params = params
         self.directory = directory
-        self.sf = ScenarioFactory(sc, W, sigma=sigma)
+        self.sf = ScenarioFactory(sc)
+        self.W = W
         self.sc_orig = sc
         self.sigma = sigma
 
@@ -302,12 +299,13 @@ class Simulator:
         self.logger.info(f"visiting {self.sf.N_w - 1} waypoints per UAV in total")
 
         # convert scenario
-        sc = self.sf.next()
+        sc = self.sf.next(self.W, sigma=self.sigma)
 
         # get initial schedule
         params = self.params.copy()
         params.B_end = params.B_min
-        scheduler = self.scheduler_cls(params, self.sc_orig, sigma=self.sigma)
+        sc_remaining = self.sf.next(self.sc_orig.N_w, sigma=1)
+        scheduler = self.scheduler_cls(params, sc_remaining, sigma=self.sigma)
         t_solve, self.schedules = scheduler.schedule(sc)
         self.solve_times.append(t_solve)
         self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
@@ -358,14 +356,14 @@ class Simulator:
                 logging.debug(f"[{env.now:.2f}] determined battery of UAV [{i}] to be {state.battery * 100:.1f}%")
                 start_positions.append(state.pos.tolist())
                 batteries.append(state.battery)
-            sc = self.sf.next(start_positions)
+            sc = self.sf.next(self.W, start_positions, sigma=self.sigma)
 
             params = self.params.copy()
             params.B_start = np.array(batteries)
 
             B_end = []
-            for d, wps in enumerate(sc.positions_w):
-                overall_pos_end_wp = self.sf.sc_orig.positions_w[d][-1]
+            for d, wps in enumerate(self.sc_orig.positions_w):
+                overall_pos_end_wp = self.sc_orig.positions_w[d][-1]
                 pos_end_wp = wps[-1]
 
                 if overall_pos_end_wp == pos_end_wp:
@@ -383,7 +381,8 @@ class Simulator:
                         self.params.B_min[d] + min_dist_to_cs * self.params.r_deplete[d] / self.params.v[d]
                     )
 
-            scheduler = self.scheduler_cls(params, self.sc_orig, sigma=self.sigma)
+            sc_remaining = self.sf.next(self.sc_orig.N_w, start_positions, sigma=1)
+            scheduler = self.scheduler_cls(params, sc_remaining, sigma=self.sigma)
             t_solve, self.schedules = scheduler.schedule(sc)
             self.solve_times.append(t_solve)
             self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
@@ -469,7 +468,8 @@ class Simulator:
                 label = f"{batteries[i] * 100:.1f}%" if j == 0 else None
                 ax.plot(x, y, color=colors[i], label=label, alpha=alphas[j])
             ax.scatter(x_wp_nonstride, y_wp_nonstride, c='white', s=40, edgecolor=colors[i], zorder=2)  # waypoints
-            ax.scatter(x_wp_stride, y_wp_stride, c='white', s=40, edgecolor=colors[i], linestyle=':', zorder=2)  # waypoints (strided)
+            ax.scatter(x_wp_stride, y_wp_stride, c='white', s=40, edgecolor=colors[i], linestyle=':',
+                       zorder=2)  # waypoints (strided)
             ax.scatter(x_c, y_c, marker='s', s=70, c='white', edgecolor=colors[i], zorder=2)  # charging stations
             ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, color=colors[i], zorder=10)  # starting point
 

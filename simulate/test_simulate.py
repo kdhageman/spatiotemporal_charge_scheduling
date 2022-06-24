@@ -66,7 +66,7 @@ class TestSimulator(TestCase):
         )
         schedule_delta = 5
         plot_delta = 0.05
-        W = 10
+        W = 12
         sigma=2
 
         params = Parameters(**p)
