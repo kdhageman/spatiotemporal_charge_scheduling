@@ -55,15 +55,15 @@ class TestSimulator(TestCase):
     def test_simulator_short_no_charging(self):
         positions_w = [
             [
-                (0, 0, 0),
-                (1, 0, 0),
-                (2, 0, 0),
-                (3, 0, 0),
-                (4, 0, 0),
+                (0, 0),
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
             ]
         ]
         positions_S = [
-            (2, 0.25, 0)
+            (2, 0.25)
         ]
         sc = Scenario(positions_S, positions_w)
 
@@ -92,11 +92,11 @@ class TestSimulator(TestCase):
     def test_simulator_short_charging(self):
         positions_w = [
             [
-                (0, 0, 0),
-                (1, 0, 0),
-                (2, 0, 0),
-                (3, 0, 0),
-                (4, 0, 0),
+                (0, 0),
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
             ]
         ]
         positions_S = [
@@ -129,14 +129,14 @@ class TestSimulator(TestCase):
     def test_simulator_change_midmove(self):
         positions_w = [
             [
-                (0, 0, 0),
-                (1, 0, 0),
-                (2, 0, 0),
-                (3, 0, 0),
+                (0, 0),
+                (1, 0),
+                (2, 0),
+                (3, 0),
             ]
         ]
         positions_S = [
-            (2, 0.25, 0)
+            (2, 0.25)
         ]
         sc = Scenario(positions_S, positions_w)
 
@@ -166,18 +166,18 @@ class TestSimulator(TestCase):
 
     def test_plot(self):
         positions_S = [
-            [0, 0, 0]
+            (0, 0)
         ]
         positions_w = [
             [
-                [-1, 0, 0],
-                [-1, 1, 0],
-                [0, 1, 0],
-                [1, 1, 0],
-                [1, 0, 0],
-                [1, -1, 0],
-                [0, -1, 0],
-                [-1, -1, 0],
+                (-1, 0),
+                (-1, 1),
+                (0, 1),
+                (1, 1),
+                (1, 0),
+                (1, -1),
+                (0, -1),
+                (-1, -1),
             ]
         ]
         sc = Scenario(positions_S, positions_w)
@@ -277,7 +277,6 @@ class TestScheduler(TestCase):
         self.assertEqual(len(excepted), len(actual_nodes))
         for i, n in enumerate(actual_nodes):
             self.assertEqual(type(n), excepted[i])
-
 
 
 class TestNode(TestCase):

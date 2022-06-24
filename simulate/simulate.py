@@ -13,6 +13,7 @@ from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
 from simulate.uav import UAV
 from util.decorators import timed
+from util.distance import dist3
 from util.scenario import Scenario
 
 
@@ -228,7 +229,9 @@ class Simulator:
         sc = self.sf.next(self.sf.original_start_pos)
 
         # get initial schedule
-        scheduler = self.scheduler_cls(self.params, sc)
+        params = self.params.copy()
+        params.B_end = params.B_min
+        scheduler = self.scheduler_cls(params, sc)
         t_solve, self.schedules = scheduler.schedule()
         self.solve_times.append(t_solve)
         self.logger.debug(f"[{env.now:.2f}] scheduled in {t_solve:.1f}s")
@@ -283,6 +286,26 @@ class Simulator:
 
             params = self.params.copy()
             params.B_start = np.array(batteries)
+
+            B_end = []
+            for d, wps in enumerate(sc.positions_w):
+                overall_pos_end_wp = self.sf.sc_orig.positions_w[d][-1]
+                pos_end_wp = wps[-1]
+
+                if overall_pos_end_wp == pos_end_wp:
+                    # last scheduled waypoint is the last of the mission, so no charging station needs to be
+                    # visited afterwards
+                    B_end.append(self.params.B_min[d])
+                else:
+                    # it should be possible to reach the closest charging after this schedule,
+                    # because the mission is not finished yet afterwards
+                    dists_to_css = []
+                    for pos_cs in sc.positions_S:
+                        dists_to_css.append(dist3(pos_end_wp, pos_cs))
+                    min_dist_to_cs = min(dists_to_css)
+                    B_end.append(
+                        self.params.B_min[d] + min_dist_to_cs * self.params.r_deplete[d] / self.params.v[d]
+                    )
 
             scheduler = Scheduler(params, sc)
             t_solve, self.schedules = scheduler.schedule()

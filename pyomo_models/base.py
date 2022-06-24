@@ -22,7 +22,9 @@ class BaseModel(pyo.ConcreteModel):
 
         self.B_start = parameters["B_start"]
         self.B_min = parameters["B_min"]
-        self.B_end = parameters.get("B_end", self.B_min)
+        self.B_end = parameters.get("B_end")
+        if not self.B_end.size:
+            self.B_end = self.B_min
         self.B_max = parameters["B_max"]
         self.r_charge = parameters['r_charge']
         self.r_deplete = parameters['r_deplete']
