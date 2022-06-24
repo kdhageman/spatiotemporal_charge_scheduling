@@ -290,7 +290,9 @@ class TestNode(TestCase):
 
 class TestScenarioFactory(TestCase):
     def test_scenario_factory(self):
-        positions_S = [(0.5, 0.5, 0)]
+        positions_S = [
+            (0.5, 0.5, 0)
+        ]
         positions_w = [
             [(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0)],
             [(0, 0, 0), (-1, 0, 0), (-2, 0, 0), (-3, 0, 0), (-4, 0, 0)],
@@ -299,13 +301,12 @@ class TestScenarioFactory(TestCase):
         sf = ScenarioFactory(sc_orig, W=3)
 
         # first iteration
-        start_positions = [(0, 0, 0), (0, 0, 0)]
-        actual = sf.next(start_positions).positions_w
+        actual = sf.next().positions_w
         expected = [
             [(0, 0, 0), (1, 0, 0), (2, 0, 0)],
             [(0, 0, 0), (-1, 0, 0), (-2, 0, 0)],
         ]
-        self.assertEqual(actual, expected)
+        self.assertEqual(expected, actual)
 
         # after increment
         sf.incr(0)
@@ -315,7 +316,7 @@ class TestScenarioFactory(TestCase):
             [(1.5, 0, 0), (2, 0, 0), (3, 0, 0)],
             [(-0.5, 0, 0), (-1, 0, 0), (-2, 0, 0)],
         ]
-        self.assertEqual(actual, expected)
+        self.assertEqual(expected, actual)
 
         # padding iterations
         for _ in range(2):
@@ -326,10 +327,10 @@ class TestScenarioFactory(TestCase):
         start_positions = [(3.5, 0, 0), (-3.5, 0, 0)]
         actual = sf.next(start_positions).positions_w
         expected = [
-            [(3.5, 0, 0), (3.5, 0, 0), (4, 0, 0)],
-            [(-3.5, 0, 0), (-3.5, 0, 0), (-4, 0, 0)],
+            [(3.5, 0, 0), (4, 0, 0), (4, 0, 0)],
+            [(-3.5, 0, 0), (-4, 0, 0), (-4, 0, 0)],
         ]
-        self.assertEqual(actual, expected)
+        self.assertEqual(expected, actual)
 
         sf.incr(0)
         sf.incr(1)
@@ -338,7 +339,7 @@ class TestScenarioFactory(TestCase):
             [(3.5, 0, 0), (3.5, 0, 0), (3.5, 0, 0)],
             [(-3.5, 0, 0), (-3.5, 0, 0), (-3.5, 0, 0)],
         ]
-        self.assertEqual(actual, expected)
+        self.assertEqual(expected, actual)
 
     def test_remaining_waypoints(self):
         positions_S = [(0.5, 0.5, 0)]
@@ -370,3 +371,19 @@ class TestScenarioFactory(TestCase):
         for d in range(2):
             actual = sf.remaining_waypoints(d)
             self.assertEqual(expected[d], actual)
+
+    def test_with_sigma(self):
+        positions_S = [(0, 0, 0)]
+        positions_w = [
+            [(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0)],
+        ]
+        sc_orig = Scenario(positions_S, positions_w)
+        sf = ScenarioFactory(sc_orig, W=4, sigma=2)
+        sc = sf.next()
+
+        # positions_w
+        expected = [
+            [(0, 0, 0), (2, 0, 0), (4, 0, 0), (4, 0, 0)]
+        ]
+        actual = sc.positions_w
+        self.assertEqual(expected, actual)

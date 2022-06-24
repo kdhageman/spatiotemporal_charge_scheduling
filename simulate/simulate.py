@@ -92,7 +92,7 @@ class ScenarioFactory:
     Creates new scenarios on the fly based on
     """
 
-    def __init__(self, scenario: Scenario, W: int):
+    def __init__(self, scenario: Scenario, W: int, sigma: int = 1):
         self.original_start_pos = [wps[0] for wps in scenario.positions_w]
         self.positions_S = scenario.positions_S
         self.positions_w = [wps[1:] for wps in scenario.positions_w]
@@ -102,6 +102,7 @@ class ScenarioFactory:
         self.N_s = scenario.N_s
         self.N_w = scenario.N_w
         self.W = W
+        self.sigma = sigma
 
     def incr(self, d):
         """
@@ -121,17 +122,32 @@ class ScenarioFactory:
         """
         return self.positions_w[d][self.offsets[d]:]
 
-    def next(self, start_positions):
+    def next(self, start_positions=None):
         """
         Returns the next scenario
         """
+        if not start_positions:
+            start_positions = self.original_start_pos
         positions_w = []
-        for i, wps in enumerate(self.positions_w):
-            wps_truncated = [start_positions[i]] + wps[self.offsets[i]:self.offsets[i] + self.W - 1]
-            while len(wps_truncated) < self.W:
-                wps_truncated = [wps_truncated[0]] + wps_truncated
-            positions_w.append(wps_truncated)
-        return Scenario(positions_S=self.positions_S, positions_w=positions_w)
+
+        for d, wps_src in enumerate(self.positions_w):
+            wps_src_full = [start_positions[d]] + wps_src[self.offsets[d]:]
+
+            wps = []
+
+            n = 0
+            while len(wps) < self.W:
+                wps.append(wps_src_full[n])
+
+                n += self.sigma
+                n = min(n, len(wps_src_full) - 1)
+            positions_w.append(wps)
+        sc = Scenario(positions_S=self.positions_S, positions_w=positions_w)
+
+        # TODO: update D_W
+        # TODO: update D_N
+
+        return sc
 
 
 class Scheduler:
@@ -223,10 +239,10 @@ class Simulator:
             uav = UAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d])
             uavs.append(uav)
 
-        self.logger.info(f"visiting {self.sf.N_w-1} waypoints per UAV in total")
+        self.logger.info(f"visiting {self.sf.N_w - 1} waypoints per UAV in total")
 
         # convert scenario
-        sc = self.sf.next(self.sf.original_start_pos)
+        sc = self.sf.next()
 
         # get initial schedule
         params = self.params.copy()
@@ -430,14 +446,16 @@ class Simulator:
             # draw battery under current battery position
             x_outer = start_pos[0] - (self.plot_params['width_outer'] / 2)
             y_outer = start_pos[1] - (self.plot_params['height_outer'] / 2) - self.plot_params['y_offset']
-            outer = Rectangle((x_outer, y_outer), self.plot_params['width_outer'], self.plot_params['height_outer'], color=colors[i], linewidth=self.plot_params['lw_outer'],
+            outer = Rectangle((x_outer, y_outer), self.plot_params['width_outer'], self.plot_params['height_outer'],
+                              color=colors[i], linewidth=self.plot_params['lw_outer'],
                               fill=False)
             ax.add_patch(outer)
 
             width_inner = self.plot_params['width_inner_max'] * batteries[i]
             x_inner = start_pos[0] - (self.plot_params['width_inner_max'] / 2)
             y_inner = start_pos[1] - (self.plot_params['height_inner'] / 2) - self.plot_params['y_offset']
-            inner = Rectangle((x_inner, y_inner), width_inner, self.plot_params['height_inner'], color=colors[i], linewidth=0, fill=True)
+            inner = Rectangle((x_inner, y_inner), width_inner, self.plot_params['height_inner'], color=colors[i],
+                              linewidth=0, fill=True)
             ax.add_patch(inner)
 
         if title:
