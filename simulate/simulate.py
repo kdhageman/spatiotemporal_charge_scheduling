@@ -128,24 +128,68 @@ class ScenarioFactory:
         """
         if not start_positions:
             start_positions = self.original_start_pos
+
         positions_w = []
+        D_N = []
+        D_W = []
 
         for d, wps_src in enumerate(self.positions_w):
             wps_src_full = [start_positions[d]] + wps_src[self.offsets[d]:]
+            while len(wps_src_full) < self.sigma * self.W - 1:
+                wps_src_full.append(wps_src_full[-1])
 
             wps = []
+            D_N_matr = []
+            D_W_matr = []
 
             n = 0
             while len(wps) < self.W:
-                wps.append(wps_src_full[n])
+                wp_hat = wps_src_full[n]
+                wps.append(wp_hat)
+
+                if len(wps) < self.W:
+                    # calculate D_N
+                    D_N_col = []
+                    for pos_S in self.positions_S:
+                        # distance to charging stations
+                        distance = dist3(wp_hat, pos_S)
+                        D_N_col.append(distance)
+
+                    distance = 0
+                    for i in range(n, n+self.sigma):
+                        pos_a = wps_src_full[i]
+                        pos_b = wps_src_full[i+1]
+                        distance += dist3(pos_a, pos_b)
+                    D_N_col.append(distance)
+                    D_N_matr.append(D_N_col)
+
+                    # calculate D_W
+
+                    D_W_col = []
+                    for pos_S in self.positions_S:
+                        # distance from charging station to next node
+                        pos_wp = wps_src_full[n+1]
+                        distance = dist3(pos_S, pos_wp)
+
+                        for i in range(n+1, n+self.sigma):
+                            pos_a = wps_src_full[i]
+                            pos_b = wps_src_full[i + 1]
+                            distance += dist3(pos_a, pos_b)
+                        D_W_col.append(distance)
+                    D_W_col.append(0)
+                    D_W_matr.append(D_W_col)
 
                 n += self.sigma
-                n = min(n, len(wps_src_full) - 1)
+            D_N.append(D_N_matr)
+            D_W.append(D_W_matr)
             positions_w.append(wps)
         sc = Scenario(positions_S=self.positions_S, positions_w=positions_w)
 
-        # TODO: update D_W
-        # TODO: update D_N
+        D_N = np.array(D_N).transpose((0, 2, 1))
+        sc.D_N = D_N
+
+        D_W = np.array(D_W).transpose((0, 2, 1))
+        sc.D_W = D_W
 
         return sc
 

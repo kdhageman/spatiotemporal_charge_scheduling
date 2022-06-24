@@ -372,7 +372,7 @@ class TestScenarioFactory(TestCase):
             actual = sf.remaining_waypoints(d)
             self.assertEqual(expected[d], actual)
 
-    def test_with_sigma(self):
+    def test_with_sigma_2(self):
         positions_S = [(0, 0, 0)]
         positions_w = [
             [(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0)],
@@ -387,3 +387,23 @@ class TestScenarioFactory(TestCase):
         ]
         actual = sc.positions_w
         self.assertEqual(expected, actual)
+
+        # D_N
+        expected = np.array([
+          [
+              [0, 2, 4],
+              [2, 2, 0],
+          ]
+        ])
+        actual = sc.D_N
+        self.assertTrue(np.array_equal(expected, actual))
+
+        # D_W
+        expected = np.array([
+            [
+                [2, 4, 4],
+                [0, 0, 0],
+            ]
+        ])
+        actual = sc.D_W
+        self.assertTrue(np.array_equal(expected, actual))
