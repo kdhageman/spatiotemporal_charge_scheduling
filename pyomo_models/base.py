@@ -237,7 +237,7 @@ class BaseModel(pyo.ConcreteModel):
         """
         Returns the chosen path decision variable (P) as a numpy array
         """
-        return np.reshape(self.P[:, :, :](), (self.N_d, self.N_s + 1, self.N_w_s))
+        return np.reshape(self.P[:, :, :](), (self.N_d, self.N_s + 1, self.N_w_s)).round()
 
     @property
     def C_np(self):
