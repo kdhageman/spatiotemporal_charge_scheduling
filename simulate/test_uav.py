@@ -7,7 +7,8 @@ from simpy import Resource, Timeout
 
 from simulate.node import Waypoint, ChargingStation
 from simulate.simulate import TimeStepper
-from simulate.uav import UAV, _EventGenerator, UavStateType
+from simulate.uav import MilpUAV, _EventGenerator, UavStateType, NaiveUAV
+from util.scenario import Scenario
 
 
 class TestEventGenerator(TestCase):
@@ -30,8 +31,7 @@ class TestEventGenerator(TestCase):
         env.run(until=proc)
 
 
-
-class TestUAV(TestCase):
+class TestMilpUAV(TestCase):
     def setUp(self):
         logging.basicConfig(level=logging.DEBUG)
         logging.getLogger("pyomo").setLevel(logging.INFO)
@@ -63,7 +63,7 @@ class TestUAV(TestCase):
         def inc_charges(_):
             self.n_charged += 1
 
-        uav = UAV(0, charging_stations, v=1, r_charge=0.1, r_deplete=0.1)
+        uav = MilpUAV(0, charging_stations, v=1, r_charge=0.1, r_deplete=0.1)
         uav.add_arrival_cb(inc_arrivals)
         uav.add_waited_cb(inc_waited)
         uav.add_charged_cb(inc_charges)
@@ -96,7 +96,7 @@ class TestUAV(TestCase):
         def uav_cb(event):
             print(f"{event.env.now} {event.value.name}")
 
-        uav = UAV(0, charging_stations, v, r_charge=0.1, r_deplete=0.1)
+        uav = MilpUAV(0, charging_stations, v, r_charge=0.1, r_deplete=0.1)
         uav.add_arrival_cb(uav_cb)
         uav.set_schedule(env, (0, 0, 0), nodes)
         uav_proc = env.process(uav.sim(env))
@@ -124,7 +124,7 @@ class TestUAV(TestCase):
         def arrival_cb(ev):
             self.events.append(ev)
 
-        self.uav = UAV(0, charging_stations, v, r_charge=0.1, r_deplete=0.1)
+        self.uav = MilpUAV(0, charging_stations, v, r_charge=0.1, r_deplete=0.1)
         self.uav.add_arrival_cb(arrival_cb)
         self.uav.set_schedule(env, (0, 0, 0), nodes)
         uav_proc = env.process(self.uav.sim(env))
@@ -150,7 +150,7 @@ class TestUAV(TestCase):
     def test_get_state(self):
         env = simpy.Environment()
 
-        uav = UAV(0, [simpy.Resource(env)], 1, 0.02, 0.1, 1)
+        uav = MilpUAV(0, [simpy.Resource(env)], 1, 0.02, 0.1, 1)
         nodes = [
             ChargingStation(1, 0, 0, identifier=0, wt=1, ct=1)
         ]
@@ -198,7 +198,7 @@ class TestUAV(TestCase):
         charging_stations = [
             Resource(env)
         ]
-        uav = UAV(0, charging_stations, 1, 0.1, 0.1, 1)
+        uav = MilpUAV(0, charging_stations, 1, 0.1, 0.1, 1)
         nodes = [
             # Waypoint(0, 0, 0),
             Waypoint(0, 2, 0),
@@ -233,3 +233,54 @@ class TestUAV(TestCase):
         env.process(timestepper.sim(env, callbacks=[ts_cb]))
 
         env.run(until=proc)
+
+
+class TestNaiveUAV(TestCase):
+    def test_sim(self):
+        env = simpy.Environment()
+        charging_stations = [
+            Resource(env)
+        ]
+        positions_S = [
+            (0, 0),
+        ]
+        positions_w = [
+            [
+                (1, 0),
+                (0, 1),
+                (-1, 0),
+                (0, -1),
+            ]
+        ]
+        sc = Scenario(positions_S=positions_S, positions_w=positions_w)
+        self.arrivals = 0
+        self.waitings = 0
+        self.chargings = 0
+
+        self.events = []
+        for _ in range(sc.N_d):
+            self.events.append([])
+
+        def arrival_cb(ev):
+            self.arrivals += 1
+            self.events[ev.value.uav.uav_id].append(ev)
+
+        def waited_cb(ev):
+            self.waitings += 1
+            self.events[ev.value.uav.uav_id].append(ev)
+
+        def charged_cb(ev):
+            self.chargings += 1
+            self.events[ev.value.uav.uav_id].append(ev)
+
+        uav = NaiveUAV(0, sc, charging_stations, 1, 0.05, 0.3, 0.3)
+        uav.add_arrival_cb(arrival_cb)
+        uav.add_waited_cb(waited_cb)
+        uav.add_charged_cb(charged_cb)
+        env.process(uav.sim(env))
+
+        env.run()
+
+        print(self.arrivals)
+        print(self.waitings)
+        print(self.chargings)

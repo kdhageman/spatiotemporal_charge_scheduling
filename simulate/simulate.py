@@ -11,7 +11,7 @@ from pyomo.opt import SolverFactory
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
-from simulate.uav import UAV
+from simulate.uav import MilpUAV, NaiveUAV
 from util.decorators import timed
 from util.distance import dist3
 from util.scenario import Scenario
@@ -259,7 +259,59 @@ class NaiveScheduler(Scheduler):
         pass
 
 
-class Simulator:
+class NaiveSimulator:
+    def __init__(self, params: Parameters, sc: Scenario, plot_delta: float = 0.1, directory=None):
+        self.logger = logging.getLogger(__name__)
+        self.params = params
+        self.directory = directory
+        self.plot_timestepper = TimeStepper(plot_delta)
+        self.sc = sc
+
+        self.pdfs = []
+        self.plot_params = {}
+        self.remaining = []
+
+    def sim(self):
+        env = simpy.Environment()
+
+        # prepare shared resources
+        charging_stations = []
+        for s in range(self.sc.N_s):
+            charging_stations.append(simpy.Resource(env, capacity=1))
+
+        # prepare UAVs
+        uavs = []
+        for d in range(self.sc.N_d):
+            uav = NaiveUAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d],
+                           self.params.B_min[d])
+            uavs.append(uav)
+
+        self.logger.info(f"visiting {self.sf.N_w - 1} waypoints per UAV in total")
+
+        def arrival_cb(event):
+            uav_id = event.value.uav.uav_id
+            self.logger.debug(
+                f"[{env.now:.2f}] UAV [{uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery ({self.sf.n_remaining_waypoints(uav_id)}/{self.sf.N_w - 1} waypoints remaining)")
+
+        def waited_cb(event):
+            self.logger.debug(
+                f"[{env.now:.2f}] UAV {event.value.uav.uav_id} finished waiting at station {event.value.node.identifier} for {event.value.node.wt:.2f}s")
+
+        def charged_cb(event):
+            self.logger.debug(
+                f"[{env.now:.2f}] UAV {event.value.uav.uav_id} finished charging at station {event.value.node.identifier} for {event.value.node.ct:.2f}s")
+
+        for uav in uavs:
+            uav.add_arrival_cb(arrival_cb)
+            uav.add_waited_cb(waited_cb)
+            uav.add_charged_cb(charged_cb)
+            env.process(uav.sim(env))
+
+        env.run()
+
+        return env, [uav.events for uav in uavs]
+
+class MilpSimulator:
     def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, schedule_delta: float, W: int,
                  plot_delta: float = 0.1, sigma=1, directory=None):
         self.logger = logging.getLogger(__name__)
@@ -293,7 +345,7 @@ class Simulator:
         # prepare UAVs
         uavs = []
         for d in range(self.sf.N_d):
-            uav = UAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d])
+            uav = MilpUAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d])
             uavs.append(uav)
 
         self.logger.info(f"visiting {self.sf.N_w - 1} waypoints per UAV in total")

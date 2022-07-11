@@ -4,7 +4,9 @@ from enum import Enum
 import simpy.exceptions
 
 from simulate.event import Event
-from simulate.node import AuxWaypoint, NodeType
+from simulate.node import AuxWaypoint, NodeType, Waypoint, ChargingStation
+from util.scenario import Scenario
+import numpy as np
 
 
 class UavStateType(Enum):
@@ -90,36 +92,21 @@ class _EventGenerator:
 class UAV:
     def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float,
                  battery: float = 1):
-        """
-        :param nodes: list of Waypoints and ChargingStations to visit in order
-        :param charging_stations: list of simpy.Resources to allocate
-        :param v: velocity of the UAV
-        :param r_charge: charging rate
-        :param r_deplete: depletion rate
-        """
-        self.logger = logging.getLogger(__name__)
         self.uav_id = uav_id
-
-        self.charging_stations = charging_stations  # simpy shared resources
-        self.resource = None
-        self.req = None
-        self.battery = battery
+        self.charging_stations = charging_stations
+        self.v = v
         self.r_charge = r_charge
         self.r_deplete = r_deplete
-        self.v = v
+        self.battery = battery
 
-        self.t_start = 0
-        self.state_type = UavStateType.Idle
-        self.cur_node = None
-
-        self.proc = None
-        self.eg = None
         self.events = []
-        self.waypoint_id = 0
 
-        self.arrival_cbs = []
-        self.waited_cbs = []
-        self.charged_cbs = []
+        def add_ev_cb(ev):
+            self.events.append(ev)
+
+        self.arrival_cbs = [add_ev_cb]
+        self.waited_cbs = [add_ev_cb]
+        self.charged_cbs = [add_ev_cb]
         self.finish_cbs = []
 
     def add_arrival_cb(self, cb):
@@ -134,6 +121,29 @@ class UAV:
     def add_finish_cb(self, cb):
         self.finish_cbs.append(cb)
 
+
+class MilpUAV(UAV):
+    def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float,
+                 battery: float = 1):
+        """
+        :param nodes: list of Waypoints and ChargingStations to visit in order
+        :param charging_stations: list of simpy.Resources to allocate
+        :param v: velocity of the UAV
+        :param r_charge: charging rate
+        :param r_deplete: depletion rate
+        """
+        super().__init__(uav_id, charging_stations, v, r_charge, r_deplete, battery=battery)
+        self.resource = None
+        self.req = None
+
+        self.t_start = 0
+        self.state_type = UavStateType.Idle
+        self.cur_node = None
+
+        self.proc = None
+        self.eg = None
+        self.waypoint_id = 0
+
     def _get_battery(self, env):
         t_passed = env.now - self.t_start
         battery = self.battery
@@ -145,7 +155,7 @@ class UAV:
 
     def get_state(self, env):
         """
-        Returns the position and batter charge of the UAV.
+        Returns the position and battery charge of the UAV.
         """
         t_passed = env.now - self.t_start
         battery = self._get_battery(env)
@@ -196,7 +206,8 @@ class UAV:
             self.events.append(env.timeout(0, value=event))
         elif self.state_type == UavStateType.Moving and self.changes_course(nodes):
             # add event with current position to events list when moving
-            self.logger.debug(f"[{env.now:.2f}] UAV [{self.uav_id}] changed course from {self.eg.nodes[0]} to {nodes[0]}")
+            self.logger.debug(
+                f"[{env.now:.2f}] UAV [{self.uav_id}] changed course from {self.eg.nodes[0]} to {nodes[0]}")
             event = Event(env.now, "changed_course", self.cur_node, self)
             self.events.append(env.timeout(0, value=event))
 
@@ -266,7 +277,6 @@ class UAV:
                     cb(ev)
 
             self.t_start = env.now
-            self.events.append(ev)
 
     def sim(self, env):
         while True:
@@ -278,3 +288,160 @@ class UAV:
                 break
             except simpy.exceptions.Interrupt:
                 pass
+
+
+class NaiveUAV(UAV):
+    def __init__(self, uav_id: int, sc: Scenario, charging_stations: list, v: float, r_charge: float, r_deplete: float,
+                 B_min: float, battery: float = 1):
+        super().__init__(uav_id, charging_stations, v, r_charge, r_deplete, battery=battery)
+        self.logger = logging.getLogger(__name__)
+        self.sc = sc
+        self.B_min = B_min
+
+    def get_state(self, env):
+        """
+        Returns the position and battery charge of the UAV.
+        """
+        # TODO
+
+    def sim(self, env):
+        for w_s in range(self.sc.N_w_s):
+            pos_wp_next = self.sc.positions_w[self.uav_id][w_s + 1]
+            station_idx, dist_to_closest_station = self._dist_to_closest_station(w_s)
+
+            if w_s == self.sc.N_w_s - 1:
+                # last waypoint
+                dist_to_wp_next = self.sc.D_N[self.uav_id, -1, w_s]
+                t_to_wp_next = dist_to_wp_next / self.v
+                depletion = t_to_wp_next * self.r_deplete
+                if self.battery - depletion > self.B_min:
+                    # move to last waypoint
+
+                    node = Waypoint(*pos_wp_next)
+                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    for cb in self.arrival_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    # reached the end, so break from loop
+                    break
+                else:
+                    # move to closest charging station
+                    t_to_closest_station = dist_to_closest_station / self.v
+
+                    pos_station = self.sc.positions_S[station_idx]
+                    node = ChargingStation(*pos_station, identifier=station_idx)
+                    ev = env.timeout(t_to_closest_station, value=Event(env.now, "reached", node, uav=self))
+                    for cb in self.arrival_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    # wait for station availability
+                    resource = self.charging_stations[station_idx]
+                    req = resource.request()
+                    t_start = env.now
+
+                    yield req
+
+                    waited_time = t_start - env.now
+                    if waited_time > 0:
+                        node.wt = waited_time
+                        ev = env.timeout(0, value=Event(env.now, "waited", node, uav=self))
+                        for cb in self.waited_cbs:
+                            ev.callbacks.append(cb)
+                        yield ev
+
+                    # charge at station
+                    amount_to_charge = 1 - self.battery
+                    t_to_charge = amount_to_charge / self.r_charge
+                    node.ct = t_to_charge
+                    ev = env.timeout(t_to_charge, value=Event(env.now, "charged", node, uav=self))
+                    for cb in self.charged_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    self.battery = 1
+                    resource.release(req)
+
+                    # move to next waypoint
+                    dist_to_wp_next = self.sc.D_W[self.uav_id, station_idx, w_s]
+                    t_to_wp_next = dist_to_wp_next / self.v
+                    depletion = t_to_wp_next * self.r_deplete
+
+                    node = Waypoint(*pos_wp_next)
+                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    for cb in self.arrival_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    self.battery -= depletion
+            else:
+                dist_to_wp_next = self.sc.D_N[self.uav_id, -1, w_s]
+                depletion = (dist_to_wp_next + dist_to_closest_station) / self.v * self.r_deplete
+                if self.battery - depletion > self.B_min:
+                    # visit waypoint directly
+                    t_to_wp_next = dist_to_wp_next / self.v
+                    node = Waypoint(*pos_wp_next)
+                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    for cb in self.arrival_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    self.battery -= t_to_wp_next * self.r_deplete
+                else:
+                    # move to closest charging station
+                    t_to_closest_station = dist_to_closest_station / self.v
+
+                    pos_station = self.sc.positions_S[station_idx]
+                    node = ChargingStation(*pos_station, identifier=station_idx)
+                    ev = env.timeout(t_to_closest_station, value=Event(env.now, "reached", node, uav=self))
+                    for cb in self.arrival_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    # wait for station availability
+                    resource = self.charging_stations[station_idx]
+                    req = resource.request()
+                    t_start = env.now
+
+                    yield req
+
+                    waited_time = t_start - env.now
+                    if waited_time > 0:
+                        node.wt = waited_time
+                        ev = env.timeout(0, value=Event(env.now, "waited", node, uav=self))
+                        for cb in self.waited_cbs:
+                            ev.callbacks.append(cb)
+                        yield ev
+
+                    # charge at station
+                    amount_to_charge = 1 - self.battery
+                    t_to_charge = amount_to_charge / self.r_charge
+                    node.ct = t_to_charge
+                    ev = env.timeout(t_to_charge, value=Event(env.now, "charged", node, uav=self))
+                    for cb in self.charged_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    self.battery = 1
+                    resource.release(req)
+
+                    # move to next waypoint
+                    dist_to_wp_next = self.sc.D_W[self.uav_id, station_idx, w_s]
+                    t_to_wp_next = dist_to_wp_next / self.v
+                    depletion = t_to_wp_next * self.r_deplete
+
+                    node = Waypoint(*pos_wp_next)
+                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    for cb in self.arrival_cbs:
+                        ev.callbacks.append(cb)
+                    yield ev
+
+                    self.battery -= depletion
+
+        for cb in self.finish_cbs:
+            cb(self)
+
+    def _dist_to_closest_station(self, w_s):
+        distances = self.sc.D_N[self.uav_id, :-1, w_s]
+        return np.argmin(distances), np.min(distances)

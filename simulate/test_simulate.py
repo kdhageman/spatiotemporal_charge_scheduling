@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from simulate.node import Node, NodeType, Waypoint, ChargingStation
-from simulate.simulate import Parameters, Scheduler, Simulator, ScenarioFactory
+from simulate.simulate import Parameters, Scheduler, MilpSimulator, ScenarioFactory
 from util.scenario import Scenario
 
 
@@ -48,7 +48,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/long'
         os.makedirs(directory, exist_ok=True)
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory)
+        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory)
         _, env, events = simulator.sim()
 
     def test_simulator_long_stride(self):
@@ -73,7 +73,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/long_stride'
         os.makedirs(directory, exist_ok=True)
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory, sigma=sigma)
+        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory, sigma=sigma)
         _, env, events = simulator.sim()
 
     def test_simulator_short_no_charging(self):
@@ -105,7 +105,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/short_no_charging'
         os.makedirs(directory, exist_ok=True)
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
+        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
         _, env, event_list = simulator.sim()
         self.assertEqual(len(event_list), 1)
         self.assertEqual(len(event_list[0]), 5)
@@ -142,7 +142,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/short_charging'
         os.makedirs(directory, exist_ok=True)
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
+        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
         _, env, event_list = simulator.sim()
         self.assertEqual(len(event_list), 1)
         self.assertEqual(len(event_list[0]), 7)
@@ -178,7 +178,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/change_midmove'
         os.makedirs(directory, exist_ok=True)
-        simulator = Simulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
+        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=0.05)
         _, env, event_list = simulator.sim()
 
         self.assertEqual(len(event_list), 1)
@@ -206,7 +206,7 @@ class TestSimulator(TestCase):
         ]
         sc = Scenario(positions_S, positions_w)
 
-        sim = Simulator(None, None, sc, 0, 5)
+        sim = MilpSimulator(None, None, sc, 0, 5)
 
         schedules = [
             [(-1, 0, 0), [Waypoint(-1, 1, 0), Waypoint(-1, 1, 0), Waypoint(0, 1, 0), Waypoint(1, 1, 0)]]
