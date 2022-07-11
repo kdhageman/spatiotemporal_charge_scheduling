@@ -63,11 +63,13 @@ class _EventGenerator:
             t_move = distance / self.v
 
             if t_move > 0:
-                event = env.timeout(t_move, value=Event(env.now, "reached", node_next))
+                event = env.timeout(t_move, value=Event(env.now, "reached", node_next,
+                                                        battery=self.battery - t_move * self.r_deplete))
 
                 for cb in self.pre_move_cbs:
                     cb(event)
                 yield event
+                self.battery -= t_move * self.r_deplete
 
             self.cur_node = node_next
             self.nodes = self.nodes[1:] if len(self.nodes) > 1 else []
@@ -75,7 +77,7 @@ class _EventGenerator:
             # wait at node
             waiting_time = self.cur_node.wt
             if waiting_time > 0:
-                event = env.timeout(waiting_time, value=Event(env.now, "waited", self.cur_node))
+                event = env.timeout(waiting_time, value=Event(env.now, "waited", self.cur_node, battery=self.battery))
                 for cb in self.pre_wait_cbs:
                     cb(event)
                 yield event
@@ -83,21 +85,28 @@ class _EventGenerator:
             # charge at node
             charging_time = self.cur_node.ct
             if charging_time > 0:
-                event = env.timeout(charging_time, value=Event(env.now, "charged", self.cur_node))
+                event = env.timeout(charging_time, value=Event(env.now, "charged", self.cur_node,
+                                                               battery=self.battery + charging_time * self.r_charge))
                 for cb in self.pre_charge_cbs:
                     cb(event)
                 yield event
+                self.battery += charging_time * self.r_charge
 
 
 class UAV:
     def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float,
                  battery: float = 1):
+        self.logger = logging.getLogger(__name__)
         self.uav_id = uav_id
         self.charging_stations = charging_stations
         self.v = v
         self.r_charge = r_charge
         self.r_deplete = r_deplete
         self.battery = battery
+
+        self.cur_node = None
+        self.state_type = UavStateType.Idle
+        self.t_start = 0
 
         self.events = []
 
@@ -108,6 +117,49 @@ class UAV:
         self.waited_cbs = [add_ev_cb]
         self.charged_cbs = [add_ev_cb]
         self.finish_cbs = []
+
+    def _get_battery(self, env):
+        t_passed = env.now - self.t_start
+        battery = self.battery
+        if self.state_type == UavStateType.Moving:
+            battery = self.battery - t_passed * self.r_deplete
+        elif self.state_type == UavStateType.Charging:
+            battery = min(self.battery + t_passed * self.r_charge, 1)
+        return battery
+
+    @property
+    def dest_node(self):
+        raise NotImplementedError
+
+    def get_state(self, env):
+        """
+        Returns the position and battery charge of the UAV.
+        """
+        t_passed = env.now - self.t_start
+        battery = self._get_battery(env)
+        if self.state_type == UavStateType.Moving:
+            dir_vector = self.cur_node.direction(self.dest_node)
+            traveled_distance = t_passed * self.v
+            travel_vector = dir_vector * traveled_distance
+            pos = self.cur_node.pos + travel_vector
+            res = UavState(
+                state_type=self.state_type,
+                pos=pos,
+                battery=battery,
+            )
+        elif self.state_type == UavStateType.Charging:
+            res = UavState(
+                state_type=self.state_type,
+                pos=self.cur_node.pos,
+                battery=battery,
+            )
+        elif self.state_type in [UavStateType.Waiting, UavStateType.Idle]:
+            res = UavState(
+                state_type=self.state_type,
+                pos=self.cur_node.pos,
+                battery=battery,
+            )
+        return res
 
     def add_arrival_cb(self, cb):
         self.arrival_cbs.append(cb)
@@ -136,52 +188,13 @@ class MilpUAV(UAV):
         self.resource = None
         self.req = None
 
-        self.t_start = 0
-        self.state_type = UavStateType.Idle
-        self.cur_node = None
-
         self.proc = None
         self.eg = None
         self.waypoint_id = 0
 
-    def _get_battery(self, env):
-        t_passed = env.now - self.t_start
-        battery = self.battery
-        if self.state_type == UavStateType.Moving:
-            battery = self.battery - t_passed * self.r_deplete
-        elif self.state_type == UavStateType.Charging:
-            battery = min(self.battery + t_passed * self.r_charge, 1)
-        return battery
-
-    def get_state(self, env):
-        """
-        Returns the position and battery charge of the UAV.
-        """
-        t_passed = env.now - self.t_start
-        battery = self._get_battery(env)
-        if self.state_type == UavStateType.Moving:
-            dir_vector = self.cur_node.direction(self.eg.nodes[0])
-            traveled_distance = t_passed * self.v
-            travel_vector = dir_vector * traveled_distance
-            pos = self.cur_node.pos + travel_vector
-            res = UavState(
-                state_type=self.state_type,
-                pos=pos,
-                battery=battery,
-            )
-        elif self.state_type == UavStateType.Charging:
-            res = UavState(
-                state_type=self.state_type,
-                pos=self.cur_node.pos,
-                battery=battery,
-            )
-        elif self.state_type in [UavStateType.Waiting, UavStateType.Idle]:
-            res = UavState(
-                state_type=self.state_type,
-                pos=self.cur_node.pos,
-                battery=battery,
-            )
-        return res
+    @property
+    def dest_node(self):
+        return self.eg.nodes[0]
 
     def changes_course(self, nodes: list):
         """
@@ -297,44 +310,65 @@ class NaiveUAV(UAV):
         self.logger = logging.getLogger(__name__)
         self.sc = sc
         self.B_min = B_min
+        self.n_visited = 0
+        self._dest_node = None
+        self.cur_node = AuxWaypoint(*self.sc.positions_w[self.uav_id][0])
 
-    def get_state(self, env):
-        """
-        Returns the position and battery charge of the UAV.
-        """
-        # TODO
+    @property
+    def n_remaining(self):
+        return self.sc.N_w - self.n_visited - 1
+
+    @property
+    def dest_node(self):
+        return self._dest_node
 
     def sim(self, env):
+        def set_idle(_):
+            self.state_type = UavStateType.Idle
+
         for w_s in range(self.sc.N_w_s):
             pos_wp_next = self.sc.positions_w[self.uav_id][w_s + 1]
             station_idx, dist_to_closest_station = self._dist_to_closest_station(w_s)
 
             if w_s == self.sc.N_w_s - 1:
                 # last waypoint
+                self.state_type = UavStateType.Moving
                 dist_to_wp_next = self.sc.D_N[self.uav_id, -1, w_s]
                 t_to_wp_next = dist_to_wp_next / self.v
                 depletion = t_to_wp_next * self.r_deplete
                 if self.battery - depletion > self.B_min:
                     # move to last waypoint
+                    self._dest_node = AuxWaypoint(*pos_wp_next)
 
                     node = Waypoint(*pos_wp_next)
-                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    ev = env.timeout(t_to_wp_next,
+                                     value=Event(env.now, "reached", node, uav=self, battery=self.battery - depletion))
                     for cb in self.arrival_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
+
+                    self.n_visited += 1
 
                     # reached the end, so break from loop
                     break
                 else:
                     # move to closest charging station
+                    self.state_type = UavStateType.Moving
+                    self._dest_node = AuxWaypoint(*self.sc.positions_S[station_idx])
                     t_to_closest_station = dist_to_closest_station / self.v
 
                     pos_station = self.sc.positions_S[station_idx]
                     node = ChargingStation(*pos_station, identifier=station_idx)
-                    ev = env.timeout(t_to_closest_station, value=Event(env.now, "reached", node, uav=self))
+                    ev = env.timeout(t_to_closest_station,
+                                     value=Event(env.now, "reached", node, uav=self, battery=self.battery))
                     for cb in self.arrival_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
+
+                    self.cur_node = AuxWaypoint(*self.sc.positions_S[station_idx])
+                    self.battery -= t_to_closest_station * self.r_deplete
 
                     # wait for station availability
                     resource = self.charging_stations[station_idx]
@@ -345,59 +379,82 @@ class NaiveUAV(UAV):
 
                     waited_time = t_start - env.now
                     if waited_time > 0:
+                        self.state_type = UavStateType.Waiting
                         node.wt = waited_time
                         ev = env.timeout(0, value=Event(env.now, "waited", node, uav=self))
                         for cb in self.waited_cbs:
                             ev.callbacks.append(cb)
+                        ev.callbacks.append(set_idle)
                         yield ev
 
                     # charge at station
+                    self.state_type = UavStateType.Charging
                     amount_to_charge = 1 - self.battery
                     t_to_charge = amount_to_charge / self.r_charge
                     node.ct = t_to_charge
-                    ev = env.timeout(t_to_charge, value=Event(env.now, "charged", node, uav=self))
+                    ev = env.timeout(t_to_charge, value=Event(env.now, "charged", node, uav=self, battery=1))
                     for cb in self.charged_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
 
                     self.battery = 1
                     resource.release(req)
 
                     # move to next waypoint
+                    self._dest_node = AuxWaypoint(*pos_wp_next)
+                    self.state_type = UavStateType.Moving
                     dist_to_wp_next = self.sc.D_W[self.uav_id, station_idx, w_s]
                     t_to_wp_next = dist_to_wp_next / self.v
                     depletion = t_to_wp_next * self.r_deplete
 
                     node = Waypoint(*pos_wp_next)
-                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    ev = env.timeout(t_to_wp_next,
+                                     value=Event(env.now, "reached", node, uav=self, battery=self.battery - depletion))
                     for cb in self.arrival_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
 
+                    self.cur_node = AuxWaypoint(*pos_wp_next)
+                    self.n_visited += 1
                     self.battery -= depletion
             else:
                 dist_to_wp_next = self.sc.D_N[self.uav_id, -1, w_s]
                 depletion = (dist_to_wp_next + dist_to_closest_station) / self.v * self.r_deplete
                 if self.battery - depletion > self.B_min:
                     # visit waypoint directly
+                    self._dest_node = AuxWaypoint(*pos_wp_next)
+                    self.state_type = UavStateType.Moving
                     t_to_wp_next = dist_to_wp_next / self.v
                     node = Waypoint(*pos_wp_next)
-                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self,
+                                                               battery=self.battery - t_to_wp_next * self.r_deplete))
                     for cb in self.arrival_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
 
+                    self.cur_node = AuxWaypoint(*pos_wp_next)
+                    self.n_visited += 1
                     self.battery -= t_to_wp_next * self.r_deplete
                 else:
                     # move to closest charging station
+                    self.state_type = UavStateType.Moving
+                    self._dest_node = AuxWaypoint(*self.sc.positions_S[station_idx])
                     t_to_closest_station = dist_to_closest_station / self.v
 
                     pos_station = self.sc.positions_S[station_idx]
                     node = ChargingStation(*pos_station, identifier=station_idx)
-                    ev = env.timeout(t_to_closest_station, value=Event(env.now, "reached", node, uav=self))
+                    ev = env.timeout(t_to_closest_station, value=Event(env.now, "reached", node, uav=self,
+                                                                       battery=self.battery - t_to_closest_station * self.r_deplete))
                     for cb in self.arrival_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
+
+                    self.cur_node = AuxWaypoint(*self.sc.positions_S[station_idx])
+                    self.battery -= t_to_closest_station * self.r_deplete
 
                     # wait for station availability
                     resource = self.charging_stations[station_idx]
@@ -406,37 +463,47 @@ class NaiveUAV(UAV):
 
                     yield req
 
-                    waited_time = t_start - env.now
+                    waited_time = env.now - t_start
                     if waited_time > 0:
+                        self.state_type = UavStateType.Waiting
                         node.wt = waited_time
-                        ev = env.timeout(0, value=Event(env.now, "waited", node, uav=self))
+                        ev = env.timeout(0, value=Event(env.now, "waited", node, uav=self, battery=self.battery))
                         for cb in self.waited_cbs:
                             ev.callbacks.append(cb)
+                        ev.callbacks.append(set_idle)
                         yield ev
 
                     # charge at station
+                    self.state_type = UavStateType.Charging
                     amount_to_charge = 1 - self.battery
                     t_to_charge = amount_to_charge / self.r_charge
                     node.ct = t_to_charge
-                    ev = env.timeout(t_to_charge, value=Event(env.now, "charged", node, uav=self))
+                    ev = env.timeout(t_to_charge, value=Event(env.now, "charged", node, uav=self, battery=1))
                     for cb in self.charged_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
 
                     self.battery = 1
                     resource.release(req)
 
                     # move to next waypoint
+                    self._dest_node = AuxWaypoint(*pos_wp_next)
+                    self.state_type = UavStateType.Moving
                     dist_to_wp_next = self.sc.D_W[self.uav_id, station_idx, w_s]
                     t_to_wp_next = dist_to_wp_next / self.v
                     depletion = t_to_wp_next * self.r_deplete
 
                     node = Waypoint(*pos_wp_next)
-                    ev = env.timeout(t_to_wp_next, value=Event(env.now, "reached", node, uav=self))
+                    ev = env.timeout(t_to_wp_next,
+                                     value=Event(env.now, "reached", node, uav=self, battery=self.battery - depletion))
                     for cb in self.arrival_cbs:
                         ev.callbacks.append(cb)
+                    ev.callbacks.append(set_idle)
                     yield ev
 
+                    self.cur_node = AuxWaypoint(*pos_wp_next)
+                    self.n_visited += 1
                     self.battery -= depletion
 
         for cb in self.finish_cbs:

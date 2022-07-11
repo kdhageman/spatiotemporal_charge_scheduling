@@ -80,7 +80,7 @@ class TimeStepper:
                 break
         for cb in finish_callbacks:
             cb(event)
-            self._inc()
+            self._inc(None)
 
 
 class NotSolvableException(Exception):
@@ -246,19 +246,6 @@ class Scheduler:
         return res
 
 
-class NaiveScheduler(Scheduler):
-    """
-    Subsclass of the scheduler which follows a naive strategy
-    """
-
-    def __init__(self, params: Parameters, scenario: Scenario):
-        self.params = params
-        self.scenario = scenario
-
-    def schedule(self):
-        pass
-
-
 class NaiveSimulator:
     def __init__(self, params: Parameters, sc: Scenario, plot_delta: float = 0.1, directory=None):
         self.logger = logging.getLogger(__name__)
@@ -269,7 +256,6 @@ class NaiveSimulator:
 
         self.pdfs = []
         self.plot_params = {}
-        self.remaining = []
 
     def sim(self):
         env = simpy.Environment()
@@ -282,16 +268,17 @@ class NaiveSimulator:
         # prepare UAVs
         uavs = []
         for d in range(self.sc.N_d):
-            uav = NaiveUAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d],
+            uav = NaiveUAV(d, self.sc, charging_stations, self.params.v[d], self.params.r_charge[d],
+                           self.params.r_deplete[d],
                            self.params.B_min[d])
             uavs.append(uav)
 
-        self.logger.info(f"visiting {self.sf.N_w - 1} waypoints per UAV in total")
+        self.logger.info(f"visiting {self.sc.N_w - 1} waypoints per UAV in total")
 
         def arrival_cb(event):
             uav_id = event.value.uav.uav_id
             self.logger.debug(
-                f"[{env.now:.2f}] UAV [{uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery ({self.sf.n_remaining_waypoints(uav_id)}/{self.sf.N_w - 1} waypoints remaining)")
+                f"[{env.now:.2f}] UAV [{uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery ({event.value.uav.n_remaining}/{self.sc.N_w - 1} waypoints remaining)")
 
         def waited_cb(event):
             self.logger.debug(
@@ -301,15 +288,125 @@ class NaiveSimulator:
             self.logger.debug(
                 f"[{env.now:.2f}] UAV {event.value.uav.uav_id} finished charging at station {event.value.node.identifier} for {event.value.node.ct:.2f}s")
 
+        def plot_ts_cb(_):
+            _, ax = plt.subplots()
+            fname = f"{self.directory}/it_{self.plot_timestepper.timestep:03}.pdf"
+            states = [uav.get_state(env) for uav in uavs]
+            positions = [s.pos for s in states]
+            batteries = [s.battery for s in states]
+            self.plot(positions, batteries, ax=ax, fname=fname,
+                      title=f"$t={env.now:.2f}$s")
+
+        if self.directory:
+            plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb], finish_callbacks=[plot_ts_cb]))
+
+        self.remaining = self.sc.N_d
+
+        def uav_finished_cb(uav):
+            self.logger.debug(f"[{env.now:.2f}] UAV [{uav.uav_id}] finished")
+            self.remaining -= 1
+            if self.remaining == 0:
+                if self.directory:
+                    plot_ts.interrupt()
+
         for uav in uavs:
             uav.add_arrival_cb(arrival_cb)
             uav.add_waited_cb(waited_cb)
             uav.add_charged_cb(charged_cb)
+            uav.add_finish_cb(uav_finished_cb)
             env.process(uav.sim(env))
 
-        env.run()
+        try:
+            if self.directory:
+                env.run(until=plot_ts)
+            else:
+                env.run()
+        finally:
+            if self.directory:
+                merger = PdfMerger()
+                for pdf in self.pdfs:
+                    merger.append(pdf)
+                fname = os.path.join(self.directory, "combined.pdf")
+                merger.write(fname)
+                merger.close()
+
+                # remove the intermediate files
+                for pdf in self.pdfs:
+                    os.remove(pdf)
 
         return env, [uav.events for uav in uavs]
+
+    def plot(self, positions, batteries, ax=None, fname=None, title=None):
+        if not ax:
+            _, ax = plt.subplots()
+
+        colors = gen_colors(self.sc.N_d)
+
+        # plot current positions
+        for i, pos in enumerate(positions):
+            x = [pos[0]]
+            y = [pos[1]]
+            ax.scatter(x, y, c='white', s=40, edgecolor=colors[i], zorder=2)
+
+        # plot all waypoints
+        for d in range(self.sc.N_d):
+            x = [x for x, _, _ in self.sc.positions_w[d]]
+            y = [y for _, y, _ in self.sc.positions_w[d]]
+            ax.scatter(x, y, marker='x', s=10, color=colors[d], zorder=-1, alpha=0.2)
+
+        # plot charging stations
+        x = [x for x, _, _ in self.sc.positions_S]
+        y = [y for _, y, _ in self.sc.positions_S]
+        ax.scatter(x, y, marker='s', s=70, c='white', edgecolor='black', zorder=-1, alpha=0.2)
+
+        ax.axis("equal")
+        # fix plot limits for battery calculation
+        if len(self.plot_params) == 0:
+            self.plot_params['xlim'] = ax.get_xlim()
+            self.plot_params['ylim'] = ax.get_ylim()
+
+            xmin, xmax = ax.get_xlim()
+
+            self.plot_params['width_outer'] = (xmax - xmin) * 0.07
+            self.plot_params['height_outer'] = self.plot_params['width_outer'] * 0.5
+            self.plot_params['y_offset'] = self.plot_params['height_outer']
+
+            self.plot_params['lw_outer'] = 1.5
+
+            padding = self.plot_params['height_outer'] / 3
+            self.plot_params['width_inner_max'] = self.plot_params['width_outer'] - padding
+            self.plot_params['height_inner'] = self.plot_params['height_outer'] - padding
+
+        ax.set_xlim(self.plot_params['xlim'])
+        ax.set_ylim(self.plot_params['ylim'])
+
+        for i, pos in enumerate(positions):
+            # draw battery under current battery position
+            x_outer = pos[0] - (self.plot_params['width_outer'] / 2)
+            y_outer = pos[1] - (self.plot_params['height_outer'] / 2) - self.plot_params['y_offset']
+            outer = Rectangle((x_outer, y_outer), self.plot_params['width_outer'], self.plot_params['height_outer'],
+                              color=colors[i], linewidth=self.plot_params['lw_outer'],
+                              fill=False)
+            ax.add_patch(outer)
+
+            width_inner = self.plot_params['width_inner_max'] * batteries[i]
+            x_inner = pos[0] - (self.plot_params['width_inner_max'] / 2)
+            y_inner = pos[1] - (self.plot_params['height_inner'] / 2) - self.plot_params['y_offset']
+            inner = Rectangle((x_inner, y_inner), width_inner, self.plot_params['height_inner'], color=colors[i],
+                              linewidth=0, fill=True)
+            ax.add_patch(inner)
+
+        if title:
+            ax.set_title(title)
+
+        ax.margins(0.1, 0.1)
+        ax.axis('off')
+
+        if fname:
+            plt.savefig(fname, bbox_inches='tight')
+            self.pdfs.append(fname)
+        plt.close()
+
 
 class MilpSimulator:
     def __init__(self, scheduler_cls, params: Parameters, sc: Scenario, schedule_delta: float, W: int,
@@ -332,7 +429,7 @@ class MilpSimulator:
         self.solve_times = []
 
         # used in callbacks
-        self.remaining = []
+        self.remaining = None
 
     def sim(self):
         env = simpy.Environment()
@@ -582,3 +679,38 @@ class MilpSimulator:
             plt.savefig(fname, bbox_inches='tight')
             self.pdfs.append(fname)
         plt.close()
+
+
+def plot_events_battery(events: list, fname: str):
+    """
+    Plots the battery over time for the given events
+    """
+    _, axes = plt.subplots(len(events), 1, figsize=(len(events) * 3, 2), sharex=True, sharey=True)
+
+    uav_colors = gen_colors(len(events))
+
+    station_ids = []
+    for d in range(len(events)):
+        for e in events[d]:
+            if type(e.value.node) == ChargingStation:
+                if e.value.node.identifier not in station_ids:
+                    station_ids.append(e.value.node.identifier)
+    station_colors = gen_colors(len(station_ids))
+
+    for d in range(len(events)):
+        X = []
+        Y = []
+        for e in events[d]:
+            ts = e.value.ts + e._delay
+            X.append(ts)
+            Y.append(e.value.battery)
+
+            if e.value.name == "charged":
+                x_rect = e.value.ts
+                width = e._delay
+                rect = Rectangle((x_rect, 0), width, 1, color=station_colors[e.value.node.identifier], ec=None,
+                                 alpha=0.3, zorder=-1)
+                axes[d].add_patch(rect)
+        axes[d].plot(X, Y, marker='o', c=uav_colors[d])
+
+    plt.savefig(fname, bbox_inches='tight')

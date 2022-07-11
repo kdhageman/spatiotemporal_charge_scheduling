@@ -6,11 +6,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from simulate.node import Node, NodeType, Waypoint, ChargingStation
-from simulate.simulate import Parameters, Scheduler, MilpSimulator, ScenarioFactory
+from simulate.simulate import Parameters, Scheduler, MilpSimulator, ScenarioFactory, NaiveSimulator, plot_events_battery
 from util.scenario import Scenario
 
 
-class TestSimulator(TestCase):
+class TestMilpSimulator(TestCase):
 
     def setUp(self):
         logging.basicConfig(level=logging.DEBUG)
@@ -18,38 +18,30 @@ class TestSimulator(TestCase):
         logging.getLogger("matplotlib").setLevel(logging.ERROR)
         logging.getLogger("gurobi").setLevel(logging.ERROR)
 
-    # def test_plot(self):
-    #     sc = Scenario.from_file("scenarios/two_longer_path.yml")
-    #     _, ax = plt.subplots()
-    #     sc.plot(ax=ax, draw_distances=False)
-    #     ax.axis('off')
-    #     plt.savefig("out/simulation/scenario/scenario.pdf", bbox_inches='tight')
-
     def test_simulator_long(self):
+        # TODO: fix battery profile outputting
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
-        # sc = Scenario.from_file("scenarios/two_drones.yml")
 
         p = dict(
-
             v=[1, 1],
-            r_charge=[0.15, 0.15],
+            r_charge=[0.04, 0.04],
             r_deplete=[0.3, 0.3],
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
         )
-        # schedule_delta = 1
-        # schedule_delta = 10
         schedule_delta = 5
-        plot_delta = 0.05
+        plot_delta = 0.5
         W = 10
 
         params = Parameters(**p)
 
-        directory = 'out/test/long'
+        directory = 'out/test/long_milp'
         os.makedirs(directory, exist_ok=True)
         simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory)
         _, env, events = simulator.sim()
+        print(env.now)
+        plot_events_battery(events, os.path.join(directory, "battery.pdf"))
 
     def test_simulator_long_stride(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -67,13 +59,14 @@ class TestSimulator(TestCase):
         schedule_delta = 5
         plot_delta = 0.05
         W = 12
-        sigma=2
+        sigma = 2
 
         params = Parameters(**p)
 
         directory = 'out/test/long_stride'
         os.makedirs(directory, exist_ok=True)
-        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory, sigma=sigma)
+        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory,
+                                  sigma=sigma)
         _, env, events = simulator.sim()
 
     def test_simulator_short_no_charging(self):
@@ -217,6 +210,36 @@ class TestSimulator(TestCase):
 
         _, ax = plt.subplots()
         sim.plot(schedules, batteries, ax=ax, fname=fname, title=title)
+
+
+class TestNaiveSimulator(TestCase):
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("pyomo").setLevel(logging.INFO)
+        logging.getLogger("matplotlib").setLevel(logging.ERROR)
+        logging.getLogger("gurobi").setLevel(logging.ERROR)
+
+    def test_simulator_long(self):
+        sc = Scenario.from_file("scenarios/two_longer_path.yml")
+
+        p = dict(
+            v=[1, 1],
+            r_charge=[0.04, 0.04],
+            r_deplete=[0.3, 0.3],
+            B_min=[0.1, 0.1],
+            B_max=[1, 1],
+            B_start=[1, 1],
+        )
+        params = Parameters(**p)
+
+        plot_delta = 0.5
+
+        directory = 'out/test/long_naive'
+        os.makedirs(directory, exist_ok=True)
+        simulator = NaiveSimulator(params, sc, plot_delta=plot_delta, directory=directory)
+        env, events = simulator.sim()
+        print(env.now)
+        plot_events_battery(events, os.path.join(directory, "battery.pdf"))
 
 
 class TestScheduler(TestCase):
@@ -459,10 +482,10 @@ class TestScenarioFactory(TestCase):
 
         # D_N
         expected = np.array([
-          [
-              [0, 2, 4],
-              [2, 2, 0],
-          ]
+            [
+                [0, 2, 4],
+                [2, 2, 0],
+            ]
         ])
         actual = sc.D_N
         self.assertTrue(np.array_equal(expected, actual))
