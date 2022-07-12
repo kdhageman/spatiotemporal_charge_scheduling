@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class Event:
     def __init__(self, ts, name, node, uav=None, battery=1):
         self.ts = ts
@@ -7,4 +10,4 @@ class Event:
         self.battery = battery
 
     def __repr__(self):
-        return f"{self.ts}, {self.uav}, {self.name}, {self.node}"
+        return f"{self.ts}, {self.uav}, {self.name}, {self.node}, {np.round(self.battery, 1)}"

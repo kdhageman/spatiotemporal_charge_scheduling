@@ -45,20 +45,21 @@ class TestMilpSimulator(TestCase):
 
     def test_simulator_long_stride(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
-        # sc = Scenario.from_file("scenarios/two_drones.yml")
 
         p = dict(
 
             v=[1, 1],
-            r_charge=[0.15, 0.15],
+            r_charge=[0.04, 0.04],
+            # r_charge=[0.4, 0.4],
             r_deplete=[0.3, 0.3],
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
         )
         schedule_delta = 5
-        plot_delta = 0.05
-        W = 12
+        # plot_delta = 0.1
+        plot_delta = 0
+        W = 6
         sigma = 2
 
         params = Parameters(**p)
@@ -68,6 +69,14 @@ class TestMilpSimulator(TestCase):
         simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, plot_delta=plot_delta, directory=directory,
                                   sigma=sigma)
         _, env, events = simulator.sim()
+        print(env.now)
+        plot_events_battery(events, os.path.join(directory, "battery.pdf"))
+
+        for d in range(sc.N_d):
+            fname = os.path.join(directory, f"events_{d}.txt")
+            with open(fname, 'w') as f:
+                for e in events[d]:
+                    f.write(f"{str(e)}\n")
 
     def test_simulator_short_no_charging(self):
         positions_w = [
@@ -232,7 +241,8 @@ class TestNaiveSimulator(TestCase):
         )
         params = Parameters(**p)
 
-        plot_delta = 0.5
+        # plot_delta = 0.5
+        plot_delta = 0
 
         directory = 'out/test/long_naive'
         os.makedirs(directory, exist_ok=True)

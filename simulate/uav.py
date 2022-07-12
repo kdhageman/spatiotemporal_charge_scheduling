@@ -32,11 +32,10 @@ class _EventGenerator:
     Internal class for generating the events by executing a schedule
     """
 
-    def __init__(self, pos, nodes, v, battery, r_deplete, r_charge, charging_stations):
+    def __init__(self, pos, nodes, v, r_deplete, r_charge, charging_stations):
         self.cur_node = AuxWaypoint(*pos)
         self.nodes = nodes
         self.v = v
-        self.battery = battery
         self.r_deplete = r_deplete
         self.r_charge = r_charge
         self.charging_stations = charging_stations
@@ -63,13 +62,11 @@ class _EventGenerator:
             t_move = distance / self.v
 
             if t_move > 0:
-                event = env.timeout(t_move, value=Event(env.now, "reached", node_next,
-                                                        battery=self.battery - t_move * self.r_deplete))
+                event = env.timeout(t_move, value=Event(env.now, "reached", node_next))
 
                 for cb in self.pre_move_cbs:
                     cb(event)
                 yield event
-                self.battery -= t_move * self.r_deplete
 
             self.cur_node = node_next
             self.nodes = self.nodes[1:] if len(self.nodes) > 1 else []
@@ -77,7 +74,7 @@ class _EventGenerator:
             # wait at node
             waiting_time = self.cur_node.wt
             if waiting_time > 0:
-                event = env.timeout(waiting_time, value=Event(env.now, "waited", self.cur_node, battery=self.battery))
+                event = env.timeout(waiting_time, value=Event(env.now, "waited", self.cur_node))
                 for cb in self.pre_wait_cbs:
                     cb(event)
                 yield event
@@ -85,12 +82,10 @@ class _EventGenerator:
             # charge at node
             charging_time = self.cur_node.ct
             if charging_time > 0:
-                event = env.timeout(charging_time, value=Event(env.now, "charged", self.cur_node,
-                                                               battery=self.battery + charging_time * self.r_charge))
+                event = env.timeout(charging_time, value=Event(env.now, "charged", self.cur_node))
                 for cb in self.pre_charge_cbs:
                     cb(event)
                 yield event
-                self.battery += charging_time * self.r_charge
 
 
 class UAV:
@@ -118,8 +113,13 @@ class UAV:
         self.charged_cbs = [add_ev_cb]
         self.finish_cbs = []
 
-    def _get_battery(self, env):
-        t_passed = env.now - self.t_start
+    def _get_battery(self, env, offset=0):
+        """
+        Returns the state of the battery given the simpy environment (+ an offset)
+        :param env: simpy.Environment
+        :param offset: offset in seconds
+        """
+        t_passed = env.now - self.t_start + offset
         battery = self.battery
         if self.state_type == UavStateType.Moving:
             battery = self.battery - t_passed * self.r_deplete
@@ -215,16 +215,16 @@ class MilpUAV(UAV):
 
         if self.state_type == UavStateType.Idle:
             # add start event
-            event = Event(env.now, "started", self.cur_node, self)
+            event = Event(env.now, "started", self.cur_node, self, battery=self.battery)
             self.events.append(env.timeout(0, value=event))
         elif self.state_type == UavStateType.Moving and self.changes_course(nodes):
             # add event with current position to events list when moving
             self.logger.debug(
                 f"[{env.now:.2f}] UAV [{self.uav_id}] changed course from {self.eg.nodes[0]} to {nodes[0]}")
-            event = Event(env.now, "changed_course", self.cur_node, self)
+            event = Event(env.now, "changed_course", self.cur_node, self, battery=self.battery)
             self.events.append(env.timeout(0, value=event))
 
-        eg = _EventGenerator(pos, nodes, self.v, self.battery, self.r_deplete, self.r_charge, self.charging_stations)
+        eg = _EventGenerator(pos, nodes, self.v, self.r_deplete, self.r_charge, self.charging_stations)
 
         def pre_move_cb(ev):
             self.state_type = UavStateType.Moving
@@ -267,6 +267,7 @@ class MilpUAV(UAV):
                 self.state_type = UavStateType.Charging
 
             ev.value.uav = self
+            ev.value.battery = self._get_battery(env, offset=ev._delay)
 
             yield ev
 

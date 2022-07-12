@@ -251,7 +251,7 @@ class NaiveSimulator:
         self.logger = logging.getLogger(__name__)
         self.params = params
         self.directory = directory
-        self.plot_timestepper = TimeStepper(plot_delta)
+        self.plot_timestepper = TimeStepper(plot_delta) if plot_delta else None
         self.sc = sc
 
         self.pdfs = []
@@ -297,7 +297,7 @@ class NaiveSimulator:
             self.plot(positions, batteries, ax=ax, fname=fname,
                       title=f"$t={env.now:.2f}$s")
 
-        if self.directory:
+        if self.directory and self.plot_timestepper:
             plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb], finish_callbacks=[plot_ts_cb]))
 
         self.remaining = self.sc.N_d
@@ -306,7 +306,7 @@ class NaiveSimulator:
             self.logger.debug(f"[{env.now:.2f}] UAV [{uav.uav_id}] finished")
             self.remaining -= 1
             if self.remaining == 0:
-                if self.directory:
+                if self.directory and self.plot_timestepper:
                     plot_ts.interrupt()
 
         for uav in uavs:
@@ -317,7 +317,7 @@ class NaiveSimulator:
             env.process(uav.sim(env))
 
         try:
-            if self.directory:
+            if self.directory and self.plot_timestepper:
                 env.run(until=plot_ts)
             else:
                 env.run()
@@ -421,7 +421,7 @@ class MilpSimulator:
         self.sigma = sigma
 
         self.schedule_timestepper = TimeStepper(schedule_delta)
-        self.plot_timestepper = TimeStepper(plot_delta)
+        self.plot_timestepper = TimeStepper(plot_delta) if plot_delta else None
 
         self.schedules = None
         self.pdfs = []
@@ -470,7 +470,7 @@ class MilpSimulator:
         for i, (start_pos, nodes) in enumerate(self.schedules):
             uavs[i].set_schedule(env, start_pos, nodes)
 
-        if self.directory:
+        if self.directory and self.plot_timestepper:
             _, ax = plt.subplots()
             fname = f"{self.directory}/it_{self.plot_timestepper.timestep:03}.pdf"
             schedules = []
@@ -545,7 +545,8 @@ class MilpSimulator:
                     f"[{env.now:.2f}] schedule for UAV [{i}] is composed of {n_wp} waypoints, {n_charge} charging stations and {n_aux} auxiliary waypoints")
 
             for i, (start_pos, nodes) in enumerate(self.schedules):
-                uavs[i].set_schedule(env, start_pos, nodes)
+                if len(self.sf.remaining_waypoints(i)) > 0:
+                    uavs[i].set_schedule(env, start_pos, nodes)
 
         def plot_ts_cb(_):
             _, ax = plt.subplots()
@@ -558,7 +559,7 @@ class MilpSimulator:
                       title=f"$t={env.now:.2f}$s")
 
         schedule_ts = env.process(self.schedule_timestepper.sim(env, callbacks=[schedule_ts_cb]))
-        if self.directory:
+        if self.directory and self.plot_timestepper:
             plot_ts = env.process(self.plot_timestepper.sim(env, callbacks=[plot_ts_cb], finish_callbacks=[plot_ts_cb]))
 
         self.remaining = self.sf.N_d
@@ -568,7 +569,7 @@ class MilpSimulator:
             self.remaining -= 1
             if self.remaining == 0:
                 schedule_ts.interrupt()
-                if self.directory:
+                if self.directory and self.plot_timestepper:
                     plot_ts.interrupt()
 
         # run simulation
@@ -687,6 +688,11 @@ def plot_events_battery(events: list, fname: str):
     """
     _, axes = plt.subplots(len(events), 1, figsize=(len(events) * 3, 2), sharex=True, sharey=True)
 
+    execution_times = []
+    for d in range(len(events)):
+        execution_times.append(events[d][-1].value.ts + events[d][-1]._delay)
+    max_execution_time = max(execution_times)
+
     uav_colors = gen_colors(len(events))
 
     station_ids = []
@@ -700,17 +706,22 @@ def plot_events_battery(events: list, fname: str):
     for d in range(len(events)):
         X = []
         Y = []
-        for e in events[d]:
+        for i, e in enumerate(events[d]):
             ts = e.value.ts + e._delay
             X.append(ts)
             Y.append(e.value.battery)
 
             if e.value.name == "charged":
-                x_rect = e.value.ts
-                width = e._delay
-                rect = Rectangle((x_rect, 0), width, 1, color=station_colors[e.value.node.identifier], ec=None,
+                ts_prev = events[d][i-1].value.ts + events[d][i-1]._delay
+                width = ts - ts_prev
+                rect = Rectangle((ts_prev, 0), width, 1, color=station_colors[e.value.node.identifier], ec=None,
                                  alpha=0.3, zorder=-1)
                 axes[d].add_patch(rect)
         axes[d].plot(X, Y, marker='o', c=uav_colors[d])
+
+    # add vertical lines
+    for d in range(len(events)):
+        axes[d].axvline(max_execution_time, color='red', zorder=-10)
+    axes[np.argmin(execution_times)].text(max_execution_time, 0.5, f'{max_execution_time:.1f}s', color='red', backgroundcolor='white', fontsize='xx-small', ha='center', zorder=-9)
 
     plt.savefig(fname, bbox_inches='tight')

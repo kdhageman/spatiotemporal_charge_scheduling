@@ -25,7 +25,7 @@ class TestEventGenerator(TestCase):
         battery = 1
         r_deplete = 0.1
         r_charge = 0.1
-        eg = _EventGenerator(pos, nodes, v, battery, r_deplete, r_charge, [])
+        eg = _EventGenerator(pos, nodes, v, r_deplete, r_charge, [])
 
         proc = env.process(eg.sim(env))
         env.run(until=proc)
