@@ -1,6 +1,9 @@
+config/
+!config/*.template.yml
 .idea
 out/
 .ipynb_checkpoints/
 scratch*.ipynb
 *.working.ipynb
 __pycache__/
+pointclouds

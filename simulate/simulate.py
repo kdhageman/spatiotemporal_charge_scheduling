@@ -682,16 +682,19 @@ class MilpSimulator:
         plt.close()
 
 
-def plot_events_battery(events: list, fname: str):
+def plot_events_battery(events: list, fname: str, figsize=None):
     """
     Plots the battery over time for the given events
     """
-    _, axes = plt.subplots(len(events), 1, figsize=(len(events) * 3, 2), sharex=True, sharey=True)
 
     execution_times = []
     for d in range(len(events)):
         execution_times.append(events[d][-1].value.ts + events[d][-1]._delay)
     max_execution_time = max(execution_times)
+
+    if not figsize:
+        figsize = (len(events) * 3, 2)
+    _, axes = plt.subplots(len(events), 1, figsize=figsize, sharex=True, sharey=True)
 
     uav_colors = gen_colors(len(events))
 
