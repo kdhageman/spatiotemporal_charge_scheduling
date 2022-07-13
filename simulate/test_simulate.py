@@ -31,7 +31,8 @@ class TestMilpSimulator(TestCase):
             B_start=[1, 1],
         )
         schedule_delta = 5
-        plot_delta = 0.5
+        # plot_delta = 0.5
+        plot_delta = 0
         W = 10
 
         params = Parameters(**p)
