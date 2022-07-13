@@ -689,7 +689,7 @@ def plot_events_battery(events: list, fname: str, figsize=None):
 
     execution_times = []
     for d in range(len(events)):
-        execution_times.append(events[d][-1].value.ts + events[d][-1]._delay)
+        execution_times.append(events[d][-1].value.ts_end)
     max_execution_time = max(execution_times)
 
     if not figsize:
@@ -710,24 +710,19 @@ def plot_events_battery(events: list, fname: str, figsize=None):
         X = []
         Y = []
         for i, e in enumerate(events[d]):
-            ts = e.value.ts + e._delay
+            ts = e.value.ts_end
             X.append(ts)
             Y.append(e.value.battery)
 
-            if i > 0:
-                ts_prev = events[d][i - 1].value.ts + events[d][i - 1]._delay
-                rect_width = ts - ts_prev
-
             if e.value.name == "charged":
-                rect = Rectangle((ts_prev, 0), rect_width, 1, color=station_colors[e.value.node.identifier], ec=None,
+                rect = Rectangle((e.value.ts_start, 0), e.value.duration, 1, color=station_colors[e.value.node.identifier], ec=None,
                                  alpha=0.3, zorder=-1)
                 axes[d].add_patch(rect)
             elif e.value.name == "waited":
-                rect = Rectangle((ts_prev, 0), rect_width, 1, color='black', fill=None, linewidth=0, alpha=0.1,
+                rect = Rectangle((e.value.ts_start, 0), e.value.duration, 1, color='black', fill=None, linewidth=0, alpha=0.1,
                                  hatch="/" * 6, ec=None, zorder=-1)
                 axes[d].add_patch(rect)
 
-                pass
         # axes[d].plot(X, Y, marker='o', c=uav_colors[d])
         axes[d].plot(X, Y, c=uav_colors[d])
 

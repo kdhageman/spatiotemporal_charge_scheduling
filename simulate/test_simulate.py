@@ -77,7 +77,7 @@ class TestMilpSimulator(TestCase):
             fname = os.path.join(directory, f"events_{d}.txt")
             with open(fname, 'w') as f:
                 for e in events[d]:
-                    f.write(f"{str(e)}\n")
+                    f.write(f"{str(e.value)}\n")
 
     def test_simulator_short_no_charging(self):
         positions_w = [

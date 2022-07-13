@@ -1,3 +1,4 @@
+import copy
 import logging
 from enum import Enum
 
@@ -42,6 +43,7 @@ class _EventGenerator:
         self.pre_move_cbs = []
         self.pre_charge_cbs = []
         self.pre_wait_cbs = []
+        self.start_event = None
 
     def add_pre_move_cb(self, cb):
         self.pre_move_cbs.append(cb)
@@ -52,7 +54,13 @@ class _EventGenerator:
     def add_pre_wait_cb(self, cb):
         self.pre_wait_cbs.append(cb)
 
+    def set_start_event(self, ev):
+        self.start_event = ev
+
     def sim(self, env):
+        if self.start_event:
+            yield self.start_event
+
         while True:
             if len(self.nodes) == 0:
                 break
@@ -62,7 +70,7 @@ class _EventGenerator:
             t_move = distance / self.v
 
             if t_move > 0:
-                event = env.timeout(t_move, value=Event(env.now, "reached", node_next))
+                event = env.timeout(t_move, value=Event(env.now, t_move, "reached", node_next))
 
                 for cb in self.pre_move_cbs:
                     cb(event)
@@ -74,7 +82,7 @@ class _EventGenerator:
             # wait at node
             waiting_time = self.cur_node.wt
             if waiting_time > 0:
-                event = env.timeout(waiting_time, value=Event(env.now, "waited", self.cur_node))
+                event = env.timeout(waiting_time, value=Event(env.now, waiting_time, "waited", self.cur_node))
                 for cb in self.pre_wait_cbs:
                     cb(event)
                 yield event
@@ -82,7 +90,7 @@ class _EventGenerator:
             # charge at node
             charging_time = self.cur_node.ct
             if charging_time > 0:
-                event = env.timeout(charging_time, value=Event(env.now, "charged", self.cur_node))
+                event = env.timeout(charging_time, value=Event(env.now, charging_time, "charged", self.cur_node))
                 for cb in self.pre_charge_cbs:
                     cb(event)
                 yield event
@@ -209,22 +217,31 @@ class MilpUAV(UAV):
         return not self.eg.nodes[0].equal_pos(non_aux_nodes[0])
 
     def set_schedule(self, env, pos: list, nodes: list):
+        # reposition and define battery state
         self.battery = self._get_battery(env)
-        self.cur_node = AuxWaypoint(*pos)
+        t_prev = self.t_start
         self.t_start = env.now
+        self.cur_node = AuxWaypoint(*pos)
+        prev_node = self.eg.cur_node if self.eg else None
 
-        if self.state_type == UavStateType.Idle:
-            # add start event
-            event = Event(env.now, "started", self.cur_node, self, battery=self.battery)
-            self.events.append(env.timeout(0, value=event))
-        elif self.state_type == UavStateType.Moving and self.changes_course(nodes):
-            # add event with current position to events list when moving
-            self.logger.debug(
-                f"[{env.now:.2f}] UAV [{self.uav_id}] changed course from {self.eg.nodes[0]} to {nodes[0]}")
-            event = Event(env.now, "changed_course", self.cur_node, self, battery=self.battery)
-            self.events.append(env.timeout(0, value=event))
 
         eg = _EventGenerator(pos, nodes, self.v, self.r_deplete, self.r_charge, self.charging_stations)
+        # generate first event
+        if self.state_type == UavStateType.Moving:
+            # TODO
+            ev = None
+        elif self.state_type == UavStateType.Charging:
+            duration = self.t_start - t_prev
+            ev = Event(t_prev, duration, "charged", prev_node, self.uav_id, self.battery)
+        elif self.state_type == UavStateType.Waiting:
+            duration = self.t_start - t_prev
+            ev = Event(t_prev, duration, "charged", prev_node, self.uav_id, self.battery)
+        else:
+            # idle
+            ev = None
+
+        if ev:
+            eg.set_start_event(env.timeout(0, value=ev))
 
         def pre_move_cb(ev):
             self.state_type = UavStateType.Moving
@@ -293,6 +310,9 @@ class MilpUAV(UAV):
             self.t_start = env.now
 
     def sim(self, env):
+        event = Event(env.now, 0, "started", self.cur_node, self, battery=self.battery)
+        self.events.append(env.timeout(0, value=event))
+
         while True:
             try:
                 self.proc = env.process(self._sim(env))
