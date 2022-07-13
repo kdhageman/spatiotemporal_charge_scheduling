@@ -1,13 +1,14 @@
 import glob
 import os
 import sys
+from enum import Enum
 
 import yaml
 
 sys.path.append('drone_charging')
 
 from simulate.parameters import Parameters
-from simulate.simulate import Scheduler, MilpSimulator, plot_events_battery
+from simulate.simulate import Scheduler, MilpSimulator, plot_events_battery, NaiveSimulator
 import open3d as o3d
 import logging
 import matplotlib.pyplot as plt
@@ -356,8 +357,21 @@ def get_scenario(seqs: list, charging_station_positions: list):
     return Scenario(seqs, charging_station_positions)
 
 
+class ChargingStrategy(Enum):
+    Milp = 0
+    Naive = 1
+
+    @classmethod
+    def parse(cls, s):
+        if s == "milp":
+            return ChargingStrategy.Milp
+        elif s == "naive":
+            return ChargingStrategy.Naive
+        return NotImplementedError()
+
+
 def schedule_charge(seqs: list, charging_station_positions: list, params: Parameters, schedule_delta: float, W: int,
-                    directory: str = None, plot_delta=0.1, sigma=1):
+                    directory: str = None, plot_delta=0.1, sigma=1, strategy: ChargingStrategy = ChargingStrategy.Milp):
     """
     Schedules the charging for a sequence of flight waypoints and number of charging station positions
     """
@@ -367,16 +381,22 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"# waypoints: {sc.N_w}")
     logger.debug(f"W:           {W}")
     logger.debug(f"sigma:       {sigma}")
-    simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=plot_delta, sigma=sigma)
-    logger.debug("prepared simulator")
-    solve_times, env, events = simulator.sim()
+    if strategy == ChargingStrategy.Milp:
+        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=plot_delta,
+                                  sigma=sigma)
+        logger.debug("prepared MILP simulator")
+        solve_times, env, events = simulator.sim()
 
-    # write solve times to disk
-    if directory:
-        with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-            f.write("iteration, solve_time\n")
-            for i, t in enumerate(solve_times):
-                f.write(f"{i}, {t}\n")
+        # write solve times to disk
+        if directory:
+            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
+                f.write("iteration, solve_time\n")
+                for i, t in enumerate(solve_times):
+                    f.write(f"{i}, {t}\n")
+    elif strategy == ChargingStrategy.Naive:
+        simulator = NaiveSimulator(params, sc, plot_delta=plot_delta, directory=directory)
+        logger.debug("prepared naive simulator")
+        env, events = simulator.sim()
 
     # write mission execution time to disk
     with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
@@ -412,7 +432,7 @@ def remove_downward_normals(pcd: o3d.geometry.PointCloud, threshold=-0.5):
     return res
 
 
-def main(conf):
+def run_from_conf(conf):
     # general parameters
     g = conf['general']
     n_drones = g["n_drones"]
@@ -434,11 +454,11 @@ def main(conf):
     v = [co["v"]] * n_drones
     r_charge = [co["r_charge"]] * n_drones
     r_deplete = [co["r_deplete"]] * n_drones
-    epsilon = co["epsilon"]
-    schedule_delta = co['schedule_delta']
+    epsilon = co.get("epsilon", None)
+    schedule_delta = co.get('schedule_delta', None)
     plot_delta = co['plot_delta']
-    W = co['W']
-    sigma = co['sigma']
+    W = co.get('W', None)
+    sigma = co.get('sigma', None)
     charging_station_positions = co['charging_positions']
 
     # open3d config
@@ -603,8 +623,10 @@ def main(conf):
         B_max=B_max,
         epsilon=epsilon
     )
+    strategy = ChargingStrategy.parse(conf['charging_strategy'])
     _, schedules = schedule_charge(flight_sequences, charging_station_positions, params, schedule_delta, W,
-                                   plot_delta=plot_delta, directory=os.path.join(output_dir, "simulation"), sigma=sigma)
+                                   plot_delta=plot_delta, directory=os.path.join(output_dir, "simulation"), sigma=sigma,
+                                   strategy=strategy)
     logger.debug("finished charge scheduling")
 
     # convert schedules to flight sequence for plotting
@@ -615,15 +637,5 @@ def main(conf):
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_flight_paths_incl_charging.png") if not visualize else None
     draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter == 1
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Must provide path to configuration file as parameter")
-        exit(1)
-    fpath_conf = sys.argv[1]
-    with open(fpath_conf, 'r') as f:
-        conf = yaml.load(f, Loader=yaml.Loader)
-
-    main(conf)

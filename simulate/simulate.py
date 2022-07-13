@@ -720,7 +720,8 @@ def plot_events_battery(events: list, fname: str, figsize=None):
                 rect = Rectangle((ts_prev, 0), width, 1, color=station_colors[e.value.node.identifier], ec=None,
                                  alpha=0.3, zorder=-1)
                 axes[d].add_patch(rect)
-        axes[d].plot(X, Y, marker='o', c=uav_colors[d])
+        # axes[d].plot(X, Y, marker='o', c=uav_colors[d])
+        axes[d].plot(X, Y, c=uav_colors[d])
 
     # add vertical lines
     for d in range(len(events)):
