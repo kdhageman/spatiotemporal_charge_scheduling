@@ -216,10 +216,9 @@ class Simulator:
 
         # for i, positions in enumerate(self.sf.sc_orig.positions_w):
         for d in range(self.sc.N_d):
-            # TODO: fix remaining waypoint plotting
-            # remaining_waypoints = self.sf.remaining_waypoints(d)
-            x = [x for x, _, _ in self.sc.positions_w[d]]
-            y = [y for _, y, _ in self.sc.positions_w[d]]
+            remaining_waypoints = self.scheduler.remaining_waypoints(d)
+            x = [x for x, _, _ in remaining_waypoints]
+            y = [y for _, y, _ in remaining_waypoints]
             ax.scatter(x, y, marker='x', s=10, color=colors[d], zorder=-1, alpha=0.2)
 
         x = [x for x, _, _ in self.sc.positions_S]

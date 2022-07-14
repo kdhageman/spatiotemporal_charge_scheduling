@@ -29,16 +29,16 @@ class UavState:
 
 
 class UAV:
-    # TODO: add B_max parameter
     def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float,
                  initial_pos: list,
-                 battery: float = 1):
+                 battery: float = 1, B_max: float = 1):
         self.logger = logging.getLogger(__name__)
         self.uav_id = uav_id
         self.charging_stations = charging_stations
         self.v = v
         self.r_charge = r_charge
         self.r_deplete = r_deplete
+        self.B_max = B_max
         self.battery = battery
 
         self.last_known_pos = AuxWaypoint(*initial_pos)
@@ -213,7 +213,7 @@ class UAV:
 
             if charging_time == 'full':
                 # charge to full
-                charging_time = (1 - self.battery) / self.r_charge
+                charging_time = (self.B_max - self.battery) / self.r_charge
 
             if charging_time > 0:
                 # wait for station availability

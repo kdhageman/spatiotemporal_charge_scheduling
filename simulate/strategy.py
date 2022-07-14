@@ -39,7 +39,6 @@ class IntervalStrategy(Strategy):
                 self.cb('all')
             except simpy.exceptions.Interrupt:
                 break
-        # TODO: add finish callbacks?
 
 
 class ArrivalStrategy(Strategy):
