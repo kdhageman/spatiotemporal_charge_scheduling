@@ -1,0 +1,2 @@
+class NotSolvableException(Exception):
+    pass

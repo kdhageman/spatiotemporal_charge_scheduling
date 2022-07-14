@@ -8,7 +8,7 @@ import yaml
 sys.path.append('drone_charging')
 
 from simulate.parameters import Parameters
-from simulate.simulate import Scheduler, MilpSimulator, plot_events_battery, NaiveSimulator
+from simulate.simulate import MilpScheduler, MilpSimulator, plot_events_battery, NaiveSimulator
 import open3d as o3d
 import logging
 import matplotlib.pyplot as plt
@@ -382,7 +382,7 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"W:           {W}")
     logger.debug(f"sigma:       {sigma}")
     if strategy == ChargingStrategy.Milp:
-        simulator = MilpSimulator(Scheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=plot_delta,
+        simulator = MilpSimulator(MilpScheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=plot_delta,
                                   sigma=sigma)
         logger.debug("prepared MILP simulator")
         solve_times, env, events = simulator.sim()
