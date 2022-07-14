@@ -127,6 +127,8 @@ class UAV:
         self.battery = state.battery
         self.remaining_nodes = nodes
 
+        # TODO: add changed course event
+
         if self.state_type == UavStateType.Charging:
             duration = env.now - self.t_start
             event = env.timeout(0, value=ChargedEvent(self.t_start, duration, self.last_known_pos, self, self.battery))

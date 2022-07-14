@@ -187,6 +187,13 @@ class Simulator:
                 for pdf in self.pdfs:
                     os.remove(pdf)
 
+                # TODO adjust fig_width!
+                fig_height = self.sc.N_d
+                ttc = 1 / self.params.r_charge.min()
+                fig_width = env.now / ttc * 1.5
+                fname = os.path.join(self.directory, "battery.pdf")
+                plot_events_battery([u.events for u in self.uavs], fname, figsize=(fig_width, fig_height))
+
         return env, [u.events for u in self.uavs]
 
     def plot(self, schedules, batteries, ax=None, fname=None, title=None):

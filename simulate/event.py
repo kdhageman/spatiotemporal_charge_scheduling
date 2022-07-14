@@ -8,6 +8,7 @@ class EventType(Enum):
     waited = 2
     charged = 3
     started = 4
+    changed_course = 5
 
 
 class Event:

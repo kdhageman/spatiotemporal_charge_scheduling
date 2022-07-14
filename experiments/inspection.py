@@ -3,12 +3,14 @@ import os
 import sys
 from enum import Enum
 
-import yaml
+from simulate.event import EventType
+from simulate.scheduling import MilpScheduler, NaiveScheduler
+from simulate.simulate import Simulator
+from simulate.strategy import IntervalStrategy, ArrivalStrategy
 
 sys.path.append('drone_charging')
 
 from simulate.parameters import Parameters
-from simulate.simulate import MilpScheduler, MilpSimulator, plot_events_battery, NaiveSimulator
 import open3d as o3d
 import logging
 import matplotlib.pyplot as plt
@@ -370,8 +372,8 @@ class ChargingStrategy(Enum):
         return NotImplementedError()
 
 
-def schedule_charge(seqs: list, charging_station_positions: list, params: Parameters, schedule_delta: float, W: int,
-                    directory: str = None, plot_delta=0.1, sigma=1, strategy: ChargingStrategy = ChargingStrategy.Milp):
+def schedule_charge(seqs: list, charging_station_positions: list, params: Parameters,
+                    directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
     """
     Schedules the charging for a sequence of flight waypoints and number of charging station positions
     """
@@ -379,42 +381,34 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"# drones:    {sc.N_d}")
     logger.debug(f"# stations:  {sc.N_s}")
     logger.debug(f"# waypoints: {sc.N_w}")
-    logger.debug(f"W:           {W}")
-    logger.debug(f"sigma:       {sigma}")
+    logger.debug(f"W:           {params.W}")
+    logger.debug(f"sigma:       {params.sigma}")
     if strategy == ChargingStrategy.Milp:
-        simulator = MilpSimulator(MilpScheduler, params, sc, schedule_delta, W, directory=directory, plot_delta=plot_delta,
-                                  sigma=sigma)
+        strat = IntervalStrategy(params.schedule_delta)
+        simulator = Simulator(MilpScheduler, strat, params, sc, directory=directory)
         logger.debug("prepared MILP simulator")
-        solve_times, env, events = simulator.sim()
-
-        # write solve times to disk
-        if directory:
-            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-                f.write("iteration, solve_time\n")
-                for i, t in enumerate(solve_times):
-                    f.write(f"{i}, {t}\n")
     elif strategy == ChargingStrategy.Naive:
-        simulator = NaiveSimulator(params, sc, plot_delta=plot_delta, directory=directory)
+        strat = ArrivalStrategy()
+        simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
         logger.debug("prepared naive simulator")
-        env, events = simulator.sim()
+    solve_times, env, events = simulator.sim()
 
-    # write mission execution time to disk
-    with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-        f.write(f"{env.now}")
+    # write solve times to disk
+    if directory:
+        with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
+            f.write("iteration, solve_time\n")
+            for i, t in enumerate(solve_times):
+                f.write(f"{i}, {t}\n")
 
-    # write battery profile to disk
-    fname = os.path.join(directory, "battery.pdf")
-
-    fig_height = sc.N_d
-    ttc = 1 / params.r_charge.min()
-    fig_width = env.now / ttc * 1.5
-    plot_events_battery(events, fname, figsize=(fig_width, fig_height))
+        # write mission execution time to disk
+        with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
+            f.write(f"{env.now}")
 
     return env, events
 
 
 def convert_schedule_to_flight_sequence(schedule):
-    return np.array([e.value.node.pos for e in schedule if e.value.name in ['reached', 'started', 'changed_course']])
+    return np.array([e.node.pos for e in schedule if e.name in [EventType.reached, EventType.started, EventType.changed_course]])
 
 
 def remove_downward_normals(pcd: o3d.geometry.PointCloud, threshold=-0.5):
@@ -485,7 +479,7 @@ def run_from_conf(conf):
     fpath_mesh = conf['mesh_path']
 
     pcd = o3d.io.read_point_cloud(fpath_pcd)
-    logger.debug("finished loading pcd from file")
+    logger.debug(f"finished loading pcd from file ({len(pcd.points):,} points)")
 
     if fpath_mesh:
         mesh = o3d.io.read_triangle_mesh(fpath_mesh)
@@ -519,7 +513,7 @@ def run_from_conf(conf):
     # remove any point too close to the ground
     points = np.asarray(pcd.points)
     pcd.points = o3d.utility.Vector3dVector(points[points[:, 2] > 0.3])
-    logger.debug("finished reducing pcd to be sufficiently above ground")
+    logger.debug(f"finished reducing pcd to be sufficiently above ground ({len(pcd.points):,} points)")
     geos = [pcd]
     if mesh:
         geos.append(mesh)
@@ -544,7 +538,7 @@ def run_from_conf(conf):
     fname = os.path.join(output_dir, f"{filecounter}_downsampled.png") if not visualize else None
     draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
-    logger.debug("finished downsampling")
+    logger.debug(f"finished downsampling (got {len(pcd.points):,} remaining points)")
 
     if do_remove_downward_normals:
         pcd = remove_downward_normals(pcd, threshold=-0.7)
@@ -621,12 +615,15 @@ def run_from_conf(conf):
         B_start=B_start,
         B_min=B_min,
         B_max=B_max,
-        epsilon=epsilon
+        epsilon=epsilon,
+        plot_delta=plot_delta,
+        schedule_delta=schedule_delta,
+        W=W,
+        sigma=sigma,
     )
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
-    _, schedules = schedule_charge(flight_sequences, charging_station_positions, params, schedule_delta, W,
-                                   plot_delta=plot_delta, directory=os.path.join(output_dir, "simulation"), sigma=sigma,
-                                   strategy=strategy)
+    _, schedules = schedule_charge(flight_sequences, charging_station_positions, params,
+                                   directory=os.path.join(output_dir, "simulation"), strategy=strategy)
     logger.debug("finished charge scheduling")
 
     # convert schedules to flight sequence for plotting
@@ -637,5 +634,3 @@ def run_from_conf(conf):
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_flight_paths_incl_charging.png") if not visualize else None
     draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-
-
