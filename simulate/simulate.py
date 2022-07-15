@@ -10,7 +10,7 @@ from matplotlib.patches import Rectangle
 from simulate.event import EventType
 from simulate.node import ChargingStation, NodeType
 from simulate.parameters import Parameters
-from simulate.uav import UAV
+from simulate.uav import UAV, UavStateType
 from util.scenario import Scenario
 
 
@@ -89,6 +89,7 @@ class Simulator:
         self.sc = sc
         self.directory = directory
         self.remaining = sc.N_d
+        self.charging_stations = []
 
         # for outputting simulation
         self.plot_timestepper = TimeStepper(params.plot_delta) if params.plot_delta else None
@@ -96,18 +97,19 @@ class Simulator:
         self.pdfs = []
         self.solve_times = []
 
+
     def sim(self):
         env = simpy.Environment()
 
         # prepare shared resources
-        charging_stations = []
+        self.charging_stations = []
         for s in range(self.sc.N_s):
-            charging_stations.append(simpy.Resource(env, capacity=1))
+            self.charging_stations.append(simpy.Resource(env, capacity=1))
 
         # prepare UAVs
         self.uavs = []
         for d in range(self.sc.N_d):
-            uav = UAV(d, charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d],
+            uav = UAV(d, self.charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d],
                       self.sc.positions_w[d][0])
             self.uavs.append(uav)
         self.logger.info(f"visiting {self.sc.N_w - 1} waypoints per UAV in total")
@@ -119,25 +121,35 @@ class Simulator:
             start_positions = {}
             batteries = {}
             state_types = {}
+            n_waiting = 0
             for d in uavs_to_schedule:
                 uav = self.uavs[d]
                 state = uav.get_state(env)
                 start_positions[d] = state.pos.tolist()
                 batteries[d] = state.battery
                 state_types[d] = state.state_type
+                if state.state_type == UavStateType.Waiting:
+                    n_waiting += 1
 
             for d in uavs_to_schedule:
-                self.logger.debug(f"[{env.now:.2f}] determined position of UAV [{d}] to be {start_positions[d]}")
+                self.logger.debug(f"[{env.now:.2f}] determined position of UAV [{d}] to be {np.round(start_positions[d], 2)}")
             for d in uavs_to_schedule:
                 self.logger.debug(f"[{env.now:.2f}] determined battery of UAV [{d}] to be {batteries[d] * 100:.1f}%")
             for d in uavs_to_schedule:
                 self.logger.debug(f"[{env.now:.2f}] determined state type UAV [{d}] to be {state_types[d]}")
+            deadlock = n_waiting == self.sc.N_d
 
             t_solve, schedules = self.scheduler.schedule(start_positions, batteries, uavs_to_schedule)
             self.logger.debug(f"[{env.now:.2f}] rescheduled drone paths in {t_solve:.2}s")
             self.solve_times.append(t_solve)
             for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
+
+            for i, cs in enumerate(self.charging_stations):
+                if cs.count == cs.capacity:
+                    self.logger.debug(f"[{env.now}] charging station {i} is locked")
+                else:
+                    self.logger.debug(f"[{env.now}] charging station {i} is NOT locked")
 
         reschedule_cb('all')
         self.strategy.set_cb(reschedule_cb)
