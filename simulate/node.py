@@ -32,6 +32,14 @@ class Node:
     def dist(self, other):
         return dist3(self.pos, other.pos)
 
+    def same_pos(self, other):
+        """
+        Returns whether the other node occupies the same space
+        :param other:
+        :return:
+        """
+        return np.round(self.dist(other), 5) == 0
+
     def direction(self, other):
         """
         Unit vector in the direction of the other node

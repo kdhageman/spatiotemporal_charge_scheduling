@@ -2,15 +2,10 @@ import logging
 import os
 from unittest import TestCase
 
-import numpy as np
-import simpy
-from matplotlib import pyplot as plt
-
-from simulate.node import Node, NodeType, Waypoint, ChargingStation
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Parameters, \
     plot_events_battery, Simulator
-from simulate.strategy import Strategy, IntervalStrategy, ArrivalStrategy
+from simulate.strategy import IntervalStrategy, ArrivalStrategy
 from util.scenario import Scenario
 
 
@@ -43,7 +38,7 @@ class TestSimulator(TestCase):
         strat = IntervalStrategy(5)
         simulator = Simulator(MilpScheduler, strat, params, sc, directory=directory)
         try:
-            env, events = simulator.sim()
+            _, env, events = simulator.sim()
         except Exception as e:
             plot_events_battery([u.events for u in simulator.uavs], os.path.join(directory, "battery.pdf"))
             raise e
@@ -60,8 +55,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
-            plot_delta=2,
-            # plot_delta=0,
+            # plot_delta=2,
+            plot_delta=0,
             W=8,
             sigma=2,
         )
@@ -72,7 +67,7 @@ class TestSimulator(TestCase):
         strat = ArrivalStrategy()
         simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
         try:
-            env, events = simulator.sim()
+            _, env, events = simulator.sim()
         except Exception as e:
             plot_events_battery([u.events for u in simulator.uavs], os.path.join(directory, "battery.pdf"))
             raise e

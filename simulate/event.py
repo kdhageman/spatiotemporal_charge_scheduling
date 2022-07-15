@@ -46,3 +46,8 @@ class ChargedEvent(Event):
 class StartedEvent(Event):
     def __init__(self, ts_start, duration, node, uav=None, battery=1):
         super().__init__(ts_start, duration, EventType.started, node, uav=uav, battery=battery)
+
+
+class ChangedCourseEvent(Event):
+    def __init__(self, ts_start, duration, node, uav=None, battery=1):
+        super().__init__(ts_start, duration, EventType.changed_course, node, uav=uav, battery=battery)

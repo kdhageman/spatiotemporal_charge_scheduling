@@ -1,12 +1,9 @@
 import logging
 from enum import Enum
 
-import logging
-from enum import Enum
-
 import simpy.exceptions
 
-from simulate.event import ReachedEvent, WaitedEvent, ChargedEvent, StartedEvent
+from simulate.event import ReachedEvent, WaitedEvent, ChargedEvent, StartedEvent, ChangedCourseEvent
 from simulate.node import AuxWaypoint, NodeType
 
 
@@ -60,6 +57,7 @@ class UAV:
         self.arrival_cbs = [add_ev_cb]
         self.waited_cbs = [add_ev_cb]
         self.charged_cbs = [add_ev_cb]
+        self.changed_course_cbs = [add_ev_cb]
         self.finish_cbs = []
 
     def _get_battery(self, env, offset=0):
@@ -125,7 +123,6 @@ class UAV:
     def set_schedule(self, env, nodes: list):
         state = self.get_state(env)
         self.battery = state.battery
-        self.remaining_nodes = nodes
 
         # TODO: add changed course event
 
@@ -141,9 +138,18 @@ class UAV:
             for cb in self.waited_cbs:
                 event.callbacks.append(cb)
             self.buffered_events.append(event)
-        elif self.state_type == UavStateType.Moving:
-            pass
+        elif self.state_type == UavStateType.Moving and nodes:
+            target_cur = self.remaining_nodes[0]
+            target_new = nodes[0]
+            if not target_cur.same_pos(target_new):
+                # course is being changed
+                duration = env.now - self.t_start
+                event = env.timeout(0, value=ChangedCourseEvent(self.t_start, duration, self.last_known_pos, self, self.battery))
+                for cb in self.changed_course_cbs:
+                    event.callbacks.append(cb)
+                self.buffered_events.append(event)
 
+        self.remaining_nodes = nodes
         self.last_known_pos = AuxWaypoint(*state.pos)
         self.t_start = env.now
 

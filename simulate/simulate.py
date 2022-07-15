@@ -90,9 +90,11 @@ class Simulator:
         self.directory = directory
         self.remaining = sc.N_d
 
+        # for outputting simulation
         self.plot_timestepper = TimeStepper(params.plot_delta) if params.plot_delta else None
         self.plot_params = {}
         self.pdfs = []
+        self.solve_times = []
 
     def sim(self):
         env = simpy.Environment()
@@ -116,19 +118,24 @@ class Simulator:
                 uavs_to_schedule = list(range(self.sc.N_d))
             start_positions = {}
             batteries = {}
+            state_types = {}
             for d in uavs_to_schedule:
                 uav = self.uavs[d]
                 state = uav.get_state(env)
                 start_positions[d] = state.pos.tolist()
                 batteries[d] = state.battery
+                state_types[d] = state.state_type
 
             for d in uavs_to_schedule:
                 self.logger.debug(f"[{env.now:.2f}] determined position of UAV [{d}] to be {start_positions[d]}")
             for d in uavs_to_schedule:
                 self.logger.debug(f"[{env.now:.2f}] determined battery of UAV [{d}] to be {batteries[d] * 100:.1f}%")
+            for d in uavs_to_schedule:
+                self.logger.debug(f"[{env.now:.2f}] determined state type UAV [{d}] to be {state_types[d]}")
 
             t_solve, schedules = self.scheduler.schedule(start_positions, batteries, uavs_to_schedule)
             self.logger.debug(f"[{env.now:.2f}] rescheduled drone paths in {t_solve:.2}s")
+            self.solve_times.append(t_solve)
             for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
 
@@ -187,14 +194,16 @@ class Simulator:
                 for pdf in self.pdfs:
                     os.remove(pdf)
 
-                # TODO adjust fig_width!
                 fig_height = self.sc.N_d
-                ttc = 1 / self.params.r_charge.min()
-                fig_width = env.now / ttc * 1.5
+                uav_idx = self.params.r_charge.argmin()
+                sum_ct = sum([e.duration for e in self.uavs[uav_idx].events if e.name == EventType.charged])
+                multiplier = fig_height / sum_ct
+                fig_width = env.now * multiplier
+
                 fname = os.path.join(self.directory, "battery.pdf")
                 plot_events_battery([u.events for u in self.uavs], fname, figsize=(fig_width, fig_height))
 
-        return env, [u.events for u in self.uavs]
+        return self.solve_times, env, [u.events for u in self.uavs]
 
     def plot(self, schedules, batteries, ax=None, fname=None, title=None):
         if not ax:
