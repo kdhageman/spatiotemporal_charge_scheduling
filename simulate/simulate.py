@@ -144,6 +144,10 @@ class Simulator:
             self.solve_times.append(t_solve)
             for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
+            for cs in self.charging_stations:
+                cs.queue = []
+                cs.users = []
+                cs.put_queue = []
 
             for i, cs in enumerate(self.charging_stations):
                 if cs.count == cs.capacity:
@@ -208,12 +212,9 @@ class Simulator:
 
                 fig_height = self.sc.N_d
                 uav_idx = self.params.r_charge.argmin()
-                sum_ct = sum([e.duration for e in self.uavs[uav_idx].events if e.name == EventType.charged])
-                multiplier = fig_height / sum_ct
-                fig_width = env.now * multiplier
 
                 fname = os.path.join(self.directory, "battery.pdf")
-                plot_events_battery([u.events for u in self.uavs], fname, figsize=(fig_width, fig_height))
+                plot_events_battery([u.events for u in self.uavs], fname)
 
         return self.solve_times, env, [u.events for u in self.uavs]
 
@@ -302,7 +303,7 @@ class Simulator:
         plt.close()
 
 
-def plot_events_battery(events: list, fname: str, figsize=None):
+def plot_events_battery(events: list, fname: str, aspect=None):
     """
     Plots the battery over time for the given events
     """
@@ -312,9 +313,7 @@ def plot_events_battery(events: list, fname: str, figsize=None):
         execution_times.append(events[d][-1].ts_end)
     max_execution_time = max(execution_times)
 
-    if not figsize:
-        figsize = (len(events) * 3, 2)
-    _, axes = plt.subplots(len(events), 1, figsize=figsize, sharex=True, sharey=True)
+    _, axes = plt.subplots(len(events), 1, sharex=True, sharey=True)
 
     uav_colors = gen_colors(len(events))
 
@@ -361,6 +360,8 @@ def plot_events_battery(events: list, fname: str, figsize=None):
                 axes[d].add_patch(rect)
 
         axes[d].plot(X, Y, c=uav_colors[d])
+        if aspect:
+            axes[d].set_aspect(aspect)
 
     # add vertical lines
     for d in range(len(events)):

@@ -72,4 +72,4 @@ class TestSimulator(TestCase):
             plot_events_battery([u.events for u in simulator.uavs], os.path.join(directory, "battery.pdf"))
             raise e
         print(env.now)
-        plot_events_battery(events, os.path.join(directory, "battery.pdf"))
+        plot_events_battery(events, os.path.join(directory, "battery.pdf"), aspect=1/params.r_deplete.min())

@@ -7,3 +7,4 @@ scratch*.ipynb
 *.working.ipynb
 __pycache__/
 pointclouds
+cache

@@ -51,7 +51,6 @@ class UAV:
         self.resource = None
         self.req = None
         self.resource_id = None
-        self.haslock = False
 
         def add_ev_cb(ev):
             self.events.append(ev.value)
@@ -159,27 +158,17 @@ class UAV:
         if self.proc:
             try:
                 self.proc.interrupt()
+                self.debug(env, f"is interrupted")
             except RuntimeError as e:
                 self.debug(env, f"failed to interrupt process: {e}")
 
     def _release_lock(self, env):
-        if self.haslock:
+        if self.resource and self.req:
             self.resource.release(self.req)
             self.debug(env, f"released lock ({self.resource_id})")
-            self.resource = None
-            self.req = None
-            self.resource_id = None
-            self.haslock = False
-
-    def _lock(self, env, identifier):
-        self.resource_id = identifier
-        self.resource = self.charging_stations[self.resource_id]
-        self.req = self.resource.request()
-        self.debug(env, f"is trying to lock for charging station {self.resource_id}")
-        self.haslock = False
-        yield self.req
-        self.haslock = True
-        self.debug(env, f"got lock for charging station {self.resource_id}")
+        self.resource = None
+        self.req = None
+        self.resource_id = None
 
     def _sim(self, env):
         """
@@ -204,10 +193,11 @@ class UAV:
                 post_move_battery = self.battery - t_move * self.r_deplete
                 event = env.timeout(t_move,
                                     value=ReachedEvent(env.now, t_move, node_next, self, battery=post_move_battery))
+                event.callbacks += self.arrival_cbs
                 yield event
 
-                for cb in self.arrival_cbs:
-                    cb(event)
+                # for cb in self.arrival_cbs:
+                #     cb(event)
 
                 self.debug(env, f"reached {node_next}")
                 self.state_type = UavStateType.Idle
@@ -227,14 +217,20 @@ class UAV:
 
                 event = env.timeout(waiting_time,
                                     value=WaitedEvent(env.now, waiting_time, node_next, self, battery=self.battery))
+                def cb(event):
+                    self.debug(env, f"finished waiting at station {node_next.identifier} for {node_next.wt:.2f}s")
+                    self.state_type = UavStateType.Idle
+                    self.t_start = env.now
+                event.callbacks.append(cb)
+                event.callbacks += self.waited_cbs
                 yield event
 
-                self.debug(env, f"finished waiting at station {node_next.identifier} for {node_next.wt:.2f}s")
-                self.state_type = UavStateType.Idle
-                self.t_start = env.now
+                # self.debug(env, f"finished waiting at station {node_next.identifier} for {node_next.wt:.2f}s")
+                # self.state_type = UavStateType.Idle
+                # self.t_start = env.now
 
-                for cb in self.waited_cbs:
-                    cb(event)
+                # for cb in self.waited_cbs:
+                #     cb(event)
 
             # charge at node
             charging_time = node_next.ct
@@ -248,22 +244,35 @@ class UAV:
                 before = env.now
                 self.state_type = UavStateType.Waiting
 
-                self._lock(env, node_next.identifier)
+                self.resource_id = node_next.identifier
+                self.resource = self.charging_stations[self.resource_id]
+                self.req = self.resource.request()
+                self.debug(env, f"is trying to lock for charging station {self.resource_id}")
+                yield self.req
+                self.debug(env, f"got lock for charging station {self.resource_id}")
 
                 elapsed = env.now - before
                 if elapsed > 0:
                     event = env.timeout(0,
                                         value=WaitedEvent(before, elapsed, node_next, self, battery=self.battery))
+                    def cb(event):
+                        self.state_type = UavStateType.Idle
+                        self.t_start = env.now
+
+                        self.debug(env,
+                                   f"finished waiting at station {node_next.identifier} for {elapsed:.2f}s to become available")
+                    event.callbacks.append(cb)
+                    event.callbacks += self.waited_cbs
                     yield event
 
-                    self.state_type = UavStateType.Idle
-                    self.t_start = env.now
+                    # self.state_type = UavStateType.Idle
+                    # self.t_start = env.now
+                    #
+                    # self.debug(env,
+                    #            f"finished waiting at station {node_next.identifier} for {elapsed:.2f}s to become available")
 
-                    self.debug(env,
-                               f"finished waiting at station {node_next.identifier} for {elapsed:.2f}s to become available")
-
-                    for cb in self.waited_cbs:
-                        cb(event)
+                    # for cb in self.waited_cbs:
+                    #     cb(event)
 
                 self.debug(env, f"is charging at {node_next}")
                 self.state_type = UavStateType.Charging
@@ -271,21 +280,29 @@ class UAV:
                 post_charge_battery = min(self.battery + charging_time * self.r_charge, 1)
                 event = env.timeout(charging_time, value=ChargedEvent(env.now, charging_time, node_next, self,
                                                                       battery=post_charge_battery))
+                def cb(event):
+                    self._release_lock(env)
+                    ct_str = charging_time if charging_time == 'until full' else f"for {charging_time:.2f}s"
+                    self.debug(env, f"finished charging at station {node_next.identifier} {ct_str}")
+                    self.battery = post_charge_battery
+                    self.state_type = UavStateType.Idle
+                    self.t_start = env.now
+                event.callbacks.append(cb)
+                event.callbacks += self.charged_cbs
                 yield event
 
-                self._release_lock(env)
+                # self._release_lock(env)
+                # ct_str = charging_time if charging_time == 'until full' else f"for {charging_time:.2f}s"
+                # self.debug(env, f"finished charging at station {node_next.identifier} {ct_str}")
+                # self.battery = post_charge_battery
+                # self.state_type = UavStateType.Idle
+                # self.t_start = env.now
 
-                ct_str = charging_time if charging_time == 'until full' else f"for {charging_time:.2f}s"
-                self.debug(env, f"finished charging at station {node_next.identifier} {ct_str}")
-                self.battery = post_charge_battery
-                self.state_type = UavStateType.Idle
-                self.t_start = env.now
-
-                for cb in self.charged_cbs:
-                    cb(event)
+                # for cb in self.charged_cbs:
+                #     cb(event)
 
     def debug(self, env, msg):
-        self.logger.debug(f"[{env.now:.2f}] UAV {self.uav_id} {msg}")
+        self.logger.debug(f"[{env.now:.2f}] UAV [{self.uav_id}] {msg}")
 
     def sim(self, env):
         ev = StartedEvent(env.now, 0, self.last_known_pos, self, battery=self.battery)
@@ -293,6 +310,7 @@ class UAV:
 
         while True:
             try:
+                self.debug(env, f"is starting new simpy process")
                 self.proc = env.process(self._sim(env))
                 yield self.proc
                 for cb in self.finish_cbs:
