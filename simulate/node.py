@@ -23,12 +23,6 @@ class Node:
     def pos(self):
         return np.array([self.x, self.y, self.z])
 
-    def equal_pos(self, other):
-        """
-        Returns whether this node is at the same positions as the other
-        """
-        return np.array_equal(self.pos, other.pos)
-
     def dist(self, other):
         return dist3(self.pos, other.pos)
 

@@ -116,6 +116,7 @@ class Simulator:
 
         # get initial schedule
         def reschedule_cb(uavs_to_schedule):
+            self.logger.debug(f"triggered rescheduling for UAVs: {uavs_to_schedule}")
             if uavs_to_schedule == 'all':
                 uavs_to_schedule = list(range(self.sc.N_d))
             start_positions = {}
@@ -125,7 +126,7 @@ class Simulator:
             for d in uavs_to_schedule:
                 uav = self.uavs[d]
                 state = uav.get_state(env)
-                start_positions[d] = state.pos.tolist()
+                start_positions[d] = state.node.pos.tolist()
                 batteries[d] = state.battery
                 state_types[d] = state.state_type
                 if state.state_type == UavStateType.Waiting:
@@ -165,7 +166,7 @@ class Simulator:
             schedules = []
             for d, uav in enumerate(self.uavs):
                 start_pos = uav.get_state(env).pos
-                schedules.append((start_pos, uav.remaining_nodes))
+                schedules.append((start_pos, uav.instructions))
             self.plot(schedules, [uav.get_state(env).battery for uav in self.uavs], ax=ax, fname=fname,
                       title=f"$t={env.now:.2f}$s")
 
@@ -209,9 +210,6 @@ class Simulator:
                 # remove the intermediate files
                 for pdf in self.pdfs:
                     os.remove(pdf)
-
-                fig_height = self.sc.N_d
-                uav_idx = self.params.r_charge.argmin()
 
                 fname = os.path.join(self.directory, "battery.pdf")
                 plot_events_battery([u.events for u in self.uavs], fname)

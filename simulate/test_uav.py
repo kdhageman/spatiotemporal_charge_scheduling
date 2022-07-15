@@ -1,3 +1,4 @@
+import logging
 from unittest import TestCase
 
 import simpy
@@ -7,6 +8,12 @@ from simulate.uav import UAV
 
 
 class TestUav(TestCase):
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger("pyomo").setLevel(logging.INFO)
+        logging.getLogger("matplotlib").setLevel(logging.ERROR)
+        logging.getLogger("gurobi").setLevel(logging.ERROR)
+
     def test_sim(self):
         env = simpy.Environment()
 
