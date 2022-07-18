@@ -5,10 +5,11 @@ import numpy as np
 import simpy
 from PyPDF2 import PdfMerger
 from matplotlib import pyplot as plt
+from matplotlib.figure import figaspect
 from matplotlib.patches import Rectangle
 
 from simulate.event import EventType
-from simulate.node import ChargingStation, NodeType
+from simulate.node import ChargingStation, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
 from simulate.uav import UAV, UavStateType
 from util.scenario import Scenario
@@ -97,7 +98,6 @@ class Simulator:
         self.pdfs = []
         self.solve_times = []
 
-
     def sim(self):
         env = simpy.Environment()
 
@@ -133,7 +133,7 @@ class Simulator:
                     n_waiting += 1
 
             for d in uavs_to_schedule:
-                self.logger.debug(f"[{env.now:.2f}] determined position of UAV [{d}] to be {np.round(start_positions[d], 2)}")
+                self.logger.debug(f"[{env.now:.2f}] determined position of UAV [{d}] to be {AuxWaypoint(*start_positions[d])}")
             for d in uavs_to_schedule:
                 self.logger.debug(f"[{env.now:.2f}] determined battery of UAV [{d}] to be {batteries[d] * 100:.1f}%")
             for d in uavs_to_schedule:
@@ -145,16 +145,12 @@ class Simulator:
             self.solve_times.append(t_solve)
             for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
-            for cs in self.charging_stations:
-                cs.queue = []
-                cs.users = []
-                cs.put_queue = []
 
             for i, cs in enumerate(self.charging_stations):
                 if cs.count == cs.capacity:
-                    self.logger.debug(f"[{env.now}] charging station {i} is locked")
+                    self.logger.debug(f"[{env.now:.2f}] charging station {i} is locked")
                 else:
-                    self.logger.debug(f"[{env.now}] charging station {i} is NOT locked")
+                    self.logger.debug(f"[{env.now:.2f}] charging station {i} is NOT locked")
 
         reschedule_cb('all')
         self.strategy.set_cb(reschedule_cb)
@@ -212,7 +208,7 @@ class Simulator:
                     os.remove(pdf)
 
                 fname = os.path.join(self.directory, "battery.pdf")
-                plot_events_battery([u.events for u in self.uavs], fname)
+                plot_events_battery([u.events for u in self.uavs], fname, aspect=self.params.r_charge.min())
 
         return self.solve_times, env, [u.events for u in self.uavs]
 
@@ -305,13 +301,20 @@ def plot_events_battery(events: list, fname: str, aspect=None):
     """
     Plots the battery over time for the given events
     """
-
     execution_times = []
     for d in range(len(events)):
         execution_times.append(events[d][-1].ts_end)
     max_execution_time = max(execution_times)
 
-    _, axes = plt.subplots(len(events), 1, sharex=True, sharey=True)
+    if aspect:
+        w, h = figaspect(aspect)
+        h = h * len(events)
+        figsize = (w, h)
+    else:
+        figsize = None
+    _, axes = plt.subplots(len(events), 1, sharex=True, sharey=True, figsize=figsize)
+    if len(events) == 1:
+        axes = [axes]
 
     uav_colors = gen_colors(len(events))
 
@@ -358,8 +361,7 @@ def plot_events_battery(events: list, fname: str, aspect=None):
                 axes[d].add_patch(rect)
 
         axes[d].plot(X, Y, c=uav_colors[d])
-        if aspect:
-            axes[d].set_aspect(aspect)
+        axes[d].set_ylim([0, 1])
 
     # add vertical lines
     for d in range(len(events)):

@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Parameters, \
-    plot_events_battery, Simulator
+    Simulator
 from simulate.strategy import IntervalStrategy, ArrivalStrategy
 from util.scenario import Scenario
 
@@ -30,6 +30,7 @@ class TestSimulator(TestCase):
             plot_delta=0,
             W=8,
             sigma=2,
+            epsilon=1e-6,
         )
         params = Parameters(**p)
 
@@ -37,13 +38,8 @@ class TestSimulator(TestCase):
         os.makedirs(directory, exist_ok=True)
         strat = IntervalStrategy(5)
         simulator = Simulator(MilpScheduler, strat, params, sc, directory=directory)
-        try:
-            _, env, events = simulator.sim()
-        except Exception as e:
-            plot_events_battery([u.events for u in simulator.uavs], os.path.join(directory, "battery.pdf"))
-            raise e
+        _, env, events = simulator.sim()
         print(env.now)
-        plot_events_battery(events, os.path.join(directory, "battery.pdf"))
 
     def test_naive_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -66,10 +62,5 @@ class TestSimulator(TestCase):
         os.makedirs(directory, exist_ok=True)
         strat = ArrivalStrategy()
         simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
-        try:
-            _, env, events = simulator.sim()
-        except Exception as e:
-            plot_events_battery([u.events for u in simulator.uavs], os.path.join(directory, "battery.pdf"))
-            raise e
+        _, env, events = simulator.sim()
         print(env.now)
-        plot_events_battery(events, os.path.join(directory, "battery.pdf"), aspect=1/params.r_deplete.min())

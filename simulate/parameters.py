@@ -13,7 +13,7 @@ class Parameters:
         self.B_min = np.array(B_min)
         self.B_max = np.array(B_max)
         self.B_end = np.array(B_end)
-        self.epsilon = np.array(epsilon)
+        self.epsilon = epsilon
         self.schedule_delta = schedule_delta
         self.plot_delta = plot_delta
         self.W = W

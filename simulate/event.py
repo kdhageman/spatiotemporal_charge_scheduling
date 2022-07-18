@@ -25,7 +25,7 @@ class Event:
         return self.ts_start + self.duration
 
     def __repr__(self):
-        return f"{self.uav.uav_id}, <{self.ts_start:.2f}-{self.ts_end:.2f}> ({self.duration:.2f}), {self.name}, {self.node}, {np.round(self.battery, 1)}"
+        return f"{self.uav.uav_id}, <{self.ts_start:.2f}-{self.ts_end:.2f}> ({self.duration:.2f}), {self.name}, {self.node}, {self.battery:.2f}"
 
 
 class ReachedEvent(Event):
