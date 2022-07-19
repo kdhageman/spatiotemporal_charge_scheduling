@@ -279,6 +279,16 @@ class UAV:
                         self.debug(env, f"got lock for charging station {self.resource_id}")
                     except simpy.Interrupt:
                         self.req.cancel()
+                        elapsed = env.now - before
+                        event = env.timeout(0, value=WaitedEvent(before, elapsed, self.dest_node, self, battery=self.battery))
+                        yield event
+
+                        self.debug(env, f"finished waiting at station {self.dest_node.identifier} for {event.value.duration:.2f}s to become available")
+                        self.state_type = UavStateType.Idle
+
+                        for cb in self.waited_cbs:
+                            cb(event)
+
                         continue
 
                 elapsed = env.now - before

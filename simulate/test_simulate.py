@@ -29,10 +29,10 @@ class TestSimulator(TestCase):
             B_max=[1, 1],
             B_start=[1, 1],
             # plot_delta=0.1,
-            plot_delta=0.1,
+            plot_delta=0,
             W=8,
             sigma=2,
-            epsilon=1e-6,
+            epsilon=1e-3,
         )
         params = Parameters(**p)
 
