@@ -383,6 +383,9 @@ def plot_station_occupancy(events: list, nstations: int, total_duration: float, 
     colors = gen_colors(nstations)
 
     _, axes = plt.subplots(nrows=nstations, ncols=1, sharex=True, sharey=True)
+    if nstations == 1:
+        axes = [axes]
+
     for station in range(nstations):
         X = [0]
         Y = [0]
@@ -406,5 +409,6 @@ def plot_station_occupancy(events: list, nstations: int, total_duration: float, 
         axes[station].set_title(f"Station {station}")
         axes[station].plot(X, Y, colors[station])
         axes[station].fill_between(X, Y, facecolor=colors[station], alpha=0.2)
+
     plt.tight_layout()
     plt.savefig(fname, bbox_inches='tight')

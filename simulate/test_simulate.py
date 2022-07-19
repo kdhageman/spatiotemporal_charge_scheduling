@@ -43,6 +43,56 @@ class TestSimulator(TestCase):
         _, env, events = simulator.sim()
         print(env.now)
 
+    def test_milp_three_drones_circling(self):
+        sc = Scenario.from_file("scenarios/three_drones_circling.yml")
+
+        p = dict(
+            v=[1] * 3,
+            r_charge=[0.04] * 3,
+            r_deplete=[0.3] * 3,
+            B_min=[0.1] * 3,
+            B_max=[1] * 3,
+            B_start=[1] * 3,
+            # plot_delta=0.1,
+            plot_delta=0,
+            W=5,
+            sigma=1,
+            epsilon=1e-3,
+        )
+        params = Parameters(**p)
+
+        directory = 'out/test/milp_three_drones_circling'
+        os.makedirs(directory, exist_ok=True)
+        strat = IntervalStrategy(3)
+        simulator = Simulator(MilpScheduler, strat, params, sc, directory=directory)
+        _, env, events = simulator.sim()
+        print(env.now)
+
+    def test_naive_three_drones_circling(self):
+        sc = Scenario.from_file("scenarios/three_drones_circling.yml")
+
+        p = dict(
+            v=[1] * 3,
+            r_charge=[0.04] * 3,
+            r_deplete=[0.3] * 3,
+            B_min=[0.1] * 3,
+            B_max=[1] * 3,
+            B_start=[1] * 3,
+            # plot_delta=0.1,
+            plot_delta=0,
+            W=5,
+            sigma=1,
+            epsilon=1e-3,
+        )
+        params = Parameters(**p)
+
+        directory = 'out/test/naive_three_drones_circling'
+        os.makedirs(directory, exist_ok=True)
+        strat = ArrivalStrategy()
+        simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
+        _, env, events = simulator.sim()
+        print(env.now)
+
     def test_naive_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
 
@@ -66,7 +116,6 @@ class TestSimulator(TestCase):
         simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
         print(env.now)
-
 
 # class TestPlot(TestCase):
 #     station1 = ChargingStation(0, 0, 0, identifier=0)
