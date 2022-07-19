@@ -30,8 +30,6 @@ class Scheduler:
         uav_id = event.value.uav.uav_id
         if event.value.node.node_type == NodeType.Waypoint:
             self.offsets[uav_id] += 1
-        self.logger.debug(
-            f"[{event.env.now:.2f}] UAV [{uav_id}] reached {event.value.node} with {event.value.uav.battery * 100:.1f}% battery ({self.n_remaining_waypoints(uav_id)}/{self.sc.N_w - 1} waypoints remaining)")
         self._handle_event(event)
 
     def _handle_event(self, event):

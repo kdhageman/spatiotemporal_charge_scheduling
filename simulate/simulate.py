@@ -196,16 +196,20 @@ class Simulator:
             env.run(until=strat_proc)
         finally:
             if self.directory:
-                merger = PdfMerger()
-                for pdf in self.pdfs:
-                    merger.append(pdf)
                 fname = os.path.join(self.directory, "combined.pdf")
-                merger.write(fname)
-                merger.close()
+                if self.pdfs:
+                    merger = PdfMerger()
+                    for pdf in self.pdfs:
+                        merger.append(pdf)
 
-                # remove the intermediate files
-                for pdf in self.pdfs:
-                    os.remove(pdf)
+                    merger.write(fname)
+                    merger.close()
+
+                    # remove the intermediate files
+                    for pdf in self.pdfs:
+                        os.remove(pdf)
+                elif os.path.exists(fname):
+                    os.remove(fname)
 
                 # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
@@ -214,6 +218,15 @@ class Simulator:
                 # plot occupancy
                 fname = os.path.join(self.directory, "occupancy.pdf")
                 plot_station_occupancy([u.events for u in self.uavs], self.sc.N_s, env.now, fname)
+
+                # output events
+                event_dir = os.path.join(self.directory, "events")
+                os.makedirs(event_dir, exist_ok=True)
+                for d, uav in enumerate(self.uavs):
+                    fname = os.path.join(event_dir, f"{d}.txt")
+                    with open(fname, "w") as f:
+                        for ev in uav.events:
+                            f.write(f"{ev}\n")
 
         return self.solve_times, env, [u.events for u in self.uavs]
 

@@ -279,6 +279,8 @@ class UAV:
                         self.debug(env, f"got lock for charging station {self.resource_id}")
                     except simpy.Interrupt:
                         self.req.cancel()
+                        self._release_lock(env)
+
                         elapsed = env.now - before
                         event = env.timeout(0, value=WaitedEvent(before, elapsed, self.dest_node, self, battery=self.battery))
                         yield event

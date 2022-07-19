@@ -634,5 +634,3 @@ def run_from_conf(conf):
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_flight_paths_incl_charging.png") if not visualize else None
     draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-
-    sys.exit(0)
