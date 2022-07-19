@@ -161,8 +161,8 @@ class Simulator:
             fname = f"{self.directory}/it_{self.plot_timestepper.timestep:03}.pdf"
             schedules = []
             for d, uav in enumerate(self.uavs):
-                start_pos = uav.get_state(env).pos
-                schedules.append((start_pos, uav.instructions))
+                start_pos = uav.get_state(env).node.pos
+                schedules.append((start_pos, uav.nodes_to_visit()))
             self.plot(schedules, [uav.get_state(env).battery for uav in self.uavs], ax=ax, fname=fname,
                       title=f"$t={env.now:.2f}$s")
 
@@ -207,8 +207,13 @@ class Simulator:
                 for pdf in self.pdfs:
                     os.remove(pdf)
 
+                # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
                 plot_events_battery([u.events for u in self.uavs], fname, aspect=self.params.r_charge.min())
+
+                # plot occupancy
+                fname = os.path.join(self.directory, "occupancy.pdf")
+                plot_station_occupancy([u.events for u in self.uavs], self.sc.N_s, env.now, fname)
 
         return self.solve_times, env, [u.events for u in self.uavs]
 
@@ -237,7 +242,6 @@ class Simulator:
             ax.scatter(x_c, y_c, marker='s', s=70, c='white', edgecolor=colors[i], zorder=2)  # charging stations
             ax.scatter([start_pos[0]], [start_pos[1]], marker='o', s=60, color=colors[i], zorder=10)  # starting point
 
-        # for i, positions in enumerate(self.sf.sc_orig.positions_w):
         for d in range(self.sc.N_d):
             remaining_waypoints = self.scheduler.remaining_waypoints(d)
             x = [x for x, _, _ in remaining_waypoints]
@@ -369,4 +373,38 @@ def plot_events_battery(events: list, fname: str, aspect=None):
     axes[np.argmin(execution_times)].text(max_execution_time, 0.5, f'{max_execution_time:.1f}s', color='red',
                                           backgroundcolor='white', fontsize='xx-small', ha='center', zorder=-9)
 
+    plt.savefig(fname, bbox_inches='tight')
+
+
+def plot_station_occupancy(events: list, nstations: int, total_duration: float, fname: str):
+    """
+    Plot the number of UAVs that use a charging station over time
+    """
+    colors = gen_colors(nstations)
+
+    _, axes = plt.subplots(nrows=nstations, ncols=1, sharex=True, sharey=True)
+    for station in range(nstations):
+        X = [0]
+        Y = [0]
+        cur_charged = 0
+
+        changes = {}
+        for d in range(len(events)):
+            for ev in events[d]:
+                if ev.name == EventType.charged and ev.node.identifier == station:
+                    changes[ev.ts_start] = changes.get(ev.ts_start, 0) + 1
+                    changes[ev.ts_end] = changes.get(ev.ts_end, 0) - 1
+
+        for ts, change in sorted(changes.items()):
+            prev_charged = cur_charged
+            cur_charged = cur_charged + change
+
+            X += [ts, ts]
+            Y += [prev_charged, cur_charged]
+        X.append(total_duration)
+        Y.append(cur_charged)
+        axes[station].set_title(f"Station {station}")
+        axes[station].plot(X, Y, colors[station])
+        axes[station].fill_between(X, Y, facecolor=colors[station], alpha=0.2)
+    plt.tight_layout()
     plt.savefig(fname, bbox_inches='tight')

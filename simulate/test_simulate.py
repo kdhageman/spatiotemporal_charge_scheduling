@@ -2,9 +2,11 @@ import logging
 import os
 from unittest import TestCase
 
+from simulate.event import ChargedEvent
+from simulate.node import ChargingStation
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Parameters, \
-    Simulator
+    Simulator, plot_station_occupancy
 from simulate.strategy import IntervalStrategy, ArrivalStrategy
 from util.scenario import Scenario
 
@@ -27,7 +29,7 @@ class TestSimulator(TestCase):
             B_max=[1, 1],
             B_start=[1, 1],
             # plot_delta=0.1,
-            plot_delta=0,
+            plot_delta=0.1,
             W=8,
             sigma=2,
             epsilon=1e-6,
@@ -64,3 +66,22 @@ class TestSimulator(TestCase):
         simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
         print(env.now)
+
+
+# class TestPlot(TestCase):
+#     station1 = ChargingStation(0, 0, 0, identifier=0)
+#     station2 = ChargingStation(0, 0, 0, identifier=1)
+#     events = [
+#         [
+#             ChargedEvent(1, 2, station1),
+#             ChargedEvent(5, 1, station1),
+#         ],
+#         [
+#             ChargedEvent(2, 5, station1),
+#             ChargedEvent(8, 1, station1),
+#         ]
+#     ]
+#
+#     directory = 'out/test/plot'
+#     os.makedirs(directory, exist_ok=True)
+#     plot_station_occupancy(events, 2, 10, os.path.join(directory, "plot_station_occupancy.pdf"))
