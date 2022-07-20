@@ -142,15 +142,16 @@ class ScenarioFactory:
 
 
 class MilpScheduler(Scheduler):
-    def __init__(self, params: Parameters, scenario: Scenario):
+    def __init__(self, params: Parameters, scenario: Scenario, solver=SolverFactory("gurobi")):
         super().__init__(params, scenario)
         self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
+        self.solver = solver
 
     def _handle_event(self, event):
         pass
 
     @timed
-    def schedule(self, start_positions, batteries, uavs_to_schedule, solver=SolverFactory("gurobi")):
+    def schedule(self, start_positions, batteries, uavs_to_schedule):
         sc = self.sf.next(start_positions, self.offsets)
 
         # correct original parameters
@@ -179,7 +180,7 @@ class MilpScheduler(Scheduler):
         params.B_end = np.array(B_end)
 
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
-        solution = solver.solve(model)
+        solution = self.solver.solve(model)
         if solution['Solver'][0]['Termination condition'] != 'optimal':
             raise NotSolvableException("non-optimal solution")
 

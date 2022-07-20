@@ -1,10 +1,12 @@
 import pyomo.environ as pyo
 
 from pyomo_models.base import BaseModel
+from simulate.parameters import Parameters
+from util.scenario import Scenario
 
 
 class MultiUavModel(BaseModel):
-    def __init__(self, scenario, parameters):
+    def __init__(self, scenario: Scenario, parameters: Parameters):
         self.epsilon = parameters.get("epsilon", 0.01)
         super().__init__(scenario, parameters)
 

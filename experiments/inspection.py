@@ -385,11 +385,13 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"sigma:       {params.sigma}")
     if strategy == ChargingStrategy.Milp:
         strat = IntervalStrategy(params.schedule_delta)
-        simulator = Simulator(MilpScheduler, strat, params, sc, directory=directory)
+        scheduler = MilpScheduler(params, sc)
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("prepared MILP simulator")
     elif strategy == ChargingStrategy.Naive:
         strat = ArrivalStrategy()
-        simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
+        scheduler = NaiveScheduler(params, sc)
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("prepared naive simulator")
     solve_times, env, events = simulator.sim()
 

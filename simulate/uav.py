@@ -273,7 +273,8 @@ class UAV:
                     self.resource_id = self.dest_node.identifier
                     self.resource = self.charging_stations[self.resource_id]
                     self.req = self.resource.request()
-                    self.debug(env, f"is trying to get lock for charging station {self.resource_id}")
+                    if self.resource.count == self.resource.capacity:
+                        self.debug(env, f"must wait to get lock for charging station {self.resource_id}")
                     try:
                         yield self.req
                         self.debug(env, f"got lock for charging station {self.resource_id}")

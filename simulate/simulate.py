@@ -11,6 +11,7 @@ from matplotlib.patches import Rectangle
 from simulate.event import EventType
 from simulate.node import ChargingStation, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
+from simulate.scheduling import Scheduler
 from simulate.uav import UAV, UavStateType
 from util.scenario import Scenario
 
@@ -82,9 +83,9 @@ class TimeStepper:
 
 
 class Simulator:
-    def __init__(self, scheduler_cls, strategy, params: Parameters, sc: Scenario, directory=None):
+    def __init__(self, scheduler: Scheduler, strategy, params: Parameters, sc: Scenario, directory=None):
         self.logger = logging.getLogger(__name__)
-        self.scheduler = scheduler_cls(params, sc)
+        self.scheduler = scheduler
         self.strategy = strategy
         self.params = params
         self.sc = sc
@@ -163,8 +164,7 @@ class Simulator:
             for d, uav in enumerate(self.uavs):
                 start_pos = uav.get_state(env).node.pos
                 schedules.append((start_pos, uav.nodes_to_visit()))
-            self.plot(schedules, [uav.get_state(env).battery for uav in self.uavs], ax=ax, fname=fname,
-                      title=f"$t={env.now:.2f}$s")
+            self.plot(schedules, [uav.get_state(env).battery for uav in self.uavs], ax=ax, fname=fname, title=f"$t={env.now:.2f}$s")
 
         if self.directory and self.plot_timestepper:
             plot_ts_cb(None)

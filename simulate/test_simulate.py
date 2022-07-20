@@ -2,6 +2,8 @@ import logging
 import os
 from unittest import TestCase
 
+from pyomo.opt import SolverFactory
+
 from simulate.event import ChargedEvent
 from simulate.node import ChargingStation
 from simulate.scheduling import MilpScheduler, NaiveScheduler
@@ -39,7 +41,8 @@ class TestSimulator(TestCase):
         directory = 'out/test/milp_simulator_long'
         os.makedirs(directory, exist_ok=True)
         strat = IntervalStrategy(5)
-        simulator = Simulator(MilpScheduler, strat, params, sc, directory=directory)
+        scheduler = MilpScheduler(params, sc)
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
         print(env.now)
 
@@ -55,7 +58,7 @@ class TestSimulator(TestCase):
             B_start=[1] * 3,
             # plot_delta=0.1,
             plot_delta=0,
-            W=5,
+            W=4,
             sigma=1,
             epsilon=1e-3,
         )
@@ -64,7 +67,10 @@ class TestSimulator(TestCase):
         directory = 'out/test/milp_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
         strat = IntervalStrategy(3)
-        simulator = Simulator(MilpScheduler, strat, params, sc, directory=directory)
+        solver = SolverFactory("gurobi")
+        solver.options['MIPFocus'] = 1
+        scheduler = MilpScheduler(params, sc)
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
         print(env.now)
 
@@ -89,7 +95,8 @@ class TestSimulator(TestCase):
         directory = 'out/test/naive_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
         strat = ArrivalStrategy()
-        simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
+        scheduler = NaiveScheduler(params, sc)
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
         print(env.now)
 
@@ -113,7 +120,8 @@ class TestSimulator(TestCase):
         directory = 'out/test/naive_simulator_long'
         os.makedirs(directory, exist_ok=True)
         strat = ArrivalStrategy()
-        simulator = Simulator(NaiveScheduler, strat, params, sc, directory=directory)
+        scheduler = NaiveScheduler(params, sc)
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
         print(env.now)
 
