@@ -60,7 +60,7 @@ class TestSimulator(TestCase):
             plot_delta=0,
             W=4,
             sigma=1,
-            epsilon=1e-3,
+            epsilon=1e-2,
         )
         params = Parameters(**p)
 

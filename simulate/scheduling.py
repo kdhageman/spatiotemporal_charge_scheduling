@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 from pyomo.opt import SolverFactory
+from pyomo.util.infeasible import log_infeasible_constraints, log_close_to_bounds
 
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint
@@ -36,7 +37,7 @@ class Scheduler:
         raise NotImplementedError
 
     @timed
-    def schedule(self, start_positions, batteries, uavs_to_schedule):
+    def schedule(self, start_positions: dict, batteries: dict, uavs_to_schedule: list):
         """
         Creates a new schedule for the drones
         :return:
@@ -151,7 +152,7 @@ class MilpScheduler(Scheduler):
         pass
 
     @timed
-    def schedule(self, start_positions, batteries, uavs_to_schedule):
+    def schedule(self, start_positions: dict, batteries: dict, uavs_to_schedule: list):
         sc = self.sf.next(start_positions, self.offsets)
 
         # correct original parameters
@@ -183,6 +184,25 @@ class MilpScheduler(Scheduler):
         solution = self.solver.solve(model)
         if solution['Solver'][0]['Termination condition'] != 'optimal':
             raise NotSolvableException("non-optimal solution")
+
+        # For debuggin purposes
+        # # extract charging windows
+        # charging_windows = {}
+        #
+        # for d in range(sc.N_d):
+        #     for w_s in range(sc.N_w_s):
+        #         try:
+        #             station_idx = model.P_np[d, :-1, w_s].tolist().index(1)
+        #             t_s = model.T_s(d, w_s)()
+        #             t_e = model.T_e(d, w_s)()
+        #             if station_idx not in charging_windows:
+        #                 charging_windows[station_idx] = {}
+        #             if d not in charging_windows[station_idx]:
+        #                 charging_windows[station_idx][d] = []
+        #             charging_windows[station_idx][d].append((t_s, t_e))
+        #         except ValueError:
+        #             # drone is NOT charging now
+        #             pass
 
         res = {}
         for d in uavs_to_schedule:
@@ -225,7 +245,7 @@ class NaiveScheduler(Scheduler):
         pass
 
     @timed
-    def schedule(self, start_positions, batteries, uavs_to_schedule):
+    def schedule(self, start_positions: dict, batteries: dict, uavs_to_schedule: list):
         res = {}
         for d in uavs_to_schedule:
             remaining_waypoints = self.remaining_waypoints(d)

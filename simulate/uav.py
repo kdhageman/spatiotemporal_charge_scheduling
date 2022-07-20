@@ -272,12 +272,16 @@ class UAV:
                 else:
                     self.resource_id = self.dest_node.identifier
                     self.resource = self.charging_stations[self.resource_id]
-                    self.req = self.resource.request()
                     if self.resource.count == self.resource.capacity:
                         self.debug(env, f"must wait to get lock for charging station {self.resource_id}")
+                    self.req = self.resource.request()
                     try:
                         yield self.req
-                        self.debug(env, f"got lock for charging station {self.resource_id}")
+                        elapsed = before - env.now
+                        if elapsed > 0:
+                            self.debug(env, f"got lock for charging station {self.resource_id} after {elapsed:.2f}s")
+                        else:
+                            self.debug(env, f"got lock for charging station {self.resource_id} immediately")
                     except simpy.Interrupt:
                         self.req.cancel()
                         self._release_lock(env)
