@@ -40,7 +40,8 @@ class Scheduler:
     def schedule(self, start_positions: dict, batteries: dict, uavs_to_schedule: list):
         """
         Creates a new schedule for the drones
-        :return:
+        :return: optimal: True if the schedule is optimal, False otherwise
+        :return: schedules: list of nodes for each schedules drone to follow
         """
         raise NotImplementedError
 
@@ -182,27 +183,29 @@ class MilpScheduler(Scheduler):
 
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
         solution = self.solver.solve(model)
-        if solution['Solver'][0]['Termination condition'] != 'optimal':
-            raise NotSolvableException("non-optimal solution")
+        if solution['Solver'][0]['Status'] != 'ok':
+            raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
-        # For debuggin purposes
-        # # extract charging windows
-        # charging_windows = {}
-        #
-        # for d in range(sc.N_d):
-        #     for w_s in range(sc.N_w_s):
-        #         try:
-        #             station_idx = model.P_np[d, :-1, w_s].tolist().index(1)
-        #             t_s = model.T_s(d, w_s)()
-        #             t_e = model.T_e(d, w_s)()
-        #             if station_idx not in charging_windows:
-        #                 charging_windows[station_idx] = {}
-        #             if d not in charging_windows[station_idx]:
-        #                 charging_windows[station_idx][d] = []
-        #             charging_windows[station_idx][d].append((t_s, t_e))
-        #         except ValueError:
-        #             # drone is NOT charging now
-        #             pass
+        optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
+
+        # For debugging purposes
+        # extract charging windows
+        charging_windows = {}
+
+        for d in range(sc.N_d):
+            for w_s in range(sc.N_w_s):
+                try:
+                    station_idx = model.P_np[d, :-1, w_s].tolist().index(1)
+                    t_s = model.T_s(d, w_s)()
+                    t_e = model.T_e(d, w_s)()
+                    if station_idx not in charging_windows:
+                        charging_windows[station_idx] = {}
+                    if d not in charging_windows[station_idx]:
+                        charging_windows[station_idx][d] = []
+                    charging_windows[station_idx][d].append((t_s, t_e))
+                except ValueError:
+                    # drone is NOT charging now
+                    pass
 
         res = {}
         for d in uavs_to_schedule:
@@ -237,7 +240,7 @@ class MilpScheduler(Scheduler):
                     nodes.append(wp)
 
             res[d] = nodes
-        return res
+        return optimal, res
 
 
 class NaiveScheduler(Scheduler):
@@ -282,4 +285,4 @@ class NaiveScheduler(Scheduler):
                 )
             res[d] = nodes
 
-        return res
+        return False, res

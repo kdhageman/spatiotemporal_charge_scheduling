@@ -24,7 +24,7 @@ class TestUav(TestCase):
             Waypoint(4, 0, 0),
         ]
 
-        charging_stations = [simpy.Resource(env)]
+        charging_stations = [simpy.PriorityResource(env)]
 
         self.n_arrivals = 0
         self.n_waited = 0

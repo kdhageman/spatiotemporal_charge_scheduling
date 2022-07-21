@@ -61,6 +61,7 @@ class UAV:
         self.waited_cbs = [add_ev_cb]
         self.charged_cbs = [add_ev_cb]
         self.changed_course_cbs = [add_ev_cb]
+        self.release_lock_cbs = []
         self.finish_cbs = []
 
     def _get_battery(self, env, offset=0):
@@ -132,6 +133,9 @@ class UAV:
     def add_finish_cb(self, cb):
         self.finish_cbs.append(cb)
 
+    def add_release_lock_cb(self, cb):
+        self.release_lock_cbs.append(cb)
+
     def set_schedule(self, env, nodes: list):
         instructions = []
         for node in nodes:
@@ -166,6 +170,8 @@ class UAV:
         if self.resource and self.req:
             self.resource.release(self.req)
             self.debug(env, f"released lock ({self.resource_id})")
+            for cb in self.release_lock_cbs:
+                cb(env, self.resource_id)
         self.resource = None
         self.req = None
         self.resource_id = None
@@ -274,7 +280,7 @@ class UAV:
                     self.resource = self.charging_stations[self.resource_id]
                     if self.resource.count == self.resource.capacity:
                         self.debug(env, f"must wait to get lock for charging station {self.resource_id}")
-                    self.req = self.resource.request()
+                    self.req = self.resource.request(priority=1)
                     try:
                         yield self.req
                         elapsed = before - env.now

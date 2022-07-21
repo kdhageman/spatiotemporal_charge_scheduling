@@ -105,19 +105,36 @@ class Simulator:
         # prepare shared resources
         self.charging_stations = []
         for s in range(self.sc.N_s):
-            self.charging_stations.append(simpy.Resource(env, capacity=1))
+            self.charging_stations.append(simpy.PriorityResource(env, capacity=1))
 
         # prepare UAVs
+        def release_lock_cb(env, resource_id):
+            epsilon = self.params.epsilon
+            resource = self.charging_stations[resource_id]
+
+            def release_after_epsilon(env, epsilon, resource, resource_id):
+                self.debug(env, f"locking charging station [{resource_id}] for {epsilon:.2f} after a UAV finished charging")
+                req = resource.request(priority=0)
+                yield req
+                self.debug(env, f"aqcuired lock on charging station [{resource_id}]")
+
+                yield env.timeout(epsilon)
+                resource.release(req)
+                self.debug(env, f"releasing lock on charging station [{resource_id}]")
+
+            env.process(release_after_epsilon(env, epsilon, resource, resource_id))
+
         self.uavs = []
         for d in range(self.sc.N_d):
             uav = UAV(d, self.charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d],
                       self.sc.positions_w[d][0])
+            uav.add_release_lock_cb(release_lock_cb)
             self.uavs.append(uav)
-        self.logger.info(f"visiting {self.sc.N_w - 1} waypoints per UAV in total")
+        self.debug(env, f"visiting {self.sc.N_w - 1} waypoints per UAV in total")
 
         # get initial schedule
         def reschedule_cb(uavs_to_schedule):
-            self.logger.debug(f"triggered rescheduling for UAVs: {uavs_to_schedule}")
+            self.debug(env, f"triggered rescheduling for UAVs: {uavs_to_schedule}")
             if uavs_to_schedule == 'all':
                 uavs_to_schedule = list(range(self.sc.N_d))
             start_positions = {}
@@ -134,24 +151,24 @@ class Simulator:
                     n_waiting += 1
 
             for d in uavs_to_schedule:
-                self.logger.debug(f"[{env.now:.2f}] determined position of UAV [{d}] to be {AuxWaypoint(*start_positions[d])}")
+                self.debug(env, f"determined position of UAV [{d}] to be {AuxWaypoint(*start_positions[d])}")
             for d in uavs_to_schedule:
-                self.logger.debug(f"[{env.now:.2f}] determined battery of UAV [{d}] to be {batteries[d] * 100:.1f}%")
+                self.debug(env, f"determined battery of UAV [{d}] to be {batteries[d] * 100:.1f}%")
             for d in uavs_to_schedule:
-                self.logger.debug(f"[{env.now:.2f}] determined state type UAV [{d}] to be {state_types[d]}")
+                self.debug(env, f"determined state type UAV [{d}] to be {state_types[d]}")
             deadlock = n_waiting == self.sc.N_d
 
-            t_solve, schedules = self.scheduler.schedule(start_positions, batteries, uavs_to_schedule)
-            self.logger.debug(f"[{env.now:.2f}] rescheduled drone paths in {t_solve:.2}s")
-            self.solve_times.append(t_solve)
+            t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, uavs_to_schedule)
+            self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2}s")
+            self.solve_times.append((env.now, optimal, t_solve))
             for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
 
             for i, cs in enumerate(self.charging_stations):
                 if cs.count == cs.capacity:
-                    self.logger.debug(f"[{env.now:.2f}] charging station {i} is locked")
+                    self.debug(env, f"charging station {i} is locked")
                 else:
-                    self.logger.debug(f"[{env.now:.2f}] charging station {i} is NOT locked")
+                    self.debug(env, f"charging station {i} is NOT locked")
 
         reschedule_cb('all')
         self.strategy.set_cb(reschedule_cb)
@@ -175,7 +192,7 @@ class Simulator:
         self.remaining = self.sc.N_d
 
         def uav_finished_cb(uav):
-            self.logger.debug(f"[{env.now:.2f}] UAV [{uav.uav_id}] finished")
+            self.debug(env, f"UAV [{uav.uav_id}] finished")
             self.remaining -= 1
             if self.remaining == 0:
                 if self.directory and self.plot_timestepper:
@@ -229,6 +246,9 @@ class Simulator:
                             f.write(f"{ev}\n")
 
         return self.solve_times, env, [u.events for u in self.uavs]
+
+    def debug(self, env, msg):
+        self.logger.debug(f"[{env.now:.2f}] {msg}")
 
     def plot(self, schedules, batteries, ax=None, fname=None, title=None):
         if not ax:

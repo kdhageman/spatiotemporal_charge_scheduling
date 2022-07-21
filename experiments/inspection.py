@@ -3,6 +3,8 @@ import os
 import sys
 from enum import Enum
 
+from pyomo.opt import SolverFactory
+
 from simulate.event import EventType
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Simulator
@@ -385,7 +387,10 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"sigma:       {params.sigma}")
     if strategy == ChargingStrategy.Milp:
         strat = IntervalStrategy(params.schedule_delta)
-        scheduler = MilpScheduler(params, sc)
+        solver = SolverFactory("gurobi")
+        solver.options['IntFeasTol'] = 1e-9
+        solver.options['TimeLimit'] = 20
+        scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("prepared MILP simulator")
     elif strategy == ChargingStrategy.Naive:
@@ -398,9 +403,9 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     # write solve times to disk
     if directory:
         with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-            f.write("iteration, solve_time\n")
-            for i, t in enumerate(solve_times):
-                f.write(f"{i}, {t}\n")
+            f.write("iteration, sim_timestamp, optimal, solve_time\n")
+            for i, (sim_timestamp, optimal, solve_time) in enumerate(solve_times):
+                f.write(f"{i}, {sim_timestamp}, {optimal}, {solve_time}\n")
 
         # write mission execution time to disk
         with open(os.path.join(directory, "execution_time.txt"), 'w') as f:

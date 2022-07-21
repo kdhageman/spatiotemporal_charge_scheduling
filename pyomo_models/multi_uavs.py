@@ -10,15 +10,13 @@ class MultiUavModel(BaseModel):
         self.epsilon = parameters.get("epsilon", 0.01)
         super().__init__(scenario, parameters)
 
-        self.M_1 = self.W_max * self.N_d * self.N_w_s
-        self.M_2 = self.M_1 + self.W_max
+        self.M = scenario.D_N.max(axis=(0,1)).sum() / parameters['v'].min() * parameters['r_deplete'].max() / parameters['r_charge'].min() * self.N_d
 
         # VARIABLES
         self.o = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)
         self.y = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
 
         # CONSTRAINTS
-
         def o_1_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
                 return pyo.Constraint.Skip
@@ -65,14 +63,12 @@ class MultiUavModel(BaseModel):
         def window_i_rule(m, d, d_prime, w_s, w_s_prime):
             if d == d_prime:
                 return pyo.Constraint.Skip
-            return m.T_e(d, w_s) <= m.T_s(d_prime, w_s_prime) - self.epsilon + self.M_1 * (
-                    1 + m.y[d, d_prime, w_s, w_s_prime] - m.O(d, d_prime, w_s, w_s_prime))
+            return m.T_e(d, w_s) <= m.T_s(d_prime, w_s_prime) - m.epsilon + m.M * (1 + m.y[d, d_prime, w_s, w_s_prime] - m.O(d, d_prime, w_s, w_s_prime))
 
         def window_ii_rule(m, d, d_prime, w_s, w_s_prime):
             if d == d_prime:
                 return pyo.Constraint.Skip
-            return m.T_s(d_prime, w_s_prime) <= m.T_s(d, w_s) - self.epsilon + self.M_2 * (
-                    2 - m.y[d, d_prime, w_s, w_s_prime] - m.O(d, d_prime, w_s, w_s_prime))
+            return m.T_s(d_prime, w_s_prime) <= m.T_s(d, w_s) - m.epsilon + m.M * (2 - m.y[d, d_prime, w_s, w_s_prime] - m.O(d, d_prime, w_s, w_s_prime))
 
         self.window_i = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_i_rule)
         self.window_ii = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_ii_rule)

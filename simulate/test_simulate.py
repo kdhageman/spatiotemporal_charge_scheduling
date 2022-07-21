@@ -60,7 +60,7 @@ class TestSimulator(TestCase):
             plot_delta=0,
             W=4,
             sigma=1,
-            epsilon=1e-2,
+            epsilon=1,
         )
         params = Parameters(**p)
 
@@ -71,7 +71,7 @@ class TestSimulator(TestCase):
         solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        _, env, events = simulator.sim()
+        solve_times, env, events = simulator.sim()
         print(env.now)
 
     def test_naive_three_drones_circling(self):
@@ -88,7 +88,7 @@ class TestSimulator(TestCase):
             plot_delta=0,
             W=5,
             sigma=1,
-            epsilon=1e-3,
+            epsilon=1,
         )
         params = Parameters(**p)
 

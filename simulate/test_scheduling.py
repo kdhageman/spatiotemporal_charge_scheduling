@@ -37,7 +37,7 @@ class TestMilpScheduler(TestCase):
 
         start_positions = {i: x[0] for i, x in enumerate(sc.positions_w)}
         batteries = {d: 1 for d in range(sc.N_d)}
-        _, schedules = sched.schedule(start_positions, batteries, uavs_to_schedule=list(range(sc.N_d)))
+        _, _, schedules = sched.schedule(start_positions, batteries, uavs_to_schedule=list(range(sc.N_d)))
         return
 
 
