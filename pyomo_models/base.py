@@ -7,11 +7,11 @@ from matplotlib.patches import Rectangle
 from pyomo.core.expr.numeric_expr import SumExpression
 
 from util import constants
-from util.distance import dist3
+from util.scenario import Scenario
 
 
 class BaseModel(pyo.ConcreteModel):
-    def __init__(self, scenario, parameters):
+    def __init__(self, scenario: Scenario, parameters: dict):
         super().__init__()
 
         # extract from function parameters
@@ -29,6 +29,7 @@ class BaseModel(pyo.ConcreteModel):
         self.r_charge = parameters['r_charge']
         self.r_deplete = parameters['r_deplete']
         self.v = parameters['v']
+        self.W_zero_min = parameters['W_zero_min']
 
         self.C_max = (self.B_max - self.B_min) / self.r_charge
 
@@ -97,10 +98,20 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * m.C_max[d]
         )
 
-        self.W_lim = pyo.Constraint(
+        # TODO: reconsider the correct value of ulim
+        def W_ulim_rule(m, d, w_s):
+            ulim = 0
+            for d_prime, C_max in enumerate(m.C_max):
+                if d == d_prime:
+                    continue
+                ulim += C_max
+            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * ulim
+
+        self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
+
+        self.W_llim = pyo.Constraint(
             self.d,
-            self.w_s,
-            rule=lambda m, d, w_s: m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * sum(m.C_max)
+            rule=lambda m, d: m.W[d, 0] >= (1 - m.P[d, m.N_s, 0]) * m.W_zero_min[d]
         )
 
         self.alpha_min = pyo.Constraint(

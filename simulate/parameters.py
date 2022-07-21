@@ -5,7 +5,7 @@ import numpy as np
 
 class Parameters:
     def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, B_min: float, B_max: float,
-                 epsilon: float = 0.1, B_end=[], schedule_delta=1, plot_delta=0, W: int = 0, sigma=1):
+                 epsilon: float = 0.1, W_zero_min=[], B_end=[], schedule_delta=1, plot_delta=0, W: int = 0, sigma=1):
         self.v = np.array(v)
         self.r_charge = np.array(r_charge)
         self.r_deplete = np.array(r_deplete)
@@ -18,6 +18,9 @@ class Parameters:
         self.plot_delta = plot_delta
         self.W = W
         self.sigma = sigma
+        self.W_zero_min = W_zero_min
+        if not W_zero_min:
+            self.W_zero_min = np.array([0] * len(v))
 
     def as_dict(self):
         return dict(
@@ -28,6 +31,7 @@ class Parameters:
             B_min=self.B_min,
             B_max=self.B_max,
             B_end=self.B_end,
+            W_zero_min=self.W_zero_min,
             epsilon=self.epsilon,
             schedule_delta=self.schedule_delta,
             plot_delta=self.plot_delta,
