@@ -7,6 +7,7 @@ from pyomo.util.infeasible import log_infeasible_constraints, log_close_to_bound
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
+from simulate.uav import UavStateType
 from util.decorators import timed
 from util.distance import dist3
 from util.exceptions import NotSolvableException
@@ -37,7 +38,7 @@ class Scheduler:
         raise NotImplementedError
 
     @timed
-    def schedule(self, start_positions: dict, batteries: dict, uavs_to_schedule: list):
+    def schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
         """
         Creates a new schedule for the drones
         :return: optimal: True if the schedule is optimal, False otherwise
@@ -153,7 +154,7 @@ class MilpScheduler(Scheduler):
         pass
 
     @timed
-    def schedule(self, start_positions: dict, batteries: dict, uavs_to_schedule: list):
+    def schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
         sc = self.sf.next(start_positions, self.offsets)
 
         # correct original parameters
@@ -181,9 +182,14 @@ class MilpScheduler(Scheduler):
                 )
         params.B_end = np.array(B_end)
 
+        W_zero_min = []
+        for state_type in state_types:
+            W_zero_min.append(self.params.epsilon if state_type == UavStateType.Charging else 0)
+        params.W_zero_min = np.array(W_zero_min)
+
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
         solution = self.solver.solve(model)
-        if solution['Solver'][0]['Status'] != 'ok':
+        if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
         optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
@@ -248,7 +254,7 @@ class NaiveScheduler(Scheduler):
         pass
 
     @timed
-    def schedule(self, start_positions: dict, batteries: dict, uavs_to_schedule: list):
+    def schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
         res = {}
         for d in uavs_to_schedule:
             remaining_waypoints = self.remaining_waypoints(d)

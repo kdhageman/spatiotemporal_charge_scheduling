@@ -5,6 +5,7 @@ from pyomo.opt import SolverFactory
 
 from simulate.parameters import Parameters
 from simulate.scheduling import MilpScheduler
+from simulate.uav import UavStateType
 from util.scenario import Scenario
 
 
@@ -37,7 +38,7 @@ class TestMilpScheduler(TestCase):
 
         start_positions = {i: x[0] for i, x in enumerate(sc.positions_w)}
         batteries = {d: 1 for d in range(sc.N_d)}
-        _, _, schedules = sched.schedule(start_positions, batteries, uavs_to_schedule=list(range(sc.N_d)))
-        return
+        state_types = [UavStateType.Idle] * sc.N_d
+        _, (_, schedules) = sched.schedule(start_positions, batteries, state_types, uavs_to_schedule=list(range(sc.N_d)))
 
 
