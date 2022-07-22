@@ -280,9 +280,21 @@ class NaiveScheduler(Scheduler):
             if batteries[d] - expected_depletion < self.params.B_min[d]:
                 idx_closest_station = np.argmin(self.sc.D_N[d, :-1, self.offsets[d]])
 
+                dist_to_end = 0
+                pos_prev = self.sc.positions_S[idx_closest_station]
+                for pos in self.remaining_waypoints(d)[1:]:
+                    dist_to_end += dist3(pos_prev, pos)
+                    pos_prev = pos
+                depletion_to_end = dist_to_end / self.params.v[d] * self.params.r_deplete[d]
+                if depletion_to_end > (self.params.B_max[d] - self.params.B_min[d]):
+                    # charge to full
+                    ct = 'full'
+                else:
+                    battery_to_charge = batteries[d] - depletion_to_end + self.params.B_min[d]
+                    ct = battery_to_charge / self.params.r_charge[d]
+
                 nodes.append(
-                    ChargingStation(*self.sc.positions_S[idx_closest_station], identifier=idx_closest_station, wt=0,
-                                    ct='full')
+                    ChargingStation(*self.sc.positions_S[idx_closest_station], identifier=idx_closest_station, wt=0, ct=ct)
                 )
 
             for pos in remaining_waypoints:
