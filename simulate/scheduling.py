@@ -257,50 +257,59 @@ class NaiveScheduler(Scheduler):
     def schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
         res = {}
         for d in uavs_to_schedule:
-            remaining_waypoints = self.remaining_waypoints(d)
-            if len(remaining_waypoints) == 0:
+            if len(self.remaining_waypoints(d)) == 0:
                 res[d] = []
                 continue
 
-            if len(remaining_waypoints) == 1:
-                # one waypoint remaining
-                dist_to_next_wp = self.sc.D_N[d, -1, self.offsets[d]]
-                t_req = dist_to_next_wp / self.params.v[d]
-            else:
-                try:
-                    dist_to_next_wp = self.sc.D_N[d, -1, self.offsets[d]]
-                except IndexError as e:
-                    raise e
-                dist_from_next_to_to_closest_station = self.sc.D_N[d, :-1, self.offsets[d] + 1].min()
-                dist_to_closest_station_after_next_wp = dist_to_next_wp + dist_from_next_to_to_closest_station
-                t_req = dist_to_closest_station_after_next_wp / self.params.v[d]
-
             nodes = [AuxWaypoint(*start_positions[d])]
-            expected_depletion = t_req * self.params.r_deplete[d]
-            if batteries[d] - expected_depletion < self.params.B_min[d]:
-                idx_closest_station = np.argmin(self.sc.D_N[d, :-1, self.offsets[d]])
 
-                dist_to_end = 0
-                pos_prev = self.sc.positions_S[idx_closest_station]
-                for pos in self.remaining_waypoints(d)[1:]:
-                    dist_to_end += dist3(pos_prev, pos)
-                    pos_prev = pos
-                depletion_to_end = dist_to_end / self.params.v[d] * self.params.r_deplete[d]
-                if depletion_to_end > (self.params.B_max[d] - self.params.B_min[d]):
-                    # charge to full
-                    ct = 'full'
+            dist_to_end = 0
+            node_prev = start_positions[d]
+            for pos in self.remaining_waypoints(d):
+                dist = dist3(node_prev, pos)
+                dist_to_end += dist
+                node_prev = pos
+            depletion_to_end = dist_to_end / self.params.v[d] * self.params.r_deplete[d]
+
+            if batteries[d] - depletion_to_end > self.params.B_min[d]:
+                # no need to charge
+                pass
+            else:
+                # need to charge at some point, check if it should be now
+                if len(self.remaining_waypoints(d)) == 1:
+                    # only one waypoint remaining, so MUST charge
+                    idx_station, dist_to_station = self.sc.nearest_station(start_positions[d])
+                    dist_to_wp_from_station = self.sc.D_W[d, idx_station, self.offsets[d]]
+                    depletion_to_wp_via_station = (dist_to_station + dist_to_wp_from_station) / self.params.v[d] * self.params.r_deplete[d]
+                    ct = (depletion_to_wp_via_station + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d]
+                    nodes.append(
+                        ChargingStation(*self.sc.positions_S[idx_station], identifier=idx_station, wt=0, ct=ct)
+                    )
                 else:
-                    battery_to_charge = batteries[d] - depletion_to_end + self.params.B_min[d]
-                    ct = battery_to_charge / self.params.r_charge[d]
+                    # check if a station is reachable from next waypoint
+                    dist_to_wp = self.sc.D_N[d, -1, self.offsets[d]]
+                    idx_station, dist_to_station = self.sc.nearest_station(self.remaining_waypoints(d)[0])
+                    dist_to_station_full = dist_to_wp + dist_to_station
+                    depletion_to_station_full = dist_to_station_full / self.params.v[d] * self.params.r_deplete[d]
+                    if batteries[d] - depletion_to_station_full < self.params.B_min[d]:
+                        # must visit charging station next
 
-                nodes.append(
-                    ChargingStation(*self.sc.positions_S[idx_closest_station], identifier=idx_closest_station, wt=0, ct=ct)
-                )
-
-            for pos in remaining_waypoints:
-                nodes.append(
-                    Waypoint(*pos)
-                )
+                        remaining_dist = 0
+                        pos_prev = self.sc.positions_S[idx_station]
+                        for pos in self.remaining_waypoints(d):
+                            dist = dist3(pos_prev, pos)
+                            remaining_dist += dist
+                            pos_prev = pos
+                        remaining_depletion = remaining_dist / self.params.v[d] * self.params.r_deplete[d]
+                        if remaining_depletion + self.params.B_min[d] > self.params.B_max[d]:
+                            ct = 'full'
+                        else:
+                            ct = (remaining_depletion + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d]
+                        nodes.append(
+                            ChargingStation(*self.sc.positions_S[idx_station], identifier=idx_station, wt=0, ct=ct)
+                        )
+            for pos in self.remaining_waypoints(d):
+                wp = Waypoint(*pos)
+                nodes.append(wp)
             res[d] = nodes
-
         return False, res

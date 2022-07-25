@@ -107,6 +107,18 @@ class Scenario:
 
         return Scenario(positions_S, positions_w)
 
+    def nearest_station(self, pos):
+        """
+        Returns the distance and index of the nearest charging station for the given position
+        :param pos:
+        :return:
+        """
+        distances = []
+        for pos_s in self.positions_S:
+            distances += [dist3(pos, pos_s)]
+        idx = np.argmin(distances)
+        return idx, distances[idx]
+
     def plot(self, ax=None, draw_distances=True):
         if not ax:
             _, ax = plt.subplots()
