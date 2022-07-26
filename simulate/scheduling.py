@@ -94,7 +94,7 @@ class ScenarioFactory:
         D_W = []
 
         for d, wps_src in enumerate(self.positions_w):
-            wps_src_full = [start_positions[d]] + wps_src[offsets[d]:]
+            wps_src_full = [tuple(start_positions[d])] + wps_src[offsets[d]:]
             while len(wps_src_full) < self.sigma * (self.W - 1) + 1:
                 wps_src_full.append(wps_src_full[-1])
 
@@ -171,24 +171,15 @@ class MilpScheduler(Scheduler):
         params.B_start = np.array(list(batteries.values()))
 
         B_end = []
-        for d, wps in enumerate(self.sc.positions_w):
-            overall_pos_end_wp = self.sc.positions_w[d][-1]
-            pos_end_wp = wps[-1]
-
-            if overall_pos_end_wp == pos_end_wp:
-                # last scheduled waypoint is the last of the mission, so no charging station needs to be
-                # visited afterwards
-                B_end.append(self.params.B_min[d])
+        for d in range(self.sc.N_d):
+            if sc.positions_w[d][-1] == self.sc.positions_w[d][-1]:
+                # strided schedule ends at last waypoint
+                additional_depletion = 0
             else:
-                # it should be possible to reach the closest charging after this schedule,
-                # because the mission is not finished yet afterwards
-                dists_to_css = []
-                for pos_cs in sc.positions_S:
-                    dists_to_css.append(dist3(pos_end_wp, pos_cs))
-                min_dist_to_cs = min(dists_to_css)
-                B_end.append(
-                    self.params.B_min[d] + min_dist_to_cs * self.params.r_deplete[d] / self.params.v[d]
-                )
+                # strided schedule does NOT end at last waypoint
+                station_idx, dist_to_nearest_station = sc.nearest_station(sc.positions_w[d][-1])
+                additional_depletion = dist_to_nearest_station / self.params.v[d] * self.params.r_deplete[d]
+            B_end.append(additional_depletion + self.params.B_min[d])
         params.B_end = np.array(B_end)
 
         W_zero_min = []
