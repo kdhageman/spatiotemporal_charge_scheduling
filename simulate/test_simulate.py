@@ -7,7 +7,7 @@ from pyomo.opt import SolverFactory
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Parameters, \
     Simulator
-from simulate.strategy import IntervalStrategy, OnEventStrategySingle
+from simulate.strategy import IntervalStrategy, OnEventStrategySingle, OnEventStrategyAll
 from util.scenario import Scenario
 
 
@@ -64,7 +64,8 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/milp_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
-        strat = IntervalStrategy(3)
+        # strat = IntervalStrategy(3)
+        strat = OnEventStrategyAll(interval=3)
         solver = SolverFactory("gurobi")
         solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(params, sc)

@@ -61,6 +61,34 @@ class IntervalStrategy(Strategy):
                 break
 
 
-class OnEventStrategySingle(Strategy):
+class OnEventStrategy(Strategy):
+    def __init__(self, interval=0):
+        super().__init__()
+        self.interval = interval
+        self.last_time = 0
+
     def handle_event(self, event):
-        self.cb([event.value.uav.uav_id])
+        uav_id = event.value.uav.uav_id
+        if self.last_time is None or event.env.now >= self.last_time + self.interval:
+            self.cb(self._uavs(uav_id))
+            self.last_time = event.env.now
+        else:
+            self.debug(event.env, "skipping scheduling because most recent reschedule was too soon")
+
+    def _uavs(self, uav_id):
+        """
+        Returns which UAVs must be scheduled
+        Must be implemented by subclasses
+        :param uav_id: uav of the triggered event
+        """
+        raise NotImplementedError
+
+
+class OnEventStrategySingle(OnEventStrategy):
+    def _uavs(self, uav_id):
+        return [uav_id]
+
+
+class OnEventStrategyAll(OnEventStrategy):
+    def _uavs(self, uav_id):
+        return 'all'
