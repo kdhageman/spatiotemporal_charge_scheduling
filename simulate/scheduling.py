@@ -44,6 +44,16 @@ class Scheduler:
         :return: optimal: True if the schedule is optimal, False otherwise
         :return: schedules: list of nodes for each schedules drone to follow
         """
+        t_solve, schedules = self._schedule(start_positions, batteries, state_types, uavs_to_schedule)
+        for d, schedule in schedules.items():
+            offset = self.offsets[d]
+            for node in schedule:
+                if node.node_type == NodeType.Waypoint:
+                    node.identifier = offset
+                    offset += 1
+        return t_solve, schedules
+
+    def _schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
         raise NotImplementedError
 
     def n_remaining_waypoints(self, d):
@@ -153,8 +163,7 @@ class MilpScheduler(Scheduler):
     def _handle_event(self, event):
         pass
 
-    @timed
-    def schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
+    def _schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
         sc = self.sf.next(start_positions, self.offsets)
 
         # correct original parameters
@@ -225,8 +234,8 @@ class MilpScheduler(Scheduler):
                 n = model.P_np[d, :, w_s_hat].tolist().index(1)
                 if n < model.N_s:
                     # visit charging station first
-                    ct = model.C_np[d][w_s_hat]
-                    wt = model.W_np[d][w_s_hat]
+                    wt = max(model.W_np[d][w_s_hat], 0)  # for cases where the waiting time is negligibly negative
+                    ct = max(model.C_np[d][w_s_hat], 0)  # for cases where the charging time is negligibly negative
                     nodes.append(
                         ChargingStation(*self.sc.positions_S[n], n, wt, ct)
                     )
@@ -255,8 +264,7 @@ class NaiveScheduler(Scheduler):
     def _handle_event(self, event):
         pass
 
-    @timed
-    def schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
+    def _schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
         res = {}
         for d in uavs_to_schedule:
             if len(self.remaining_waypoints(d)) == 0:

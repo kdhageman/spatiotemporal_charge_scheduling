@@ -8,7 +8,7 @@ from pyomo.opt import SolverFactory
 from simulate.event import EventType
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Simulator
-from simulate.strategy import IntervalStrategy, ArrivalStrategy
+from simulate.strategy import IntervalStrategy, OnEventStrategySingle
 
 sys.path.append('drone_charging')
 
@@ -394,7 +394,7 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("prepared MILP simulator")
     elif strategy == ChargingStrategy.Naive:
-        strat = ArrivalStrategy()
+        strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("prepared naive simulator")

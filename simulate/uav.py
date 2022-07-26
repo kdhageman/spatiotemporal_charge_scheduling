@@ -27,9 +27,7 @@ class UavState:
 
 
 class UAV:
-    def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float,
-                 initial_pos: list,
-                 battery: float = 1, B_max: float = 1):
+    def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float, initial_pos: list, battery: float = 1, B_max: float = 1):
         self.logger = logging.getLogger(__name__)
         self.uav_id = uav_id
         self.charging_stations = charging_stations
@@ -223,7 +221,7 @@ class UAV:
                         if not self.dest_node.same_pos(self.instructions[0].node):
                             # change direction
                             elapsed = env.now - self.t_start
-                            event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery))
+                            event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, forced=True))
                             yield event
                             self.debug(env, f"changed direction from {self.dest_node} to {self.instructions[0].node} at {self.last_known_pos}")
                             self.t_start = env.now
@@ -251,7 +249,7 @@ class UAV:
                         cb(event)
                 except simpy.Interrupt:
                     elapsed = env.now - self.t_start
-                    event = env.timeout(0, value=WaitedEvent(self.t_start, elapsed, self.dest_node, self, battery=self.battery))
+                    event = env.timeout(0, value=WaitedEvent(self.t_start, elapsed, self.dest_node, self, battery=self.battery, forced=True))
                     yield event
 
                     self.debug(env, f"forcefully finished waiting at station {self.dest_node.identifier} for {elapsed:.2f}s")
@@ -292,7 +290,7 @@ class UAV:
                         self._release_lock(env)
 
                         elapsed = env.now - before
-                        event = env.timeout(0, value=WaitedEvent(before, elapsed, self.dest_node, self, battery=self.battery))
+                        event = env.timeout(0, value=WaitedEvent(before, elapsed, self.dest_node, self, battery=self.battery, forced=True))
                         yield event
 
                         self.debug(env, f"finished waiting at station {self.dest_node.identifier} for {event.value.duration:.2f}s to become available")
@@ -317,7 +315,7 @@ class UAV:
                             cb(event)
                     except simpy.Interrupt:
                         elapsed = env.now - self.t_start
-                        event = env.timeout(0, value=WaitedEvent(self.t_start, elapsed, self.dest_node, self, battery=self.battery))
+                        event = env.timeout(0, value=WaitedEvent(self.t_start, elapsed, self.dest_node, self, battery=self.battery, forced=True))
                         yield event
 
                         self.debug(env, f"forcefully finished waiting at station {self.dest_node.identifier} for {elapsed:.2f}s to become available")
@@ -351,7 +349,7 @@ class UAV:
                         self._release_lock(env)
                     t_charged = env.now - t_start_charge
                     self.battery = self.battery + self.r_charge * t_charged
-                    event = env.timeout(0, value=ChargedEvent(t_start_charge, t_charged, self.dest_node, self, battery=self.battery))
+                    event = env.timeout(0, value=ChargedEvent(t_start_charge, t_charged, self.dest_node, self, battery=self.battery, forced=True))
                     yield event
 
                     self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {t_charged:.2f}")

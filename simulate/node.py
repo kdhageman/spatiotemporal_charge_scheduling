@@ -65,13 +65,20 @@ class ChargingStation(Node):
 
 
 class Waypoint(Node):
-    def __init__(self, x, y, z, strided=False):
+    def __init__(self, x, y, z, strided=False, identifier=None):
         super().__init__(x, y, z, 0, 0)
         self.strided = strided
+        self.identifier = identifier
 
     @property
     def node_type(self):
         return NodeType.Waypoint
+
+    def __repr__(self):
+        if self.identifier is not None:
+            return f"({self.x:.2f}, {self.y:.2f}, {self.z:.2f}) ({self.identifier})"
+        else:
+            return super().__repr__()
 
 
 class AuxWaypoint(Node):

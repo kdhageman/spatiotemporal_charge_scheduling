@@ -4,12 +4,10 @@ from unittest import TestCase
 
 from pyomo.opt import SolverFactory
 
-from simulate.event import ChargedEvent
-from simulate.node import ChargingStation
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Parameters, \
-    Simulator, plot_station_occupancy
-from simulate.strategy import IntervalStrategy, ArrivalStrategy
+    Simulator
+from simulate.strategy import IntervalStrategy, OnEventStrategySingle
 from util.scenario import Scenario
 
 
@@ -94,7 +92,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/naive_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
-        strat = ArrivalStrategy()
+        strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
@@ -120,7 +118,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/naive_simulator_long'
         os.makedirs(directory, exist_ok=True)
-        strat = ArrivalStrategy()
+        strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()

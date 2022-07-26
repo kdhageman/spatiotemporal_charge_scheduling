@@ -156,7 +156,6 @@ class Simulator:
                 self.debug(env, f"determined battery of UAV [{d}] to be {batteries[d] * 100:.1f}%")
             for d in uavs_to_schedule:
                 self.debug(env, f"determined state type UAV [{d}] to be {state_types[d]}")
-            deadlock = n_waiting == self.sc.N_d
 
             t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, state_types, uavs_to_schedule)
             self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2}s")
