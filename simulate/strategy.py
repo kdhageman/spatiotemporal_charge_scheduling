@@ -73,7 +73,7 @@ class OnEventStrategy(Strategy):
             self.cb(self._uavs(uav_id))
             self.last_time = event.env.now
         else:
-            self.debug(event.env, "skipping scheduling because most recent reschedule was too soon")
+            self.debug(event.env, f"skipping scheduling triggered by UAV [{uav_id}] because most recent reschedule was too soon")
 
     def _uavs(self, uav_id):
         """

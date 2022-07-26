@@ -389,7 +389,7 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         strat = OnEventStrategyAll(interval=params.schedule_delta)
         solver = SolverFactory("gurobi")
         solver.options['IntFeasTol'] = 1e-9
-        solver.options['TimeLimit'] = 20
+        solver.options['TimeLimit'] = 30
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("prepared MILP simulator")
@@ -403,9 +403,9 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     # write solve times to disk
     if directory:
         with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-            f.write("iteration, sim_timestamp, optimal, solve_time\n")
+            f.write("iteration,sim_timestamp,optimal,solve_time\n")
             for i, (sim_timestamp, optimal, solve_time) in enumerate(solve_times):
-                f.write(f"{i}, {sim_timestamp}, {optimal}, {solve_time}\n")
+                f.write(f"{i},{sim_timestamp},{optimal},{solve_time}\n")
 
         # write mission execution time to disk
         with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
