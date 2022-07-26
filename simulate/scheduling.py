@@ -250,6 +250,8 @@ class MilpScheduler(Scheduler):
 
 
 class NaiveScheduler(Scheduler):
+    _EPSILON = 0.0001
+
     def _handle_event(self, event):
         pass
 
@@ -261,7 +263,7 @@ class NaiveScheduler(Scheduler):
                 res[d] = []
                 continue
 
-            nodes = [AuxWaypoint(*start_positions[d])]
+            nodes = []
 
             dist_to_end = 0
             node_prev = start_positions[d]
@@ -281,7 +283,7 @@ class NaiveScheduler(Scheduler):
                     idx_station, dist_to_station = self.sc.nearest_station(start_positions[d])
                     dist_to_wp_from_station = self.sc.D_W[d, idx_station, self.offsets[d]]
                     depletion_to_wp_via_station = (dist_to_station + dist_to_wp_from_station) / self.params.v[d] * self.params.r_deplete[d]
-                    ct = (depletion_to_wp_via_station + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d]
+                    ct = (depletion_to_wp_via_station + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d] + NaiveScheduler._EPSILON
                     nodes.append(
                         ChargingStation(*self.sc.positions_S[idx_station], identifier=idx_station, wt=0, ct=ct)
                     )
@@ -293,6 +295,7 @@ class NaiveScheduler(Scheduler):
                     depletion_to_station_full = dist_to_station_full / self.params.v[d] * self.params.r_deplete[d]
                     if batteries[d] - depletion_to_station_full < self.params.B_min[d]:
                         # must visit charging station next
+                        idx_station, _ = self.sc.nearest_station(start_positions[d])
 
                         remaining_dist = 0
                         pos_prev = self.sc.positions_S[idx_station]
@@ -304,7 +307,7 @@ class NaiveScheduler(Scheduler):
                         if remaining_depletion + self.params.B_min[d] > self.params.B_max[d]:
                             ct = 'full'
                         else:
-                            ct = (remaining_depletion + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d]
+                            ct = (remaining_depletion + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d] + NaiveScheduler._EPSILON
                         nodes.append(
                             ChargingStation(*self.sc.positions_S[idx_station], identifier=idx_station, wt=0, ct=ct)
                         )

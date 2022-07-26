@@ -34,7 +34,7 @@ class TestSimulator(TestCase):
             plot_delta=0,
             W=8,
             sigma=2,
-            epsilon=1e-3,
+            epsilon=1,
         )
         params = Parameters(**p)
 
@@ -114,6 +114,7 @@ class TestSimulator(TestCase):
             plot_delta=0,
             W=8,
             sigma=2,
+            epsilon=1
         )
         params = Parameters(**p)
 

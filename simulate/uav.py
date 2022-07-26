@@ -120,7 +120,6 @@ class UAV:
                 res.append(ins.node)
         return res
 
-
     def add_arrival_cb(self, cb):
         self.arrival_cbs.append(cb)
 
@@ -207,7 +206,7 @@ class UAV:
                     try:
                         yield event
 
-                        self.debug(env, f"reached {self.dest_node}")
+                        self.debug(env, f"reached {self.dest_node}, B={event.value.battery:.2f} (-{t_move * self.r_deplete:.2f})")
                         self.last_known_pos = self.dest_node
                         self.state_type = UavStateType.Idle
                         self.battery = event.value.battery
