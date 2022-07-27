@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from pyomo.core.expr.numeric_expr import SumExpression
 
-from util import constants
+from util.constants import W_COLORS
 from util.scenario import Scenario
 
 
@@ -30,6 +30,9 @@ class BaseModel(pyo.ConcreteModel):
         self.r_deplete = parameters['r_deplete']
         self.v = parameters['v']
         self.W_zero_min = parameters['W_zero_min']
+        self.remaining_distances = parameters.get('remaining_distances', [])
+        if not self.remaining_distances:
+            self.remaining_distances = [0] * self.N_d
 
         self.C_max = (self.B_max - self.B_min) / self.r_charge
 
@@ -176,7 +179,12 @@ class BaseModel(pyo.ConcreteModel):
 
     # OBJECTIVE
     def E(self, d):
-        return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s)
+        return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d)
+
+    def lambda_move(self, d):
+        if self.remaining_distances[d] == 0:
+            return 0
+        return self.remaining_distances[d] / self.v[d]
 
     def plot(self, ax=None):
         if not ax:
@@ -198,13 +206,13 @@ class BaseModel(pyo.ConcreteModel):
             waypoints = self.positions_w[d]
             x = [w[0] for w in waypoints[:self.N_w]]
             y = [w[1] for w in waypoints[:self.N_w]]
-            ax.scatter(x, y, marker='o', color=constants.W_COLORS[d], facecolor='white', s=70)
+            ax.scatter(x, y, marker='o', color=W_COLORS[d], facecolor='white', s=70)
 
             # label waypoints
             for w in range(self.N_w):
                 x_text = waypoints[w][0]
                 y_text = waypoints[w][1] + 0.05
-                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=constants.W_COLORS[d], fontsize=15)
+                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=W_COLORS[d], fontsize=15)
 
         # draw lines
         for d in self.d:
@@ -222,7 +230,7 @@ class BaseModel(pyo.ConcreteModel):
                             pos_S = self.positions_S[n]
                             x = [cur_waypoint[0], pos_S[0], next_waypoint[0]]
                             y = [cur_waypoint[1], pos_S[1], next_waypoint[1]]
-                        ax.plot(x, y, constants.W_COLORS[d], zorder=-1)
+                        ax.plot(x, y, W_COLORS[d], zorder=-1)
 
     def t(self, d, w_s):
         return sum(self.P[d, n, w_s] * (self.D_N[d, n, w_s] + self.D_W[d, n, w_s]) for n in self.n) / self.v[d]
@@ -314,7 +322,7 @@ class BaseModel(pyo.ConcreteModel):
                 t_charging_window += C_cum[d, w_s - 1] + T_W_cum[d, w_s - 1]
             s = np.where(P[d, :, w_s] == 1)[0][0]
             if s != self.N_s:
-                rect = Rectangle((t_charging_window, 0), C[d, w_s], 1, color=constants.W_COLORS[s], ec=None, alpha=0.2,
+                rect = Rectangle((t_charging_window, 0), C[d, w_s], 1, color=W_COLORS[s], ec=None, alpha=0.2,
                                  zorder=-1)
                 ax.add_patch(rect)
 

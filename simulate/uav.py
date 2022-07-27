@@ -13,6 +13,7 @@ class UavStateType(Enum):
     Moving = "moving"
     Waiting = "waiting"
     Charging = "charging"
+    Finished = "finished"
 
 
 class UavState:
@@ -92,18 +93,14 @@ class UAV:
                 node=AuxWaypoint(*pos),
                 battery=battery,
             )
-        elif self.state_type == UavStateType.Charging:
+        elif self.state_type in [UavStateType.Charging, UavStateType.Finished, UavStateType.Waiting, UavStateType.Idle]:
             res = UavState(
                 state_type=self.state_type,
                 node=self.last_known_pos,
                 battery=battery,
             )
-        elif self.state_type in [UavStateType.Waiting, UavStateType.Idle]:
-            res = UavState(
-                state_type=self.state_type,
-                node=self.last_known_pos,
-                battery=battery,
-            )
+        else:
+            raise NotImplementedError()
         return res
 
     def nodes_to_visit(self):
@@ -156,7 +153,7 @@ class UAV:
 
         self.instructions = instructions
 
-        if self.proc:
+        if self.proc and self.proc.is_alive:
             try:
                 self.proc.interrupt()
                 self.debug(env, f"is interrupted")
@@ -368,5 +365,6 @@ class UAV:
         self.debug(env, f"is starting new simpy process")
         self.proc = env.process(self._sim(env))
         yield self.proc
+        self.state_type = UavStateType.Finished
         for cb in self.finish_cbs:
             cb(self)

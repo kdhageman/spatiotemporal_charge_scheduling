@@ -56,7 +56,7 @@ class TestSimulator(TestCase):
             B_start=[1] * 3,
             # plot_delta=0.1,
             plot_delta=0,
-            W=4,
+            W=3,
             sigma=1,
             epsilon=1,
         )
@@ -124,21 +124,3 @@ class TestSimulator(TestCase):
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
         print(env.now)
-
-# class TestPlot(TestCase):
-#     station1 = ChargingStation(0, 0, 0, identifier=0)
-#     station2 = ChargingStation(0, 0, 0, identifier=1)
-#     events = [
-#         [
-#             ChargedEvent(1, 2, station1),
-#             ChargedEvent(5, 1, station1),
-#         ],
-#         [
-#             ChargedEvent(2, 5, station1),
-#             ChargedEvent(8, 1, station1),
-#         ]
-#     ]
-#
-#     directory = 'out/test/plot'
-#     os.makedirs(directory, exist_ok=True)
-#     plot_station_occupancy(events, 2, 10, os.path.join(directory, "plot_station_occupancy.pdf"))

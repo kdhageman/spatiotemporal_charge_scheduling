@@ -1,30 +1,25 @@
-import glob
+import logging
 import os
-import sys
+import pickle
 from enum import Enum
 
+import cvxpy
+import networkx as nx
+import numpy as np
+import nxmetis
+import scipy
+from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
+from scipy.spatial import KDTree
 
 from simulate.event import EventType
-from simulate.scheduling import MilpScheduler, NaiveScheduler
-from simulate.simulate import Simulator
-from simulate.strategy import OnEventStrategySingle, OnEventStrategyAll
-
-sys.path.append('drone_charging')
-
 from simulate.parameters import Parameters
+from simulate.scheduling import MilpScheduler, NaiveScheduler
+from simulate.simulate import gen_colors, Simulator
+from simulate.strategy import OnEventStrategyAll, OnEventStrategySingle
+from util.decorators import timed
 import open3d as o3d
-import logging
-import matplotlib.pyplot as plt
-import numpy as np
-import networkx as nx
-import time
-import nxmetis
-import cvxpy as cp
-from numpy import cross, eye, random
-from scipy.linalg import expm, norm
-from scipy.spatial import KDTree
-from tqdm import tqdm
+
 from util.scenario import Scenario
 
 logging.basicConfig(
@@ -34,29 +29,6 @@ logging.getLogger("pyomo.core").setLevel(logging.WARN)
 logging.getLogger("pyomo.opt").setLevel(logging.WARN)
 logging.getLogger("matplotlib").setLevel(logging.WARN)
 logger = logging.getLogger(__name__)
-
-
-# for davinci
-# camera_x = 0
-# camera_y = -300
-
-def timed(func):
-    def wrapper(*args, **kwargs):
-        t_start = time.time()
-        res = func(*args, **kwargs)
-        elapsed = time.time() - t_start
-        return elapsed, res
-
-    return wrapper
-
-
-def gen_colors(n):
-    np.random.seed(0)
-    res = []
-    for d in range(n):
-        c = np.random.rand(3).tolist()
-        res.append(c)
-    return res
 
 
 @timed
@@ -274,7 +246,7 @@ def plan_path(pcd: o3d.geometry.PointCloud, g: nx.Graph, z_penalty=1):
 
 
 def axis_angle_to_rotation_matrix(axis, theta):
-    return expm(cross(eye(3), axis / norm(axis) * theta))
+    return scipy.linalg.expm(np.cross(np.eye(3), axis / scipy.linalg.norm(axis) * theta))
 
 
 def get_normal_vector(vertices, instance_angle, norm_vector_normed):
@@ -300,8 +272,8 @@ def optimize_path(seq: list, pcd: o3d.geometry.PointCloud, p_start, voxel_size, 
     pcd_normals = np.asarray(pcd.normals)
 
     n = np.zeros((J, vertices_num, dimension))
-    g = cp.Variable((J, dimension))
-    delta = cp.Variable((J, dimension))
+    g = cvxpy.Variable((J, dimension))
+    delta = cvxpy.Variable((J, dimension))
 
     # describe constraints
     #    initial constrain
@@ -315,19 +287,19 @@ def optimize_path(seq: list, pcd: o3d.geometry.PointCloud, p_start, voxel_size, 
 
     # distance constrains, min, max
     constrains_3 = [
-        cp.sum(cp.multiply((g[j] - pcd_points[seq[j]]), pcd_normals[seq[j]])) - d_min >= 0 for j in range(J)
+        cvxpy.sum(cvxpy.multiply((g[j] - pcd_points[seq[j]]), pcd_normals[seq[j]])) - d_min >= 0 for j in range(J)
     ]
 
     constrains_4 = [
-        d_max - cp.sum(cp.multiply((g[j] - pcd_points[seq[j]]), pcd_normals[seq[j]])) >= 0 for j in range(J)
+        d_max - cvxpy.sum(cvxpy.multiply((g[j] - pcd_points[seq[j]]), pcd_normals[seq[j]])) >= 0 for j in range(J)
     ]
     # instance angle constrains
     constrains_5 = []
     for j in range(J):
         normal_vec = pcd.normals[seq[j]]
         tangent_x = np.cross(normal_vec,
-                             [normal_vec[0] * 3 + random.random(), normal_vec[1] * 5 + random.random(),
-                              normal_vec[2] * 7 + random.random()])
+                             [normal_vec[0] * 3 + np.random.random(), normal_vec[1] * 5 + np.random.random(),
+                              normal_vec[2] * 7 + np.random.random()])
         tangent_x = tangent_x / np.linalg.norm(tangent_x) * voxel_size / 2
         tangent_y = np.cross(normal_vec, tangent_x)
         tangent_y = tangent_y / np.linalg.norm(tangent_y) * voxel_size / 2
@@ -344,14 +316,14 @@ def optimize_path(seq: list, pcd: o3d.geometry.PointCloud, p_start, voxel_size, 
         n[j] = get_normal_vector(tangent_plane_vertex, instance_angle,
                                  pcd.normals[seq[j]])
         constrains_5 += [
-            cp.sum(cp.multiply((g[j] - tangent_plane_vertex[i]), n[j][i])) >= 0 for i in range(vertices_num)
+            cvxpy.sum(cvxpy.multiply((g[j] - tangent_plane_vertex[i]), n[j][i])) >= 0 for i in range(vertices_num)
         ]
 
-    sum_norm2 = cp.sum([cp.norm(delta[j]) for j in range(J)])
-    sum_diff_norm2 = cp.sum([cp.norm(delta[j + 1][:2] - delta[j][:2]) for j in range(J - 1)])
-    sum_vert_diff_norm2 = 10 * cp.sum([cp.abs(delta[j + 1][2] - delta[j][2]) for j in range(J - 1)])
-    prob = cp.Problem(cp.Minimize(sum_norm2 + sum_diff_norm2 + sum_vert_diff_norm2),
-                      constrains_first + constrains_seq + constrains_3 + constrains_4 + constrains_5)
+    sum_norm2 = cvxpy.sum([cvxpy.norm(delta[j]) for j in range(J)])
+    sum_diff_norm2 = cvxpy.sum([cvxpy.norm(delta[j + 1][:2] - delta[j][:2]) for j in range(J - 1)])
+    sum_vert_diff_norm2 = 10 * cvxpy.sum([cvxpy.abs(delta[j + 1][2] - delta[j][2]) for j in range(J - 1)])
+    prob = cvxpy.Problem(cvxpy.Minimize(sum_norm2 + sum_diff_norm2 + sum_vert_diff_norm2),
+                         constrains_first + constrains_seq + constrains_3 + constrains_4 + constrains_5)
     # set solver option: https://www.cvxpy.org/tutorial/advanced/index.html
     prob.solve(solver="ECOS", verbose=verbose)
     return g.value
@@ -374,11 +346,13 @@ class ChargingStrategy(Enum):
         return NotImplementedError()
 
 
-def schedule_charge(seqs: list, charging_station_positions: list, params: Parameters,
-                    directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
+def schedule_charge(seqs: list, charging_station_positions: list, params: Parameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
     """
     Schedules the charging for a sequence of flight waypoints and number of charging station positions
     """
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+
     sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
     logger.debug(f"# drones:    {sc.N_d}")
     logger.debug(f"# stations:  {sc.N_s}")
@@ -414,6 +388,46 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     return env, events
 
 
+def schedule_charge_from_conf(conf):
+    co = conf["charging_optimization"]
+    n_drones = conf['n_drones']
+    B_min = [co["B_min"]] * n_drones
+    B_max = [co["B_max"]] * n_drones
+    B_start = [co["B_start"]] * n_drones
+    v = [co["v"]] * n_drones
+    r_charge = [co["r_charge"]] * n_drones
+    r_deplete = [co["r_deplete"]] * n_drones
+    epsilon = co.get("epsilon", None)
+    schedule_delta = co.get('schedule_delta', None)
+    plot_delta = co['plot_delta']
+    W = co.get('W', None)
+    sigma = co.get('sigma', None)
+    charging_station_positions = co['charging_positions']
+    output_dir = conf['output_directory']
+
+    flight_sequence_fpath = conf['flight_sequence_fpath']
+    with open(flight_sequence_fpath, 'rb') as f:
+        flight_sequences = pickle.load(f)
+
+    logger.debug("starting charge scheduling..")
+    params = Parameters(
+        v=v,
+        r_charge=r_charge,
+        r_deplete=r_deplete,
+        B_start=B_start,
+        B_min=B_min,
+        B_max=B_max,
+        epsilon=epsilon,
+        plot_delta=plot_delta,
+        schedule_delta=schedule_delta,
+        W=W,
+        sigma=sigma,
+    )
+    strategy = ChargingStrategy.parse(conf['charging_strategy'])
+    _, schedules = schedule_charge(flight_sequences, charging_station_positions, params, directory=output_dir, strategy=strategy)
+    logger.debug("finished charge scheduling")
+
+
 def convert_schedule_to_flight_sequence(schedule):
     return np.array([e.node.pos for e in schedule if e.name in [EventType.reached, EventType.started, EventType.changed_course]])
 
@@ -431,213 +445,3 @@ def remove_downward_normals(pcd: o3d.geometry.PointCloud, threshold=-0.5):
     res.points = o3d.utility.Vector3dVector(points[ids])
     res.normals = o3d.utility.Vector3dVector(normals[ids])
     return res
-
-
-def run_from_conf(conf):
-    # general parameters
-    g = conf['general']
-    n_drones = g["n_drones"]
-    nb_count = g["nb_count"]
-    voxel_size = g["voxel_size"]
-
-    # path planning
-    pp = conf["path_planning"]
-    p_start = pp["p_start"]
-    d_min = pp["d_min"]
-    d_max = pp["d_max"]
-    instance_angle = np.pi / 6
-
-    # charging optimization
-    co = conf["charging_optimization"]
-    B_min = [co["B_min"]] * n_drones
-    B_max = [co["B_max"]] * n_drones
-    B_start = [co["B_start"]] * n_drones
-    v = [co["v"]] * n_drones
-    r_charge = [co["r_charge"]] * n_drones
-    r_deplete = [co["r_deplete"]] * n_drones
-    epsilon = co.get("epsilon", None)
-    schedule_delta = co.get('schedule_delta', None)
-    plot_delta = co['plot_delta']
-    W = co.get('W', None)
-    sigma = co.get('sigma', None)
-    charging_station_positions = co['charging_positions']
-
-    # open3d config
-    o = conf['open3d']
-    camera_x = o['camera_x']
-    camera_y = o['camera_y']
-    open3d_width = o['width']
-    open3d_height = o['height']
-
-    # options to change
-    visualize = conf['visualize']
-    do_remove_downward_normals = conf['do_remove_downward_normals']
-
-    # prepare output directory
-    output_dir = conf['output_directory']
-    os.makedirs(output_dir, exist_ok=True)
-    for fname in glob.glob(os.path.join(output_dir, "?_*.png")):
-        os.remove(fname)
-    os.makedirs(os.path.join(output_dir, "simulation"), exist_ok=True)
-    filecounter = 1
-
-    # starting here
-    fpath_pcd = conf['pcd_path']
-    fpath_mesh = conf['mesh_path']
-
-    pcd = o3d.io.read_point_cloud(fpath_pcd)
-    logger.debug(f"finished loading pcd from file ({len(pcd.points):,} points)")
-
-    if fpath_mesh:
-        mesh = o3d.io.read_triangle_mesh(fpath_mesh)
-        logger.debug("finished loading mesh from file")
-    else:
-        mesh = None
-
-    # move pointcloud to align with (0,0,0)
-    aabb = pcd.get_axis_aligned_bounding_box()
-    aabb.color = [0, 0, 0]
-    translation_offset = -aabb.min_bound
-    pcd.translate(translation_offset)
-    if mesh:
-        mesh.translate(translation_offset)
-    logger.debug("finished translating pcd")
-
-    aabb.color = [0, 0, 0]
-    aabb = pcd.get_axis_aligned_bounding_box()
-    cf = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1, origin=[0, 0, 0])
-    fname = os.path.join(output_dir, f"{filecounter}_pcd_translation.png") if not visualize else None
-    draw_geometries([pcd, aabb, cf], camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-
-    if mesh:
-        geos = [aabb, cf]
-        geos.append(mesh)
-        fname = os.path.join(output_dir, f"{filecounter}_inner_mesh.png") if not visualize else None
-        draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
-        filecounter += 1
-
-    # remove any point too close to the ground
-    points = np.asarray(pcd.points)
-    pcd.points = o3d.utility.Vector3dVector(points[points[:, 2] > 0.3])
-    logger.debug(f"finished reducing pcd to be sufficiently above ground ({len(pcd.points):,} points)")
-    geos = [pcd]
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_pcd_above_ground.png") if not visualize else None
-    draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-
-    t_downsample, pcd = downsample(pcd, 0.1, False)
-    t_estimate_normals, pcd = estimate_normal(pcd)
-    logger.debug("finished estimating normals")
-    geos = [pcd]
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_pcd.png") if not visualize else None
-    draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-
-    t_subsampled, pcd = downsample(pcd, voxel_size, True)
-    geos = [pcd]
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_downsampled.png") if not visualize else None
-    draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-    logger.debug(f"finished downsampling (got {len(pcd.points):,} remaining points)")
-
-    if do_remove_downward_normals:
-        pcd = remove_downward_normals(pcd, threshold=-0.7)
-        geos = [pcd]
-        if mesh:
-            geos.append(mesh)
-        fname = os.path.join(output_dir, f"{filecounter}_no_downward.png") if not visualize else None
-        draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
-        filecounter += 1
-        logger.debug("finished downward normal removal")
-    else:
-        logger.debug("skipped downward normal removal")
-
-    G, subgraphs = pcd_to_subgraphs(pcd, n_drones, nb_count=nb_count, z=3)
-    logger.debug("finished graph extraction")
-
-    geos = graphs_to_geometries(pcd, [G])
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_graph.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-    logger.debug("finished geometry extraction from graphs")
-
-    geos = graphs_to_geometries(pcd, subgraphs)
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_subgraphs.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-    logger.debug("finished geometry extraction from subgraphs")
-
-    z_penalty = 10
-    seqs = []
-    paths = []
-    for i, sg in enumerate(subgraphs):
-        seq, path = plan_path(pcd, sg, z_penalty=z_penalty)
-        seqs.append(seq)
-        paths.append(path)
-        logger.debug(f"finished path planning for subgraph [{i}]")
-    logger.debug("finished path finding")
-
-    geos = paths_to_geometries(pcd, paths)
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_paths.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-
-    flight_sequences = []
-    for i, seq in enumerate(tqdm(seqs, desc='optimize paths')):
-        flight_sequence = optimize_path(seq, pcd, p_start, voxel_size, d_min, d_max, instance_angle, verbose=False)
-        flight_sequences.append(flight_sequence)
-    logger.debug("finished path optimization")
-
-    geos = flight_sequences_to_geometries(flight_sequences)
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_flight_paths.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-
-    geos += charging_positions_to_geometries(charging_station_positions)
-    fname = os.path.join(output_dir,
-                         f"{filecounter}_flight_paths_incl_charging_stations.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
-    filecounter += 1
-
-    logger.debug("starting charge scheduling..")
-    params = Parameters(
-        v=v,
-        r_charge=r_charge,
-        r_deplete=r_deplete,
-        B_start=B_start,
-        B_min=B_min,
-        B_max=B_max,
-        epsilon=epsilon,
-        plot_delta=plot_delta,
-        schedule_delta=schedule_delta,
-        W=W,
-        sigma=sigma,
-    )
-    strategy = ChargingStrategy.parse(conf['charging_strategy'])
-    _, schedules = schedule_charge(flight_sequences, charging_station_positions, params,
-                                   directory=os.path.join(output_dir, "simulation"), strategy=strategy)
-    logger.debug("finished charge scheduling")
-
-    # convert schedules to flight sequence for plotting
-    flight_sequences = [convert_schedule_to_flight_sequence(s) for s in schedules]
-    geos = flight_sequences_to_geometries(flight_sequences)
-    geos += charging_positions_to_geometries(charging_station_positions, 0.3)
-    if mesh:
-        geos.append(mesh)
-    fname = os.path.join(output_dir, f"{filecounter}_flight_paths_incl_charging.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)

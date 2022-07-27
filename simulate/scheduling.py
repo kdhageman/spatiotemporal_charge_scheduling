@@ -2,7 +2,6 @@ import logging
 
 import numpy as np
 from pyomo.opt import SolverFactory
-from pyomo.util.infeasible import log_infeasible_constraints, log_close_to_bounds
 
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint
@@ -89,6 +88,7 @@ class ScenarioFactory:
         """
         Returns the next scenario
         """
+        remaining_distances = []
         positions_w = []
         D_N = []
         D_W = []
@@ -143,6 +143,15 @@ class ScenarioFactory:
             D_N.append(D_N_matr)
             D_W.append(D_W_matr)
             positions_w.append(wps)
+
+            # calculate remaining distance
+            remaining_distance = 0
+            n = self.sigma * (self.W - 1)
+            while n < len(wps_src_full) - 1:
+                dist = dist3(wps_src_full[n], wps_src_full[n + 1])
+                remaining_distance += dist
+                n += 1
+            remaining_distances.append(remaining_distance)
         sc = Scenario(positions_S=self.positions_S, positions_w=positions_w)
 
         D_N = np.array(D_N).transpose((0, 2, 1))
@@ -151,7 +160,7 @@ class ScenarioFactory:
         D_W = np.array(D_W).transpose((0, 2, 1))
         sc.D_W = D_W
 
-        return sc
+        return sc, remaining_distances
 
 
 class MilpScheduler(Scheduler):
@@ -164,10 +173,11 @@ class MilpScheduler(Scheduler):
         pass
 
     def _schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
-        sc = self.sf.next(start_positions, self.offsets)
+        sc, remaining_distances = self.sf.next(start_positions, self.offsets)
 
         # correct original parameters
         params = self.params.copy()
+        params.remaining_distances = remaining_distances
         params.B_start = np.array(list(batteries.values()))
 
         B_end = []
@@ -182,6 +192,14 @@ class MilpScheduler(Scheduler):
             B_end.append(additional_depletion + self.params.B_min[d])
         params.B_end = np.array(B_end)
 
+        # TODO: let the current battery value on apply to arrival at the FIRST node
+        B_min = []
+        for d in range(self.sc.N_d):
+            _, dist_to_nearest_station = sc.nearest_station(start_positions[d])
+            depletion_to_nearest_station = dist_to_nearest_station / self.params.v[d] * self.params.r_deplete[d]
+            B_min.append(min(batteries[d] - depletion_to_nearest_station, self.params.B_min[d]))
+        params.B_min = np.array(B_min)
+
         W_zero_min = []
         for state_type in state_types:
             W_zero_min.append(self.params.epsilon if state_type == UavStateType.Charging else 0)
@@ -193,6 +211,9 @@ class MilpScheduler(Scheduler):
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
         optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
+
+        for d, remaining_distance in enumerate(remaining_distances):
+            self.logger.debug(f"determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
 
         # For debugging purposes
         # extract charging windows

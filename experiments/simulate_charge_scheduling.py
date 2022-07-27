@@ -1,8 +1,9 @@
+import logging
 import sys
-
 import yaml
+from experiments.util_funcs import schedule_charge_from_conf
 
-from experiments.inspection import run_from_conf
+logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -12,4 +13,4 @@ if __name__ == "__main__":
     with open(fpath_conf, 'r') as f:
         conf = yaml.load(f, Loader=yaml.Loader)
 
-    run_from_conf(conf)
+    schedule_charge_from_conf(conf)

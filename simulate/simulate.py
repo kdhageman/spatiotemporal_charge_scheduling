@@ -113,21 +113,22 @@ class Simulator:
             resource = self.charging_stations[resource_id]
 
             def release_after_epsilon(env, epsilon, resource, resource_id):
-                self.debug(env, f"locking charging station [{resource_id}] for {epsilon:.2f} after a UAV finished charging")
+                self.debug(env, f"simulator is locking charging station [{resource_id}] for {epsilon:.2f} after a UAV finished charging")
+                t_before = env.now
                 req = resource.request(priority=0)
                 yield req
-                self.debug(env, f"aqcuired lock on charging station [{resource_id}]")
+                elapsed = env.now - t_before
+                self.debug(env, f"simulator aqcuired lock on charging station [{resource_id}] (after {elapsed:.2f}s)")
 
                 yield env.timeout(epsilon)
                 resource.release(req)
-                self.debug(env, f"releasing lock on charging station [{resource_id}]")
+                self.debug(env, f"simulator released lock on charging station [{resource_id}]")
 
             env.process(release_after_epsilon(env, epsilon, resource, resource_id))
 
         self.uavs = []
         for d in range(self.sc.N_d):
-            uav = UAV(d, self.charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d],
-                      self.sc.positions_w[d][0])
+            uav = UAV(d, self.charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d], self.sc.positions_w[d][0])
             uav.add_release_lock_cb(release_lock_cb)
             self.uavs.append(uav)
         self.debug(env, f"visiting {self.sc.N_w - 1} waypoints per UAV in total")

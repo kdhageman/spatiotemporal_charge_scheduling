@@ -4,8 +4,7 @@ import numpy as np
 
 
 class Parameters:
-    def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, B_min: float, B_max: float,
-                 epsilon: float = 0.1, W_zero_min=[], B_end=[], schedule_delta=1, plot_delta=0, W: int = 0, sigma=1):
+    def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, B_min: float, B_max: float, epsilon: float = 0.1, W_zero_min=[], B_end=[], remaining_distances=[], schedule_delta=1, plot_delta=0, W: int = 0, sigma=1):
         self.v = np.array(v)
         self.r_charge = np.array(r_charge)
         self.r_deplete = np.array(r_deplete)
@@ -14,6 +13,9 @@ class Parameters:
         self.B_max = np.array(B_max)
         self.B_end = np.array(B_end)
         self.epsilon = epsilon
+        self.remaining_distances = remaining_distances
+        if not remaining_distances:
+            self.remaining_distances = [0] * len(v)
         self.schedule_delta = schedule_delta
         self.plot_delta = plot_delta
         self.W = W
@@ -37,6 +39,7 @@ class Parameters:
             plot_delta=self.plot_delta,
             W=self.W,
             sigma=self.sigma,
+            remaining_distances=self.remaining_distances,
         )
 
     def copy(self):
