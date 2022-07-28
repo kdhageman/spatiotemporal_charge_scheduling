@@ -1,7 +1,9 @@
 import logging
 from enum import Enum
+from typing import List, Callable
 
 import simpy.exceptions
+from simpy import PriorityResource
 
 from simulate.event import ReachedEvent, WaitedEvent, ChargedEvent, StartedEvent, ChangedCourseEvent
 from simulate.instruction import MoveInstruction, WaitInstruction, ChargeInstruction, InstructionType
@@ -18,7 +20,7 @@ class UavStateType(Enum):
 
 
 class UavState:
-    def __init__(self, state_type: UavStateType, node: Node, battery):
+    def __init__(self, state_type: UavStateType, node: Node, battery: float):
         self.state_type = state_type
         self.node = node
         self.battery = battery
@@ -29,7 +31,7 @@ class UavState:
 
 
 class UAV:
-    def __init__(self, uav_id: int, charging_stations: list, v: float, r_charge: float, r_deplete: float, initial_pos: list, battery: float = 1, B_max: float = 1):
+    def __init__(self, uav_id: int, charging_stations: List[PriorityResource], v: float, r_charge: float, r_deplete: float, initial_pos: list, battery: float = 1, B_max: float = 1):
         self.logger = logging.getLogger(__name__)
         self.uav_id = uav_id
         self.charging_stations = charging_stations
@@ -64,7 +66,7 @@ class UAV:
         self.release_lock_cbs = []
         self.finish_cbs = []
 
-    def _get_battery(self, env, offset=0):
+    def _get_battery(self, env: simpy.Environment, offset: float = 0) -> float:
         """
         Returns the state of the battery given the simpy environment (+ an offset)
         :param env: simpy.Environment
@@ -78,7 +80,7 @@ class UAV:
             battery = min(self.battery + t_passed * self.r_charge, 1)
         return battery
 
-    def get_state(self, env):
+    def get_state(self, env: simpy.Environment) -> UavState:
         """
         Returns the position and battery charge of the UAV.
         """
@@ -116,22 +118,23 @@ class UAV:
                 res.append(ins.node)
         return res
 
-    def add_arrival_cb(self, cb):
+    def add_arrival_cb(self, cb: Callable[[simpy.Event], None]):
         self.arrival_cbs.append(cb)
 
-    def add_waited_cb(self, cb):
+    def add_waited_cb(self, cb: Callable[[simpy.Event], None]):
         self.waited_cbs.append(cb)
 
-    def add_charged_cb(self, cb):
+    def add_charged_cb(self, cb: Callable[[simpy.Event], None]):
         self.charged_cbs.append(cb)
 
-    def add_finish_cb(self, cb):
+    def add_finish_cb(self, cb: Callable[[simpy.Event], None]):
         self.finish_cbs.append(cb)
 
-    def add_release_lock_cb(self, cb):
+    # cb(env, self.resource_id)
+    def add_release_lock_cb(self, cb: Callable[[simpy.Environment, float], None]):
         self.release_lock_cbs.append(cb)
 
-    def set_schedule(self, env, nodes: list):
+    def set_schedule(self, env: simpy.Environment, nodes: List[Node]):
         instructions = []
         for node in nodes:
             ins = MoveInstruction(node)
@@ -154,14 +157,14 @@ class UAV:
 
         self.instructions = instructions
 
-        if self.proc and self.proc.is_alive and self.state_type != UavStateType.Idle:
+        if self.proc and self.proc.is_alive and self.state_type not in [UavStateType.Idle, UavStateType.FinishedCharging, UavStateType.Finished]:
             try:
                 self.proc.interrupt()
                 self.debug(env, f"is interrupted")
             except RuntimeError as e:
                 self.debug(env, f"failed to interrupt process: {e}")
 
-    def _release_lock(self, env):
+    def _release_lock(self, env: simpy.Environment) -> None:
         if self.resource and self.req:
             self.resource.release(self.req)
             self.debug(env, f"released lock ({self.resource_id})")
@@ -171,7 +174,7 @@ class UAV:
         self.req = None
         self.resource_id = None
 
-    def _sim(self, env):
+    def _sim(self, env: simpy.Environment):
         """
         Simulate the following of the internal schedule of the UAV
         :return:
@@ -356,10 +359,10 @@ class UAV:
                     for cb in self.charged_cbs:
                         cb(event)
 
-    def debug(self, env, msg):
+    def debug(self, env: simpy.Environment, msg: str):
         self.logger.debug(f"[{env.now:.2f}] UAV [{self.uav_id}] {msg}")
 
-    def sim(self, env):
+    def sim(self, env: simpy.Environment):
         ev = StartedEvent(env.now, 0, self.last_known_pos, self, battery=self.battery)
         self.events.append(ev)
 

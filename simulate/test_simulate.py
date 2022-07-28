@@ -5,9 +5,8 @@ from unittest import TestCase
 from pyomo.opt import SolverFactory
 
 from simulate.scheduling import MilpScheduler, NaiveScheduler
-from simulate.simulate import Parameters, \
-    Simulator
-from simulate.strategy import IntervalStrategy, OnEventStrategySingle, OnEventStrategyAll
+from simulate.simulate import Parameters, Simulator
+from simulate.strategy import OnEventStrategySingle, OnEventStrategyAll
 from util.scenario import Scenario
 
 
@@ -41,8 +40,19 @@ class TestSimulator(TestCase):
         strat = OnEventStrategyAll(interval=5)
         scheduler = MilpScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        _, env, events = simulator.sim()
-        print(env.now)
+        solve_times, env, events = simulator.sim()
+
+        # write solve times to disk
+        if directory:
+            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
+                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
+                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
+                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
+
+            # write mission execution time to disk
+            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
+                f.write(f"{env.now}")
+
 
     def test_milp_three_drones_circling(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -70,7 +80,17 @@ class TestSimulator(TestCase):
         scheduler = MilpScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         solve_times, env, events = simulator.sim()
-        print(env.now)
+
+        # write solve times to disk
+        if directory:
+            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
+                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
+                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
+                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
+
+            # write mission execution time to disk
+            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
+                f.write(f"{env.now}")
 
     def test_naive_three_drones_circling(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -95,8 +115,19 @@ class TestSimulator(TestCase):
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        _, env, events = simulator.sim()
-        print(env.now)
+        solve_times, env, events = simulator.sim()
+
+        # write solve times to disk
+        if directory:
+            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
+                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
+                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
+                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
+
+            # write mission execution time to disk
+            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
+                f.write(f"{env.now}")
+
 
     def test_naive_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -121,5 +152,15 @@ class TestSimulator(TestCase):
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        _, env, events = simulator.sim()
-        print(env.now)
+        solve_times, env, events = simulator.sim()
+
+        # write solve times to disk
+        if directory:
+            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
+                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
+                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
+                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
+
+            # write mission execution time to disk
+            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
+                f.write(f"{env.now}")

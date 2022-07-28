@@ -1,5 +1,6 @@
 import logging
 import os.path
+from typing import List
 
 import numpy as np
 import simpy
@@ -8,21 +9,13 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import figaspect
 from matplotlib.patches import Rectangle
 
-from simulate.event import EventType
+from simulate.event import EventType, Event
 from simulate.node import ChargingStation, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
 from simulate.scheduling import Scheduler
 from simulate.uav import UAV, UavStateType
+from simulate.util import gen_colors
 from util.scenario import Scenario
-
-
-def gen_colors(n):
-    np.random.seed(0)
-    res = []
-    for d in range(n):
-        c = np.random.rand(3).tolist()
-        res.append(c)
-    return res
 
 
 class Schedule:
@@ -60,14 +53,14 @@ class DeterministicEnvironment(Environment):
 
 
 class TimeStepper:
-    def __init__(self, interval):
+    def __init__(self, interval: float):
         self.timestep = 0
         self.interval = interval
 
     def _inc(self, _):
         self.timestep += 1
 
-    def sim(self, env, callbacks=[], finish_callbacks=[]):
+    def sim(self, env, callbacks: list = [], finish_callbacks: list = []):
         while True:
             event = env.timeout(self.interval)
             for cb in callbacks:
@@ -83,7 +76,7 @@ class TimeStepper:
 
 
 class Simulator:
-    def __init__(self, scheduler: Scheduler, strategy, params: Parameters, sc: Scenario, directory=None):
+    def __init__(self, scheduler: Scheduler, strategy, params: Parameters, sc: Scenario, directory: str = None):
         self.logger = logging.getLogger(__name__)
         self.scheduler = scheduler
         self.strategy = strategy
@@ -159,7 +152,9 @@ class Simulator:
 
             t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, state_types, uavs_to_schedule)
             self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2}s")
-            self.solve_times.append((env.now, optimal, t_solve))
+            n_remaining_waypoints = [self.scheduler.n_remaining_waypoints(d) for d in range(self.sc.N_d)]
+            self.solve_times.append((env.now, optimal, t_solve, n_remaining_waypoints))
+
             for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
 
@@ -211,6 +206,10 @@ class Simulator:
         try:
             env.run(until=strat_proc)
         finally:
+            self.logger.info(f"finished simulation in {env.now:.2f}s")
+            for d in range(self.sc.N_d):
+                self.logger.info(f"UAV [{d}] has {self.scheduler.n_remaining_waypoints(d)} remaining waypoints")
+
             if self.directory:
                 fname = os.path.join(self.directory, "combined.pdf")
                 if self.pdfs:
@@ -333,7 +332,7 @@ class Simulator:
         plt.close()
 
 
-def plot_events_battery(events: list, fname: str, aspect=None):
+def plot_events_battery(events: List[Event], fname: str, aspect: float = None):
     """
     Plots the battery over time for the given events
     """
@@ -408,7 +407,7 @@ def plot_events_battery(events: list, fname: str, aspect=None):
     plt.savefig(fname, bbox_inches='tight')
 
 
-def plot_station_occupancy(events: list, nstations: int, total_duration: float, fname: str):
+def plot_station_occupancy(events: List[Event], nstations: int, total_duration: float, fname: str):
     """
     Plot the number of UAVs that use a charging station over time
     """

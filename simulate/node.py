@@ -61,7 +61,7 @@ class ChargingStation(Node):
         return NodeType.ChargingStation
 
     def __repr__(self):
-        return f"charging station [{self.identifier}] {super().__repr__()}"
+        return f"CS{super().__repr__()} [{self.identifier}]"
 
 
 class Waypoint(Node):
@@ -76,9 +76,9 @@ class Waypoint(Node):
 
     def __repr__(self):
         if self.identifier is not None:
-            return f"({self.x:.2f}, {self.y:.2f}, {self.z:.2f}) [{self.identifier}]"
+            return f"WP{super().__repr__()} [{self.identifier}]"
         else:
-            return super().__repr__()
+            return f"WP{super().__repr__()}"
 
 
 class AuxWaypoint(Node):
@@ -88,3 +88,6 @@ class AuxWaypoint(Node):
     @property
     def node_type(self):
         return NodeType.AuxWaypoint
+
+    def __repr__(self):
+        return f"AUX{super().__repr__()}"

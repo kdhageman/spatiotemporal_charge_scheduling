@@ -35,6 +35,7 @@ class Scenario:
         self.N_d = len(self.positions_w)
         self.N_s = len(self.positions_S)
         self.N_w_s = self.N_w - 1
+        self.n_original_waypoints = [len(l) for l in positions_w]
 
         # calculate distance matrices
         self.D_N = self._get_D_N()

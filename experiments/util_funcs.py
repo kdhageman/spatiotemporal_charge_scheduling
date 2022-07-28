@@ -2,6 +2,7 @@ import logging
 import os
 import pickle
 from enum import Enum
+from typing import List
 
 import cvxpy
 import networkx as nx
@@ -9,6 +10,7 @@ import numpy as np
 import nxmetis
 import scipy
 from matplotlib import pyplot as plt
+from open3d.cpu.pybind.geometry import Geometry3D
 from pyomo.opt import SolverFactory
 from scipy.spatial import KDTree
 
@@ -54,7 +56,7 @@ def estimate_normal(pcd: o3d.geometry.PointCloud):
     return pcd
 
 
-def draw_geometries(geometries: list, x: float, y: float, fname: str = None, **kwargs):
+def draw_geometries(geometries: List[Geometry3D], x: float, y: float, fname: str = None, **kwargs):
     vis = o3d.visualization.Visualizer()
     vis.create_window(**kwargs)
     for g in geometries:
@@ -263,8 +265,7 @@ def get_normal_vector(vertices, instance_angle, norm_vector_normed):
     return normals
 
 
-def optimize_path(seq: list, pcd: o3d.geometry.PointCloud, p_start, voxel_size, d_min, d_max, instance_angle,
-                  verbose=True):
+def optimize_path(seq: list, pcd: o3d.geometry.PointCloud, p_start, voxel_size, d_min, d_max, instance_angle, verbose=True):
     dimension = 3
     vertices_num = 4
     J = len(seq)
@@ -354,11 +355,12 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         os.makedirs(directory, exist_ok=True)
 
     sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
-    logger.debug(f"# drones:    {sc.N_d}")
-    logger.debug(f"# stations:  {sc.N_s}")
-    logger.debug(f"# waypoints: {sc.N_w}")
-    logger.debug(f"W:           {params.W}")
-    logger.debug(f"sigma:       {params.sigma}")
+    logger.debug(f"# drones:               {sc.N_d}")
+    logger.debug(f"# stations:             {sc.N_s}")
+    for d in range(sc.N_d):
+        logger.debug(f"# waypoints for UAV[{d}]: {len(seqs[d])}")
+    logger.debug(f"W:                      {params.W}")
+    logger.debug(f"sigma:                  {params.sigma}")
     if strategy == ChargingStrategy.Milp:
         strat = OnEventStrategyAll(interval=params.schedule_delta)
         solver = SolverFactory("gurobi")
@@ -377,9 +379,9 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     # write solve times to disk
     if directory:
         with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-            f.write("iteration,sim_timestamp,optimal,solve_time\n")
-            for i, (sim_timestamp, optimal, solve_time) in enumerate(solve_times):
-                f.write(f"{i},{sim_timestamp},{optimal},{solve_time}\n")
+            f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
+            for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
+                f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
 
         # write mission execution time to disk
         with open(os.path.join(directory, "execution_time.txt"), 'w') as f:

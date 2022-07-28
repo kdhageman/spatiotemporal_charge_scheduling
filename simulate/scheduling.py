@@ -1,6 +1,8 @@
 import logging
+from typing import List, Dict
 
 import numpy as np
+import simpy
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
@@ -23,7 +25,7 @@ class Scheduler:
         self.sc = sc
         self.offsets = [0] * sc.N_d
 
-    def handle_event(self, event):
+    def handle_event(self, event: simpy.Event):
         """
         Allows the scheduler to handle simpy.Events
         :param event: simpy.Event
@@ -33,11 +35,11 @@ class Scheduler:
             self.offsets[uav_id] += 1
         self._handle_event(event)
 
-    def _handle_event(self, event):
+    def _handle_event(self, event: simpy.Event):
         raise NotImplementedError
 
     @timed
-    def schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
+    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
         """
         Creates a new schedule for the drones
         :return: optimal: True if the schedule is optimal, False otherwise
@@ -52,16 +54,16 @@ class Scheduler:
                     offset += 1
         return t_solve, schedules
 
-    def _schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
         raise NotImplementedError
 
-    def n_remaining_waypoints(self, d):
+    def n_remaining_waypoints(self, d: int):
         """
         Returns the remaining number of waypoints for the given UAV
         """
-        return self.sc.N_w - self.offsets[d] - 1
+        return self.sc.n_original_waypoints[d] - self.offsets[d] - 1
 
-    def remaining_waypoints(self, d):
+    def remaining_waypoints(self, d: int):
         """
         Returns the list of remaining waypoints for the given UAV that need to be visited
         """
@@ -84,7 +86,7 @@ class ScenarioFactory:
         self.W = W
         self.sigma = sigma
 
-    def next(self, start_positions, offsets):
+    def next(self, start_positions: List[tuple], offsets: List[int]):
         """
         Returns the next scenario
         """
@@ -169,10 +171,10 @@ class MilpScheduler(Scheduler):
         self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
         self.solver = solver
 
-    def _handle_event(self, event):
+    def _handle_event(self, event: simpy.Event):
         pass
 
-    def _schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
         sc, remaining_distances = self.sf.next(start_positions, self.offsets)
 
         # correct original parameters
@@ -273,10 +275,10 @@ class MilpScheduler(Scheduler):
 class NaiveScheduler(Scheduler):
     _EPSILON = 0.0001
 
-    def _handle_event(self, event):
+    def _handle_event(self, event: simpy.Event):
         pass
 
-    def _schedule(self, start_positions: dict, batteries: dict, state_types: dict, uavs_to_schedule: list):
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
         res = {}
         for d in uavs_to_schedule:
             if len(self.remaining_waypoints(d)) == 0:
