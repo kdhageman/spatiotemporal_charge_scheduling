@@ -201,8 +201,8 @@ class MilpScheduler(Scheduler):
         params.B_min = np.array(B_min)
 
         W_zero_min = []
-        for state_type in state_types:
-            W_zero_min.append(self.params.epsilon if state_type == UavStateType.Charging else 0)
+        for state_type in state_types.values():
+            W_zero_min.append(self.params.epsilon if state_type == UavStateType.FinishedCharging else 0)
         params.W_zero_min = np.array(W_zero_min)
 
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())

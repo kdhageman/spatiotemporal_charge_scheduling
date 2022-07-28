@@ -70,6 +70,7 @@ class OnEventStrategy(Strategy):
     def handle_event(self, event):
         uav_id = event.value.uav.uav_id
         if self.last_time is None or event.env.now >= self.last_time + self.interval:
+            self.logger.debug(f"[{event.env.now:.2f}] rescheduling triggered by UAV [{event.value.uav.uav_id}] for UAVs: {self._uavs(uav_id)}")
             self.cb(self._uavs(uav_id))
             self.last_time = event.env.now
         # else:

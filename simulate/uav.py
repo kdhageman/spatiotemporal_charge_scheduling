@@ -14,6 +14,7 @@ class UavStateType(Enum):
     Waiting = "waiting"
     Charging = "charging"
     Finished = "finished"
+    FinishedCharging = "finished_charging"  # indicator that the drone cannot charge again
 
 
 class UavState:
@@ -93,7 +94,7 @@ class UAV:
                 node=AuxWaypoint(*pos),
                 battery=battery,
             )
-        elif self.state_type in [UavStateType.Charging, UavStateType.Finished, UavStateType.Waiting, UavStateType.Idle]:
+        elif self.state_type in [UavStateType.Charging, UavStateType.Finished, UavStateType.Waiting, UavStateType.Idle, UavStateType.FinishedCharging]:
             res = UavState(
                 state_type=self.state_type,
                 node=self.last_known_pos,
@@ -274,7 +275,7 @@ class UAV:
                     self.resource = self.charging_stations[self.resource_id]
                     if self.resource.count == self.resource.capacity:
                         self.debug(env, f"must wait to get lock for charging station {self.resource_id}")
-                    self.req = self.resource.request(priority=100)
+                    self.req = self.resource.request(priority=1)
                     try:
                         yield self.req
                         elapsed = before - env.now
@@ -336,7 +337,7 @@ class UAV:
                     ct_str = charging_time if charging_time == 'until full' else f"for {charging_time:.2f}s"
                     self.debug(env, f"finished charging at station {self.dest_node.identifier} {ct_str}")
                     self.battery = post_charge_battery
-                    self.state_type = UavStateType.Idle
+                    self.state_type = UavStateType.FinishedCharging
 
                     for cb in self.charged_cbs:
                         cb(event)

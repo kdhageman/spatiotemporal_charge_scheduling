@@ -135,7 +135,6 @@ class Simulator:
 
         # get initial schedule
         def reschedule_cb(uavs_to_schedule):
-            self.debug(env, f"triggered rescheduling for UAVs: {uavs_to_schedule}")
             if uavs_to_schedule == 'all':
                 uavs_to_schedule = list(range(self.sc.N_d))
             start_positions = {}

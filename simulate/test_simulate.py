@@ -38,7 +38,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/milp_simulator_long'
         os.makedirs(directory, exist_ok=True)
-        strat = IntervalStrategy(5)
+        strat = OnEventStrategyAll(interval=5)
         scheduler = MilpScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         _, env, events = simulator.sim()
@@ -56,7 +56,7 @@ class TestSimulator(TestCase):
             B_start=[1] * 3,
             # plot_delta=0.1,
             plot_delta=0,
-            W=3,
+            W=4,
             sigma=1,
             epsilon=1,
         )
@@ -64,7 +64,6 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/milp_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
-        # strat = IntervalStrategy(3)
         strat = OnEventStrategyAll(interval=3)
         solver = SolverFactory("gurobi")
         solver.options['MIPFocus'] = 1
