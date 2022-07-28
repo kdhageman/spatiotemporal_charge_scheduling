@@ -23,6 +23,10 @@ class Node:
     def pos(self):
         return np.array([self.x, self.y, self.z])
 
+    @property
+    def identifier(self):
+        raise NotImplementedError
+
     def dist(self, other):
         return dist3(self.pos, other.pos)
 
@@ -54,11 +58,15 @@ class Node:
 class ChargingStation(Node):
     def __init__(self, x, y, z, identifier, wt=0, ct=0):
         super().__init__(x, y, z, wt, ct)
-        self.identifier = identifier
+        self._identifier = identifier
 
     @property
     def node_type(self):
         return NodeType.ChargingStation
+
+    @property
+    def identifier(self):
+        return self._identifier
 
     def __repr__(self):
         return f"CS{super().__repr__()} [{self.identifier}]"
@@ -68,11 +76,15 @@ class Waypoint(Node):
     def __init__(self, x, y, z, strided=False, identifier=None):
         super().__init__(x, y, z, 0, 0)
         self.strided = strided
-        self.identifier = identifier
+        self._identifier = identifier
 
     @property
     def node_type(self):
         return NodeType.Waypoint
+
+    @property
+    def identifier(self):
+        return self._identifier
 
     def __repr__(self):
         if self.identifier is not None:
@@ -88,6 +100,10 @@ class AuxWaypoint(Node):
     @property
     def node_type(self):
         return NodeType.AuxWaypoint
+
+    @property
+    def identifier(self):
+        return None
 
     def __repr__(self):
         return f"AUX{super().__repr__()}"

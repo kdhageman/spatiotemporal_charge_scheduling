@@ -431,7 +431,7 @@ def schedule_charge_from_conf(conf):
 
 
 def convert_schedule_to_flight_sequence(schedule):
-    return np.array([e.node.pos for e in schedule if e.name in [EventType.reached, EventType.started, EventType.changed_course]])
+    return np.array([e.node.pos for e in schedule if e.type in [EventType.reached, EventType.started, EventType.changed_course]])
 
 
 def remove_downward_normals(pcd: o3d.geometry.PointCloud, threshold=-0.5):

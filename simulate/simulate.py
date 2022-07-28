@@ -238,11 +238,27 @@ class Simulator:
                 event_dir = os.path.join(self.directory, "events")
                 os.makedirs(event_dir, exist_ok=True)
                 for d, uav in enumerate(self.uavs):
-                    fname = os.path.join(event_dir, f"{d}.txt")
+                    fname = os.path.join(event_dir, f"{d}.csv")
                     with open(fname, "w") as f:
+                        f.write("t_start,t_end,duration,event_type,node_type,node_type,node_identifier,node_x,node_y,node_z,uav_id,battery_start,battery_end,depletion,forced\n")
                         for ev in uav.events:
-                            f.write(f"{ev}\n")
-
+                            t_start = ev.t_start
+                            t_end = ev.t_end
+                            duration = ev.duration
+                            event_type = ev.type.value
+                            node_type = ev.node.node_type.value
+                            node_identifier = ev.node.identifier
+                            node_x = ev.node.x
+                            node_y = ev.node.y
+                            node_z = ev.node.z
+                            uav_id = ev.uav.uav_id
+                            battery_start = ev.pre_battery
+                            battery_end = ev.battery
+                            depletion = ev.depletion
+                            forced = ev.forced
+                            data = [t_start, t_end, duration, event_type, node_type, node_identifier, node_x, node_y, node_z, uav_id, battery_start, battery_end, depletion,forced]
+                            data = [str(v) for v in data]
+                            f.write(f"{','.join(data)}\n")
         return self.solve_times, env, [u.events for u in self.uavs]
 
     def debug(self, env, msg):
@@ -338,7 +354,7 @@ def plot_events_battery(events: List[Event], fname: str, aspect: float = None):
     """
     execution_times = []
     for d in range(len(events)):
-        execution_times.append(events[d][-1].ts_end)
+        execution_times.append(events[d][-1].t_end)
     max_execution_time = max(execution_times)
 
     if aspect:
@@ -365,13 +381,13 @@ def plot_events_battery(events: List[Event], fname: str, aspect: float = None):
         X = []
         Y = []
         for i, e in enumerate(events[d]):
-            ts = e.ts_end
+            ts = e.t_end
             X.append(ts)
             Y.append(e.battery)
 
-            if e.name == EventType.charged:
+            if e.type == EventType.charged:
                 rect = Rectangle(
-                    (e.ts_start, 0),
+                    (e.t_start, 0),
                     e.duration,
                     1,
                     color=station_colors[e.node.identifier],
@@ -380,9 +396,9 @@ def plot_events_battery(events: List[Event], fname: str, aspect: float = None):
                     zorder=-1
                 )
                 axes[d].add_patch(rect)
-            elif e.name == EventType.waited:
+            elif e.type == EventType.waited:
                 rect = Rectangle(
-                    (e.ts_start, 0),
+                    (e.t_start, 0),
                     e.duration,
                     1,
                     color=station_colors[e.node.identifier],
@@ -425,9 +441,9 @@ def plot_station_occupancy(events: List[Event], nstations: int, total_duration: 
         changes = {}
         for d in range(len(events)):
             for ev in events[d]:
-                if ev.name == EventType.charged and ev.node.identifier == station:
-                    changes[ev.ts_start] = changes.get(ev.ts_start, 0) + 1
-                    changes[ev.ts_end] = changes.get(ev.ts_end, 0) - 1
+                if ev.type == EventType.charged and ev.node.identifier == station:
+                    changes[ev.t_start] = changes.get(ev.t_start, 0) + 1
+                    changes[ev.t_end] = changes.get(ev.t_end, 0) - 1
 
         for ts, change in sorted(changes.items()):
             prev_charged = cur_charged

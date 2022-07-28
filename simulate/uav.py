@@ -199,8 +199,10 @@ class UAV:
                     self.debug(env, f"is moving from {self.last_known_pos} to {self.dest_node}")
                     self.state_type = UavStateType.Moving
 
-                    post_move_battery = self.battery - t_move * self.r_deplete
-                    event = env.timeout(t_move, value=ReachedEvent(env.now, t_move, self.dest_node, self, battery=post_move_battery))
+                    pre_move_battery = self.battery
+                    depletion = t_move * self.r_deplete
+                    post_move_battery = self.battery - depletion
+                    event = env.timeout(t_move, value=ReachedEvent(env.now, t_move, self.dest_node, self, battery=post_move_battery, depletion=depletion))
 
                     try:
                         yield event
@@ -222,7 +224,8 @@ class UAV:
                         if not self.dest_node.same_pos(self.instructions[0].node):
                             # change direction
                             elapsed = env.now - self.t_start
-                            event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, forced=True))
+                            depletion = self.battery - pre_move_battery
+                            event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, depletion=depletion, forced=True))
                             yield event
                             self.debug(env, f"changed direction from {self.dest_node} to {self.instructions[0].node} at {self.last_known_pos}")
                             self.t_start = env.now
@@ -329,9 +332,11 @@ class UAV:
                 self.debug(env, f"is charging at {self.dest_node}")
                 self.state_type = UavStateType.Charging
 
+                pre_move_battery = self.battery
                 t_start_charge = env.now
                 post_charge_battery = min(self.battery + charging_time * self.r_charge, 1)
-                event = env.timeout(charging_time, value=ChargedEvent(t_start_charge, charging_time, self.dest_node, self, battery=post_charge_battery))
+                depletion = pre_move_battery - post_charge_battery
+                event = env.timeout(charging_time, value=ChargedEvent(t_start_charge, charging_time, self.dest_node, self, battery=post_charge_battery, depletion=depletion))
 
                 try:
                     yield event
@@ -350,7 +355,8 @@ class UAV:
                         self._release_lock(env)
                     t_charged = env.now - t_start_charge
                     self.battery = self.battery + self.r_charge * t_charged
-                    event = env.timeout(0, value=ChargedEvent(t_start_charge, t_charged, self.dest_node, self, battery=self.battery, forced=True))
+                    depletion = pre_move_battery - self.battery
+                    event = env.timeout(0, value=ChargedEvent(t_start_charge, t_charged, self.dest_node, self, battery=self.battery, depletion=depletion, forced=True))
                     yield event
 
                     self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {t_charged:.2f}")
