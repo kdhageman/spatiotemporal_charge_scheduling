@@ -155,6 +155,15 @@ class Simulator:
             self.solve_times.append((env.now, optimal, t_solve, n_remaining_waypoints))
 
             for d, nodes in schedules.items():
+                wps = [n for n in nodes if n.node_type == NodeType.Waypoint]
+                if wps:
+                    first_wp_id = [n for n in nodes if n.node_type == NodeType.Waypoint][0].identifier
+                    last_wp_id = [n for n in nodes if n.node_type == NodeType.Waypoint][-1].identifier
+                    self.debug(env, f"for UAV [{d}] scheduled from waypoint [{first_wp_id}] up to waypoint [{last_wp_id}]")
+                else:
+                    self.debug(env, f"for UAV [{d}] scheduled NO waypoints")
+
+            for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
 
             for i, cs in enumerate(self.charging_stations):
@@ -186,6 +195,9 @@ class Simulator:
 
         def uav_finished_cb(uav):
             self.debug(env, f"UAV [{uav.uav_id}] finished")
+            if self.scheduler.n_remaining_waypoints(uav.uav_id) != 0:
+                raise Exception(f"UAV [{uav.uav_id}] is finished, but still has waypoints to visit")
+
             self.remaining -= 1
             if self.remaining == 0:
                 if self.directory and self.plot_timestepper:

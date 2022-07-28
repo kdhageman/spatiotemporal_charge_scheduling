@@ -185,7 +185,7 @@ def closest_point(points: np.array, g: nx.Graph, x: list = [0, 0, 0]):
     for idx in indices:
         if idx in g:
             return idx
-    raise Exception("Could not find closests point")
+    raise Exception("could not find closest point")
 
 
 def get_next_node(points: np.array, cur_node: int, g: nx.Graph, sn_idx: int, z_penalty=1):

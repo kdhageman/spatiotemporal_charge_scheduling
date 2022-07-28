@@ -62,7 +62,7 @@ class Scheduler:
             offset = self.offsets[d]
             for node in schedule:
                 if node.node_type == NodeType.Waypoint:
-                    node._identifier = offset
+                    node._identifier = offset + 1
                     offset += 1
         return t_solve, schedules
 

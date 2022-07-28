@@ -57,47 +57,47 @@ if __name__ == "__main__":
         baseconf = yaml.load(f, Loader=yaml.Loader)
 
     flight_sequence_fpath3 = "out/flight_sequences/villalvernia_3/flight_sequences.pkl"
-    flight_sequence_fpath4 = "out/flight_sequences/villalvernia_3/flight_sequences.pkl"
+    flight_sequence_fpath4 = "out/flight_sequences/villalvernia_4/flight_sequences.pkl"
     flight_sequence_fpath5 = "out/flight_sequences/villalvernia_5/flight_sequences.pkl"
     flight_sequence_fpath6 = "out/flight_sequences/villalvernia_6/flight_sequences.pkl"
 
     confs = [
-        NaiveConfiguration(baseconf, "out/villalvernia",3, flight_sequence_fpath3),
+        NaiveConfiguration(baseconf, "out/villalvernia", 3, flight_sequence_fpath3),
         MilpConfiguration(baseconf, "out/villalvernia", 3, W=4, sigma=6, schedule_delta=4, flight_sequence_fpath=flight_sequence_fpath3),
-        MilpConfiguration(baseconf, "out/villalvernia", 3, W=4, sigma=10, schedule_delta=40, flight_sequence_fpath=flight_sequence_fpath3),
+        MilpConfiguration(baseconf, "out/villalvernia", 3, W=4, sigma=10, schedule_delta=20, flight_sequence_fpath=flight_sequence_fpath3),
         MilpConfiguration(baseconf, "out/villalvernia", 3, W=7, sigma=3, schedule_delta=21, flight_sequence_fpath=flight_sequence_fpath3),
-        MilpConfiguration(baseconf, "out/villalvernia", 3, W=7, sigma=6, schedule_delta=42, flight_sequence_fpath=flight_sequence_fpath3),
+        MilpConfiguration(baseconf, "out/villalvernia", 3, W=7, sigma=6, schedule_delta=10, flight_sequence_fpath=flight_sequence_fpath3),
         MilpConfiguration(baseconf, "out/villalvernia", 3, W=7, sigma=10, schedule_delta=70, flight_sequence_fpath=flight_sequence_fpath3),
-        MilpConfiguration(baseconf, "out/villalvernia", 3, W=10, sigma=3, schedule_delta=30, flight_sequence_fpath=flight_sequence_fpath3),
+        MilpConfiguration(baseconf, "out/villalvernia", 3, W=10, sigma=3, schedule_delta=5, flight_sequence_fpath=flight_sequence_fpath3),
         MilpConfiguration(baseconf, "out/villalvernia", 3, W=10, sigma=6, schedule_delta=60, flight_sequence_fpath=flight_sequence_fpath3),
         MilpConfiguration(baseconf, "out/villalvernia", 3, W=10, sigma=10, schedule_delta=100, flight_sequence_fpath=flight_sequence_fpath3),
-        # NaiveConfiguration(baseconf, "out/villalvernia",4, flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=4, sigma=6, schedule_delta=4, flight_sequence_fpath=flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=4, sigma=10, schedule_delta=40, flight_sequence_fpath=flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=7, sigma=3, schedule_delta=21, flight_sequence_fpath=flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=7, sigma=6, schedule_delta=42, flight_sequence_fpath=flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=7, sigma=10, schedule_delta=70, flight_sequence_fpath=flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=10, sigma=3, schedule_delta=30, flight_sequence_fpath=flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=10, sigma=6, schedule_delta=60, flight_sequence_fpath=flight_sequence_fpath4),
-        # MilpConfiguration(baseconf, "out/villalvernia", 4, W=10, sigma=10, schedule_delta=100, flight_sequence_fpath=flight_sequence_fpath4),
-        # NaiveConfiguration(baseconf, "out/villalvernia",5, flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=4, sigma=6, schedule_delta=4, flight_sequence_fpath=flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=4, sigma=10, schedule_delta=40, flight_sequence_fpath=flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=7, sigma=3, schedule_delta=21, flight_sequence_fpath=flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=7, sigma=6, schedule_delta=42, flight_sequence_fpath=flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=7, sigma=10, schedule_delta=70, flight_sequence_fpath=flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=10, sigma=3, schedule_delta=30, flight_sequence_fpath=flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=10, sigma=6, schedule_delta=60, flight_sequence_fpath=flight_sequence_fpath5),
-        # MilpConfiguration(baseconf, "out/villalvernia", 5, W=10, sigma=10, schedule_delta=100, flight_sequence_fpath=flight_sequence_fpath5),
-        # NaiveConfiguration(baseconf, "out/villalvernia",6, flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=4, sigma=6, schedule_delta=4, flight_sequence_fpath=flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=4, sigma=10, schedule_delta=40, flight_sequence_fpath=flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=7, sigma=3, schedule_delta=21, flight_sequence_fpath=flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=7, sigma=6, schedule_delta=42, flight_sequence_fpath=flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=7, sigma=10, schedule_delta=70, flight_sequence_fpath=flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=10, sigma=3, schedule_delta=30, flight_sequence_fpath=flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=10, sigma=6, schedule_delta=60, flight_sequence_fpath=flight_sequence_fpath6),
-        # MilpConfiguration(baseconf, "out/villalvernia", 6, W=10, sigma=10, schedule_delta=100, flight_sequence_fpath=flight_sequence_fpath6),
+        NaiveConfiguration(baseconf, "out/villalvernia", 4, flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=4, sigma=6, schedule_delta=4, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=4, sigma=10, schedule_delta=20, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=7, sigma=3, schedule_delta=5, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=7, sigma=6, schedule_delta=10, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=7, sigma=10, schedule_delta=70, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=10, sigma=3, schedule_delta=5, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=10, sigma=6, schedule_delta=60, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, W=10, sigma=10, schedule_delta=100, flight_sequence_fpath=flight_sequence_fpath4),
+        NaiveConfiguration(baseconf, "out/villalvernia", 5, flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=4, sigma=6, schedule_delta=4, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=4, sigma=10, schedule_delta=20, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=7, sigma=3, schedule_delta=21, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=7, sigma=6, schedule_delta=42, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=7, sigma=10, schedule_delta=70, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=10, sigma=3, schedule_delta=5, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=10, sigma=6, schedule_delta=60, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, W=10, sigma=10, schedule_delta=100, flight_sequence_fpath=flight_sequence_fpath5),
+        NaiveConfiguration(baseconf, "out/villalvernia", 6, flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=4, sigma=6, schedule_delta=4, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=4, sigma=10, schedule_delta=20, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=7, sigma=3, schedule_delta=21, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=7, sigma=6, schedule_delta=42, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=7, sigma=10, schedule_delta=70, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=10, sigma=3, schedule_delta=5, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=10, sigma=6, schedule_delta=60, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, W=10, sigma=10, schedule_delta=100, flight_sequence_fpath=flight_sequence_fpath6),
     ]
 
     for conf in confs:
@@ -107,4 +107,4 @@ if __name__ == "__main__":
             else:
                 logger.info(f"skipping configuration because it already exists ({conf.outputdir()})")
         except Exception as e:
-            logger.error("failed to run configuration")
+            logger.error(f"failed to run configuration: {e}")
