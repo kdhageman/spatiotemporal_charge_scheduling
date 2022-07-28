@@ -153,7 +153,7 @@ class UAV:
 
         self.instructions = instructions
 
-        if self.proc and self.proc.is_alive:
+        if self.proc and self.proc.is_alive and self.state_type != UavStateType.Idle:
             try:
                 self.proc.interrupt()
                 self.debug(env, f"is interrupted")
@@ -274,14 +274,14 @@ class UAV:
                     self.resource = self.charging_stations[self.resource_id]
                     if self.resource.count == self.resource.capacity:
                         self.debug(env, f"must wait to get lock for charging station {self.resource_id}")
-                    self.req = self.resource.request(priority=1)
+                    self.req = self.resource.request(priority=100)
                     try:
                         yield self.req
                         elapsed = before - env.now
                         if elapsed > 0:
-                            self.debug(env, f"got lock for charging station {self.resource_id} after {elapsed:.2f}s")
+                            self.debug(env, f"got lock for charging station [{self.resource_id}] after {elapsed:.2f}s")
                         else:
-                            self.debug(env, f"got lock for charging station {self.resource_id} immediately")
+                            self.debug(env, f"got lock for charging station [{self.resource_id}] immediately")
                     except simpy.Interrupt:
                         self.req.cancel()
                         self._release_lock(env)

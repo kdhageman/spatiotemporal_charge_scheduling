@@ -118,7 +118,7 @@ class Simulator:
                 req = resource.request(priority=0)
                 yield req
                 elapsed = env.now - t_before
-                self.debug(env, f"simulator aqcuired lock on charging station [{resource_id}] (after {elapsed:.2f}s)")
+                self.debug(env, f"simulator acquired lock on charging station [{resource_id}] (after {elapsed:.2f}s)")
 
                 yield env.timeout(epsilon)
                 resource.release(req)

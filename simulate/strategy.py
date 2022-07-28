@@ -72,8 +72,8 @@ class OnEventStrategy(Strategy):
         if self.last_time is None or event.env.now >= self.last_time + self.interval:
             self.cb(self._uavs(uav_id))
             self.last_time = event.env.now
-        else:
-            self.debug(event.env, f"skipping scheduling triggered by UAV [{uav_id}] because most recent reschedule was too soon")
+        # else:
+        #     self.debug(event.env, f"skipping scheduling triggered by UAV [{uav_id}] because most recent reschedule was too soon")
 
     def _uavs(self, uav_id):
         """
