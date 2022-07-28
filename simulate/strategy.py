@@ -3,7 +3,8 @@ from typing import Callable, List
 
 import simpy
 
-from simulate.event import Event
+from simulate.event import Event, EventType
+from simulate.node import NodeType
 
 
 class Strategy:
@@ -94,5 +95,38 @@ class OnEventStrategySingle(OnEventStrategy):
 
 
 class OnEventStrategyAll(OnEventStrategy):
+    def _uavs(self, uav_id):
+        return 'all'
+
+
+class AfterNEventsStrategy(Strategy):
+    def __init__(self, n):
+        super().__init__()
+        self.logger.debug(f"triggering rescheduling after {n} events")
+        self.events_seen = {}
+        self.n = n
+        self.last_time = 0
+
+    def handle_event(self, event: simpy.Event):
+        if event.value.type == EventType.reached and event.value.node.node_type == NodeType.Waypoint:
+            uav_id = event.value.uav.uav_id
+            events_seen_for_uav = self.events_seen.get(uav_id, 0) + 1
+            self.events_seen[uav_id] = events_seen_for_uav
+
+            if events_seen_for_uav >= self.n:
+                # reschedule
+                self.logger.debug(f"[{event.env.now:.2f}] rescheduling triggered by UAV [{event.value.uav.uav_id}] for UAVs: {self._uavs(uav_id)}")
+                self.cb(self._uavs(uav_id))
+                self.last_time = event.env.now
+
+                self.events_seen = {}
+
+
+class AfterNEventsStrategySingle(AfterNEventsStrategy):
+    def _uavs(self, uav_id):
+        return [uav_id]
+
+
+class AfterNEventsStrategyAll(AfterNEventsStrategy):
     def _uavs(self, uav_id):
         return 'all'

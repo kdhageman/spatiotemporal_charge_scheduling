@@ -11,7 +11,7 @@ from simulate.event import EventType
 from simulate.node import NodeType
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Parameters, Simulator
-from simulate.strategy import OnEventStrategySingle, OnEventStrategyAll
+from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
 from util.scenario import Scenario
 
 
@@ -43,7 +43,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/milp_simulator_long'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategyAll(interval=5)
+        strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
         scheduler = MilpScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         solve_times, env, events = simulator.sim()
@@ -72,7 +72,7 @@ class TestSimulator(TestCase):
             B_start=[1] * 3,
             # plot_delta=0.1,
             plot_delta=0,
-            W=8,
+            W=4,
             sigma=1,
             epsilon=1,
         )
@@ -80,7 +80,8 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/milp_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategyAll(interval=3)
+        # strat = OnEventStrategyAll(interval=3)
+        strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
         solver = SolverFactory("gurobi")
         solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(params, sc)
@@ -222,7 +223,7 @@ class TestSimulator(TestCase):
         self.logger.debug(f"W:                      {params.W}")
         self.logger.debug(f"sigma:                  {params.sigma}")
         if strategy == ChargingStrategy.Milp:
-            strat = OnEventStrategyAll(interval=params.schedule_delta)
+            strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
             solver = SolverFactory("gurobi")
             solver.options['IntFeasTol'] = 1e-9
             solver.options['TimeLimit'] = 30

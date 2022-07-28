@@ -8,6 +8,7 @@ import cvxpy
 import networkx as nx
 import numpy as np
 import nxmetis
+import open3d as o3d
 import scipy
 from matplotlib import pyplot as plt
 from open3d.cpu.pybind.geometry import Geometry3D
@@ -18,10 +19,8 @@ from simulate.event import EventType
 from simulate.parameters import Parameters
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import gen_colors, Simulator
-from simulate.strategy import OnEventStrategyAll, OnEventStrategySingle
+from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
 from util.decorators import timed
-import open3d as o3d
-
 from util.scenario import Scenario
 
 logging.basicConfig(
@@ -359,10 +358,10 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"# stations:             {sc.N_s}")
     for d in range(sc.N_d):
         logger.debug(f"# waypoints for UAV[{d}]: {len(seqs[d])}")
-    logger.debug(f"W:                      {params.W}")
     logger.debug(f"sigma:                  {params.sigma}")
+    logger.debug(f"W:                      {params.W}")
     if strategy == ChargingStrategy.Milp:
-        strat = OnEventStrategyAll(interval=params.schedule_delta)
+        strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
         solver = SolverFactory("gurobi")
         solver.options['IntFeasTol'] = 1e-9
         solver.options['TimeLimit'] = 30
@@ -381,7 +380,7 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
             f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
             for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
+                f.write(f"{i},{sim_timestamp},{optimal},{solve_time},\"{n_remaining_waypoints}\"\n")
 
         # write mission execution time to disk
         with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
@@ -400,7 +399,6 @@ def schedule_charge_from_conf(conf):
     r_charge = [co["r_charge"]] * n_drones
     r_deplete = [co["r_deplete"]] * n_drones
     epsilon = co.get("epsilon", None)
-    schedule_delta = co.get('schedule_delta', None)
     plot_delta = co['plot_delta']
     W = co.get('W', None)
     sigma = co.get('sigma', None)
@@ -421,7 +419,6 @@ def schedule_charge_from_conf(conf):
         B_max=B_max,
         epsilon=epsilon,
         plot_delta=plot_delta,
-        schedule_delta=schedule_delta,
         W=W,
         sigma=sigma,
     )
