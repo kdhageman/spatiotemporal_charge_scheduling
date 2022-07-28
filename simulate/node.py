@@ -30,6 +30,9 @@ class Node:
     def dist(self, other):
         return dist3(self.pos, other.pos)
 
+    def __eq__(self, other):
+        return type(self) == type(other) and self.x == other.x and self.y == other.y and self.z == other.z and self.wt == other.wt and self.ct == other.ct
+
     def same_pos(self, other):
         """
         Returns whether the other node occupies the same space

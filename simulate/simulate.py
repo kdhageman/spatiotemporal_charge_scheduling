@@ -92,7 +92,6 @@ class Simulator:
         self.pdfs = []
         self.solve_times = []
 
-    def sim(self):
         env = simpy.Environment()
 
         # prepare shared resources
@@ -203,10 +202,14 @@ class Simulator:
             uav.add_finish_cb(uav_finished_cb)
             env.process(uav.sim(env))
 
+        self.env = env
+        self.strat_proc = strat_proc
+
+    def sim(self):
         try:
-            env.run(until=strat_proc)
+            self.env.run(until=self.strat_proc)
         finally:
-            self.logger.info(f"finished simulation in {env.now:.2f}s")
+            self.logger.info(f"finished simulation in {self.env.now:.2f}s")
             for d in range(self.sc.N_d):
                 self.logger.info(f"UAV [{d}] has {self.scheduler.n_remaining_waypoints(d)} remaining waypoints")
 
@@ -232,7 +235,7 @@ class Simulator:
 
                 # plot occupancy
                 fname = os.path.join(self.directory, "occupancy.pdf")
-                plot_station_occupancy([u.events for u in self.uavs], self.sc.N_s, env.now, fname)
+                plot_station_occupancy([u.events for u in self.uavs], self.sc.N_s, self.env.now, fname)
 
                 # output events
                 event_dir = os.path.join(self.directory, "events")
@@ -259,7 +262,7 @@ class Simulator:
                             data = [t_start, t_end, duration, event_type, node_type, node_identifier, node_x, node_y, node_z, uav_id, battery_start, battery_end, depletion,forced]
                             data = [str(v) for v in data]
                             f.write(f"{','.join(data)}\n")
-        return self.solve_times, env, [u.events for u in self.uavs]
+        return self.solve_times, self.env, [u.events for u in self.uavs]
 
     def debug(self, env, msg):
         self.logger.debug(f"[{env.now:.2f}] {msg}")

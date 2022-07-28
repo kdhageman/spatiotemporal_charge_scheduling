@@ -46,6 +46,18 @@ class Scheduler:
         :return: schedules: list of nodes for each schedules drone to follow
         """
         t_solve, schedules = self._schedule(start_positions, batteries, state_types, uavs_to_schedule)
+
+        for d, schedule in schedules.items():
+            # ignore schedule when no waypoints are remaining
+            if self.n_remaining_waypoints(d) == 0:
+                schedule = []
+
+            # trim duplicate auxiliary waypoints at the end
+            while len(schedule) >= 2 and schedule[-1] == schedule[-2]:
+                schedule = schedule[:-1]
+            schedules[d] = schedule
+
+        # tag the waypoints with their IDs
         for d, schedule in schedules.items():
             offset = self.offsets[d]
             for node in schedule:
