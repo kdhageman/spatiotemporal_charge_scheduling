@@ -361,7 +361,7 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"sigma:                  {params.sigma}")
     logger.debug(f"W:                      {params.W}")
     if strategy == ChargingStrategy.Milp:
-        strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
+        strat = AfterNEventsStrategyAll(params.sigma * (int(np.ceil(params.W / 2)) - 1))
         solver = SolverFactory("gurobi")
         solver.options['IntFeasTol'] = 1e-9
         solver.options['TimeLimit'] = 30
