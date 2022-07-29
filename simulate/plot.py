@@ -18,10 +18,14 @@ class SimulationAnimator:
         self.sc = sc
         self.events = events
         self.schedules = schedules
-        self.interval = interval
-        self.n_extra_frames = 10
-
+        self.interval = interval  # simulation interval
+        self.frame_rate_interval = 50
         self.colors_drones = gen_colors(sc.N_d)
+
+        self.n_extra_time = 4  # seconds
+        self.n_extra_frames = 2 * int(np.ceil(1000 / self.frame_rate_interval))
+
+        # percentage
         n_percs = 20
         every = int(np.ceil(self.n_frame / n_percs))
         i = every
@@ -29,7 +33,6 @@ class SimulationAnimator:
         while i < len(self.frames):
             self.perc_times.append(self.frames[i])
             i += every
-        _ = 1
 
     @property
     def end_time(self):
@@ -220,6 +223,7 @@ class SimulationAnimator:
             ax.axis('off')
             ax.set_title(f"{t:.2f}s")
 
+            # TODO: fix this!
             if t in self.perc_times:
                 perc = t / self.end_time * 100
                 self.logger.debug(f"{perc:.1f}%")
