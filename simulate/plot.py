@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Rectangle
 
-from simulate.event import Event
+from simulate.event import Event, EventType
 from simulate.node import Node, NodeType
 from simulate.util import gen_colors
 from util.scenario import Scenario
@@ -19,9 +19,9 @@ class SimulationAnimator:
         self.events = events
         self.schedules = schedules
         self.interval = interval
+        self.n_extra_frames = 10
 
         self.colors_drones = gen_colors(sc.N_d)
-        # TODO: find percentage times
         n_percs = 20
         every = int(np.ceil(self.n_frame / n_percs))
         i = every
@@ -44,6 +44,7 @@ class SimulationAnimator:
         res = list(np.arange(0, self.end_time, self.interval))
         if self.end_time not in res:
             res.append(self.end_time)
+        res += [self.end_time] * self.n_extra_frames
         return res
 
     def animate(self, fname):
@@ -55,8 +56,9 @@ class SimulationAnimator:
         cur_events = [e[0] for e in self.events.values()]
         remaining_events = [e[1:] for e in self.events.values()]
         remaining_waypoints = [l[1:] for l in self.sc.positions_w]
+        visited_waypoints = [[] for d in range(self.sc.N_d)]
 
-        start_pos = [l[0] for l in self.sc.positions_w]
+        start_pos = [np.array(l[0]) for l in self.sc.positions_w]
         start_battery = [e.pre_battery for e in cur_events]
         start_time = [0] * self.sc.N_d
         target_pos = [e.node.pos for e in cur_events]
@@ -119,13 +121,19 @@ class SimulationAnimator:
             interpolated_pos = []
             interpolated_battery = []
             for d in range(self.sc.N_d):
-                # TODO: fix where the interval passes more than a single event
-                if t >= target_time[d]:
+                while t >= target_time[d] and remaining_waypoints[d]:
                     ev = cur_events[d]
                     if cur_events[d].node.node_type == NodeType.Waypoint:
                         # reached a waypoint, so remaining waypoints is reduced
+                        visited_waypoints[d].append(cur_events[d].node)
                         if remaining_waypoints[d]:
                             remaining_waypoints[d] = remaining_waypoints[d][1:]
+
+                    if cur_events[d].type == EventType.reached:
+                        # reached SOMETHING, so the schedule is updated
+                        t_sched, sched = cur_schedules[d]
+                        cur_schedules[d] = (t_sched, sched[1:])
+
                     if remaining_events[d]:
                         cur_events[d] = remaining_events[d][0]
                         remaining_events[d] = remaining_events[d][1:]
@@ -137,11 +145,14 @@ class SimulationAnimator:
                     target_battery[d] = cur_events[d].battery
                     target_time[d] = cur_events[d].t_end
 
-                if remaining_schedules[d]:
+                # select next schedule if needed
+                while remaining_schedules[d]:
                     next_schedule = remaining_schedules[d][0]
                     if t >= next_schedule[0]:
                         cur_schedules[d] = next_schedule
                         remaining_schedules[d] = remaining_schedules[d][1:]
+                    else:
+                        break
 
                 if target_time[d] - start_time[d] == 0:
                     progress = 1
@@ -149,6 +160,15 @@ class SimulationAnimator:
                     progress = min((t - start_time[d]) / (target_time[d] - start_time[d]), 1)
                 interpolated_pos.append((1 - progress) * start_pos[d] + progress * target_pos[d])
                 interpolated_battery.append((1 - progress) * start_battery[d] + progress * target_battery[d])
+
+            # clean up schedule
+            for d in range(self.sc.N_d):
+                t_sched, sched = cur_schedules[d]
+                visited_nodes_in_sched = [n for n in sched if n in visited_waypoints[d]]
+                if visited_nodes_in_sched:
+                    last_node_visited_in_sched = visited_nodes_in_sched[-1]
+                    sched_new = sched[sched.index(last_node_visited_in_sched) + 1:]
+                    cur_schedules[d] = t_sched, sched_new
 
             # plot current position
             for d in range(self.sc.N_d):
