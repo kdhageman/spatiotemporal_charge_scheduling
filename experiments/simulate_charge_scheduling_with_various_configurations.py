@@ -81,7 +81,7 @@ if __name__ == "__main__":
         MilpConfiguration(baseconf, "out/villalvernia", 4, sigma=10, W=4, flight_sequence_fpath=flight_sequence_fpath4),
         MilpConfiguration(baseconf, "out/villalvernia", 4, sigma=10, W=7, flight_sequence_fpath=flight_sequence_fpath4),
         MilpConfiguration(baseconf, "out/villalvernia", 4, sigma=10, W=10, flight_sequence_fpath=flight_sequence_fpath4),
-        MilpConfiguration(baseconf, "out/villalvernia", 4, sigma=12, W=10, flight_sequence_fpath=flight_sequence_fpath4),
+        MilpConfiguration(baseconf, "out/villalvernia", 4, sigma=16, W=10, flight_sequence_fpath=flight_sequence_fpath4),
         NaiveConfiguration(baseconf, "out/villalvernia", 5, flight_sequence_fpath5),
         MilpConfiguration(baseconf, "out/villalvernia", 5, sigma=3, W=4, flight_sequence_fpath=flight_sequence_fpath5),
         MilpConfiguration(baseconf, "out/villalvernia", 5, sigma=3, W=7, flight_sequence_fpath=flight_sequence_fpath5),
@@ -92,6 +92,7 @@ if __name__ == "__main__":
         MilpConfiguration(baseconf, "out/villalvernia", 5, sigma=10, W=4, flight_sequence_fpath=flight_sequence_fpath5),
         MilpConfiguration(baseconf, "out/villalvernia", 5, sigma=10, W=7, flight_sequence_fpath=flight_sequence_fpath5),
         MilpConfiguration(baseconf, "out/villalvernia", 5, sigma=10, W=10, flight_sequence_fpath=flight_sequence_fpath5),
+        MilpConfiguration(baseconf, "out/villalvernia", 5, sigma=16, W=10, flight_sequence_fpath=flight_sequence_fpath5),
         NaiveConfiguration(baseconf, "out/villalvernia", 6, flight_sequence_fpath6),
         MilpConfiguration(baseconf, "out/villalvernia", 6, sigma=3, W=4, flight_sequence_fpath=flight_sequence_fpath6),
         MilpConfiguration(baseconf, "out/villalvernia", 6, sigma=3, W=7, flight_sequence_fpath=flight_sequence_fpath6),
@@ -102,6 +103,7 @@ if __name__ == "__main__":
         MilpConfiguration(baseconf, "out/villalvernia", 6, sigma=10, W=4, flight_sequence_fpath=flight_sequence_fpath6),
         MilpConfiguration(baseconf, "out/villalvernia", 6, sigma=10, W=7, flight_sequence_fpath=flight_sequence_fpath6),
         MilpConfiguration(baseconf, "out/villalvernia", 6, sigma=10, W=10, flight_sequence_fpath=flight_sequence_fpath6),
+        MilpConfiguration(baseconf, "out/villalvernia", 6, sigma=16, W=10, flight_sequence_fpath=flight_sequence_fpath6),
     ]
 
     for conf in confs:
