@@ -1,12 +1,12 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 import numpy as np
 import simpy
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
-from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint
+from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint, Node
 from simulate.parameters import Parameters
 from simulate.uav import UavStateType
 from util.decorators import timed
@@ -39,7 +39,7 @@ class Scheduler:
         raise NotImplementedError
 
     @timed
-    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
+    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         """
         Creates a new schedule for the drones
         :return: optimal: True if the schedule is optimal, False otherwise
@@ -60,13 +60,16 @@ class Scheduler:
         # tag the waypoints with their IDs
         for d, schedule in schedules.items():
             offset = self.offsets[d]
-            for node in schedule:
-                if node.node_type == NodeType.Waypoint:
-                    node._identifier = offset + 1
-                    offset += 1
+            try:
+                for node in schedule:
+                    if node.node_type == NodeType.Waypoint:
+                        node._identifier = offset + 1
+                        offset += 1
+            except TypeError as e:
+                pass
         return t_solve, schedules
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         raise NotImplementedError
 
     def n_remaining_waypoints(self, d: int):
@@ -186,7 +189,7 @@ class MilpScheduler(Scheduler):
     def _handle_event(self, event: simpy.Event):
         pass
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         sc, remaining_distances = self.sf.next(start_positions, self.offsets)
 
         # correct original parameters
@@ -290,7 +293,7 @@ class NaiveScheduler(Scheduler):
     def _handle_event(self, event: simpy.Event):
         pass
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]):
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         res = {}
         for d in uavs_to_schedule:
             if len(self.remaining_waypoints(d)) == 0:

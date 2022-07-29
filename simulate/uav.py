@@ -30,6 +30,7 @@ class UavState:
         return f"{self.node}"
 
 
+
 class UAV:
     def __init__(self, uav_id: int, charging_stations: List[PriorityResource], v: float, r_charge: float, r_deplete: float, initial_pos: list, battery: float = 1, B_max: float = 1):
         self.logger = logging.getLogger(__name__)

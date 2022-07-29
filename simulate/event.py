@@ -1,7 +1,5 @@
 from enum import Enum
 
-import numpy as np
-
 
 class EventType(Enum):
     reached = 'reached'

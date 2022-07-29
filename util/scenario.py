@@ -120,6 +120,19 @@ class Scenario:
         idx = np.argmin(distances)
         return idx, distances[idx]
 
+    def bounding_box(self):
+        """
+        Returns a (xmin, xmax, ymin, ymin) tuple that represents the bounding box around the positions (= waypoints and charging stations) in the scenario
+        """
+        X = [pos[0] for pos in self.positions_S]
+        Y = [pos[1] for pos in self.positions_S]
+
+        for l in self.positions_w:
+            X += [pos[0] for pos in l]
+            Y += [pos[1] for pos in l]
+
+        return min(X), max(X), min(Y), max(Y)
+
     def plot(self, ax=None, draw_distances=True):
         if not ax:
             _, ax = plt.subplots()
