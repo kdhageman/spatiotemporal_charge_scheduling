@@ -52,9 +52,19 @@ class Scheduler:
             if self.n_remaining_waypoints(d) == 0:
                 schedule = []
 
-            # trim duplicate auxiliary waypoints at the end
-            while len(schedule) >= 2 and schedule[-1] == schedule[-2]:
-                schedule = schedule[:-1]
+            # trim duplicate auxiliary waypoints at the end:
+            # the first duplicate of the intended end position is considered to be a duplicate
+            # so up to that node serves as the cut-off point (i.e. all nodes after it are discarded)
+            reached_last_node = False
+            last_node_sc = Waypoint(*self.sc.positions_w[d][-1])
+            for idx, node in enumerate(schedule):
+                if node == last_node_sc:
+                    if not reached_last_node:
+                        reached_last_node = True
+                    else:
+                        schedule = schedule[:idx]
+                        break
+
             schedules[d] = schedule
 
         # tag the waypoints with their IDs

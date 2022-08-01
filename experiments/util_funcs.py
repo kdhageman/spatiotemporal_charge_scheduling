@@ -360,6 +360,13 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         logger.debug(f"# waypoints for UAV[{d}]: {len(seqs[d])}")
     logger.debug(f"sigma:                  {params.sigma}")
     logger.debug(f"W:                      {params.W}")
+    logger.debug(f"epsilon:                {params.epsilon}")
+    logger.debug(f"v:                      {params.v}")
+    logger.debug(f"r_charge:               {params.r_charge}")
+    logger.debug(f"r_deplete:              {params.r_deplete}")
+    logger.debug(f"B_start:                {params.B_start}")
+    logger.debug(f"B_min:                  {params.B_min}")
+
     if strategy == ChargingStrategy.Milp:
         strat = AfterNEventsStrategyAll(params.sigma * (int(np.ceil(params.W / 2)) - 1))
         solver = SolverFactory("gurobi")

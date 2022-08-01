@@ -27,7 +27,7 @@ class SimulationAnimator:
 
         # percentage
         n_percs = 20
-        every = int(np.ceil(self.n_frame / n_percs))
+        every = int(np.ceil(self.n_frames / n_percs))
         i = every
         self.perc_times = []
         while i < len(self.frames):
@@ -39,7 +39,7 @@ class SimulationAnimator:
         return max([l[-1].t_end for l in self.events.values()])
 
     @property
-    def n_frame(self):
+    def n_frames(self):
         return len(self.frames)
 
     @property
@@ -124,6 +124,7 @@ class SimulationAnimator:
             interpolated_pos = []
             interpolated_battery = []
             for d in range(self.sc.N_d):
+                # TODO: break infinite loop here
                 while t >= target_time[d] and remaining_waypoints[d]:
                     ev = cur_events[d]
                     if cur_events[d].node.node_type == NodeType.Waypoint:
@@ -230,6 +231,7 @@ class SimulationAnimator:
 
             return []
 
+        self.logger.debug(f"animating {self.n_frames} frames")
         ani = FuncAnimation(fig, update, frames=self.frames, blit=True, interval=50)
         video = ani.to_html5_video()
         with open(fname, 'w') as f:
