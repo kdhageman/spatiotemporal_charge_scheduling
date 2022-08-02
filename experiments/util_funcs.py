@@ -1,6 +1,7 @@
 import logging
 import os
 import pickle
+from datetime import datetime
 from enum import Enum
 from typing import List
 
@@ -354,32 +355,35 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         os.makedirs(directory, exist_ok=True)
 
     sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
-    logger.debug(f"# drones:               {sc.N_d}")
-    logger.debug(f"# stations:             {sc.N_s}")
+    logger.debug(f"[{datetime.now()}] # drones:               {sc.N_d}")
+    logger.debug(f"[{datetime.now()}] # stations:             {sc.N_s}")
     for d in range(sc.N_d):
-        logger.debug(f"# waypoints for UAV[{d}]: {len(seqs[d])}")
-    logger.debug(f"sigma:                  {params.sigma}")
-    logger.debug(f"W:                      {params.W}")
-    logger.debug(f"epsilon:                {params.epsilon}")
-    logger.debug(f"v:                      {params.v}")
-    logger.debug(f"r_charge:               {params.r_charge}")
-    logger.debug(f"r_deplete:              {params.r_deplete}")
-    logger.debug(f"B_start:                {params.B_start}")
-    logger.debug(f"B_min:                  {params.B_min}")
+        logger.debug(f" [{datetime.now()}] # waypoints for UAV[{d}]: {len(seqs[d])}")
+    logger.debug(f"[{datetime.now()}] sigma:                  {params.sigma}")
+    logger.debug(f"[{datetime.now()}] W:                      {params.W}")
+    logger.debug(f"[{datetime.now()}] epsilon:                {params.epsilon}")
+    logger.debug(f"[{datetime.now()}] v:                      {params.v}")
+    logger.debug(f"[{datetime.now()}] r_charge:               {params.r_charge}")
+    logger.debug(f"[{datetime.now()}] r_deplete:              {params.r_deplete}")
+    logger.debug(f"[{datetime.now()}] B_start:                {params.B_start}")
+    logger.debug(f"[{datetime.now()}] B_min:                  {params.B_min}")
+    logger.debug(f"[{datetime.now()}] Time limit :            {params.time_limit}")
+    logger.debug(f"[{datetime.now()}] IntFeasTol :            {params.int_feas_tol}")
+
 
     if strategy == ChargingStrategy.Milp:
         strat = AfterNEventsStrategyAll(params.sigma * (int(np.ceil(params.W / 2)) - 1))
         solver = SolverFactory("gurobi")
-        solver.options['IntFeasTol'] = 1e-9
-        solver.options['TimeLimit'] = 1800
+        solver.options['IntFeasTol'] = params.int_feas_tol
+        solver.options['TimeLimit'] = params.time_limit
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        logger.debug("prepared MILP simulator")
+        logger.debug(f"[{datetime.now()}] prepared MILP simulator")
     elif strategy == ChargingStrategy.Naive:
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        logger.debug("prepared naive simulator")
+        logger.debug("[{datetime.now()}] prepared naive simulator")
     solve_times, env, events = simulator.sim()
 
     # write solve times to disk
@@ -410,13 +414,16 @@ def schedule_charge_from_conf(conf):
     W = co.get('W', None)
     sigma = co.get('sigma', None)
     charging_station_positions = co['charging_positions']
+    time_limit = co['time_limit']
+    int_feas_tol = co['int_feas_tol']
     output_dir = conf['output_directory']
 
     flight_sequence_fpath = conf['flight_sequence_fpath']
     with open(flight_sequence_fpath, 'rb') as f:
         flight_sequences = pickle.load(f)
 
-    logger.debug("starting charge scheduling..")
+
+    logger.debug(f"[{datetime.now()}] starting charge scheduling..")
     params = Parameters(
         v=v,
         r_charge=r_charge,
@@ -428,6 +435,8 @@ def schedule_charge_from_conf(conf):
         plot_delta=plot_delta,
         W=W,
         sigma=sigma,
+        time_limit=time_limit,
+        int_feas_tol=int_feas_tol,
     )
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     _, schedules = schedule_charge(flight_sequences, charging_station_positions, params, directory=output_dir, strategy=strategy)

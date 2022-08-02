@@ -1,6 +1,7 @@
 import logging
 import os
 import pickle
+from datetime import datetime
 from unittest import TestCase
 
 import yaml
@@ -216,12 +217,12 @@ class TestSimulator(TestCase):
             os.makedirs(directory, exist_ok=True)
 
         sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
-        self.logger.debug(f"# drones:               {sc.N_d}")
-        self.logger.debug(f"# stations:             {sc.N_s}")
+        self.logger.debug(f"[{datetime.now()}] # drones:               {sc.N_d}")
+        self.logger.debug(f"[{datetime.now()}] # stations:             {sc.N_s}")
         for d in range(sc.N_d):
-            self.logger.debug(f"# waypoints for UAV[{d}]: {len(seqs[d])}")
-        self.logger.debug(f"W:                      {params.W}")
-        self.logger.debug(f"sigma:                  {params.sigma}")
+            self.logger.debug(f"[{datetime.now()}] # waypoints for UAV[{d}]: {len(seqs[d])}")
+        self.logger.debug(f"[{datetime.now()}] W:                      {params.W}")
+        self.logger.debug(f"[{datetime.now()}] sigma:                  {params.sigma}")
         if strategy == ChargingStrategy.Milp:
             strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
             solver = SolverFactory("gurobi")
@@ -229,12 +230,12 @@ class TestSimulator(TestCase):
             solver.options['TimeLimit'] = 30
             scheduler = MilpScheduler(params, sc, solver=solver)
             simulator = Simulator(scheduler, strat, params, sc, directory=None)
-            self.logger.debug("prepared MILP simulator")
+            self.logger.debug(f"[{datetime.now()}] prepared MILP simulator")
         elif strategy == ChargingStrategy.Naive:
             strat = OnEventStrategySingle()
             scheduler = NaiveScheduler(params, sc)
             simulator = Simulator(scheduler, strat, params, sc, directory=None)
-            self.logger.debug("prepared naive simulator")
+            self.logger.debug(f"[{datetime.now()}] prepared naive simulator")
 
         visited_positions = {}
         for d, seq in enumerate(seqs):

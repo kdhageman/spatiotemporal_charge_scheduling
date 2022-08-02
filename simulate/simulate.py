@@ -1,6 +1,7 @@
 import logging
 import os.path
 import pickle
+from datetime import datetime
 from typing import List
 
 import numpy as np
@@ -280,7 +281,7 @@ class Simulator:
         return self.solve_times, self.env, [u.events for u in self.uavs]
 
     def debug(self, env, msg):
-        self.logger.debug(f"[{env.now:.2f}] {msg}")
+        self.logger.debug(f"[{datetime.now()}] [{env.now:.2f}] {msg}")
 
 def plot_events_battery(events: List[Event], fname: str, aspect: float = None):
     """

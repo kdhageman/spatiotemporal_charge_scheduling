@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from enum import Enum
 from typing import List, Callable
 
@@ -367,7 +368,7 @@ class UAV:
                         cb(event)
 
     def debug(self, env: simpy.Environment, msg: str):
-        self.logger.debug(f"[{env.now:.2f}] UAV [{self.uav_id}] {msg}")
+        self.logger.debug(f"[{datetime.now()}] [{env.now:.2f}] UAV [{self.uav_id}] {msg}")
 
     def sim(self, env: simpy.Environment):
         ev = StartedEvent(env.now, 0, self.last_known_pos, self, battery=self.battery)

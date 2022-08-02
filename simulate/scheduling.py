@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import List, Dict, Tuple
 
 import numpy as np
@@ -232,7 +233,10 @@ class MilpScheduler(Scheduler):
             W_zero_min.append(self.params.epsilon if state_type == UavStateType.FinishedCharging else 0)
         params.W_zero_min = np.array(W_zero_min)
 
+        t_before = datetime.now()
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
+        elapsed = datetime.now() - t_before
+        self.logger.debug(f"[{datetime.now()}] constructed MILP model in {elapsed.seconds + elapsed.microseconds / 1000000:.2f}s")
         solution = self.solver.solve(model)
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
@@ -240,7 +244,7 @@ class MilpScheduler(Scheduler):
         optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
 
         for d, remaining_distance in enumerate(remaining_distances):
-            self.logger.debug(f"determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
+            self.logger.debug(f"[{datetime.now()}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
 
         # For debugging purposes
         # extract charging windows

@@ -2,6 +2,7 @@ import logging
 import os
 import pickle
 import time
+from datetime import datetime
 
 
 def timed(func):
@@ -18,13 +19,13 @@ def pickled(filepath):
         def g(*args, **kwargs):
             try:
                 if os.path.exists(filepath):
-                    logging.debug("from file")
+                    logging.debug(f"[{datetime.now()}] from file")
                 with open(filepath, "'rb"):
                     res = pickle.load(filepath)
             except:
-                logging.debug("from source")
+                logging.debug(f"[{datetime.now()}] from source")
                 res = func(*args, **kwargs)
-                logging.debug("to file")
+                logging.debug(f"[{datetime.now()}] to file")
                 with open(filepath, 'wb'):
                     pickle.dump(res)
             return res

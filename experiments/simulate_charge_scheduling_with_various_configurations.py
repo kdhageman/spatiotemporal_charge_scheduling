@@ -1,52 +1,9 @@
 import logging
 import os
 import yaml
+
+from experiments.configuration import NaiveConfiguration, MilpConfiguration
 from experiments.util_funcs import schedule_charge_from_conf
-
-
-class Configuration:
-    def __init__(self, baseconf: dict, basedir, charging_strategy, n_drones, W, sigma, flight_sequence_fpath):
-        self.baseconf = baseconf
-        self.charging_strategy = charging_strategy
-        self.n_drones = n_drones
-        self.W = W
-        self.sigma = sigma
-        self.basedir = basedir
-        self.flight_sequence_fpath = flight_sequence_fpath
-
-    def outputdir(self):
-        raise NotImplementedError
-
-    def as_dict(self):
-        """
-        Return the enhanced base configuration with the configuration properties
-        :return:
-        """
-        conf = self.baseconf
-        conf['flight_sequence_fpath'] = self.flight_sequence_fpath
-        conf['output_directory'] = self.outputdir()
-        conf['n_drones'] = self.n_drones
-        conf['charging_strategy'] = self.charging_strategy
-        conf['charging_optimization']['W'] = self.W
-        conf['charging_optimization']['sigma'] = self.sigma
-        return conf
-
-
-class NaiveConfiguration(Configuration):
-    def __init__(self, baseconf, basedir, n_drones, flight_sequence_fpath):
-        super().__init__(baseconf, basedir, "naive", n_drones, 0, 0, flight_sequence_fpath)
-
-    def outputdir(self):
-        return os.path.join(self.basedir, f"naive_{self.n_drones}")
-
-
-class MilpConfiguration(Configuration):
-    def __init__(self, baseconf: dict, basedir, n_drones, W, sigma, flight_sequence_fpath):
-        super().__init__(baseconf, basedir, "milp", n_drones, W, sigma, flight_sequence_fpath)
-
-    def outputdir(self):
-        return os.path.join(self.basedir, f"{self.charging_strategy}_ndrones{self.n_drones}_sigma{self.sigma}_W{self.W}")
-
 
 if __name__ == "__main__":
     logger = logging.getLogger(__name__)

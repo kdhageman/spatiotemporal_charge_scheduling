@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Callable, List
 
 import simpy
@@ -35,7 +36,7 @@ class Strategy:
                 break
 
     def debug(self, env, msg):
-        self.logger.debug(f"[{env.now:.2f}] {msg}")
+        self.logger.debug(f"[{datetime.now()}] [{env.now:.2f}] {msg}")
 
 
 class IntervalStrategy(Strategy):
@@ -102,7 +103,7 @@ class OnEventStrategyAll(OnEventStrategy):
 class AfterNEventsStrategy(Strategy):
     def __init__(self, n):
         super().__init__()
-        self.logger.debug(f"triggering rescheduling after {n} events")
+        self.logger.debug(f"[{datetime.now()}] triggering rescheduling after {n} events")
         self.events_seen = {}
         self.n = n
         self.last_time = 0
@@ -115,7 +116,7 @@ class AfterNEventsStrategy(Strategy):
 
             if events_seen_for_uav >= self.n:
                 # reschedule
-                self.logger.debug(f"[{event.env.now:.2f}] rescheduling triggered by UAV [{event.value.uav.uav_id}] for UAVs: {self._uavs(uav_id)}")
+                self.logger.debug(f"[{datetime.now()}] [{event.env.now:.2f}] rescheduling triggered by UAV [{event.value.uav.uav_id}] for UAVs: {self._uavs(uav_id)}")
                 self.cb(self._uavs(uav_id))
                 self.last_time = event.env.now
 
