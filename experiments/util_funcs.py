@@ -371,7 +371,7 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         strat = AfterNEventsStrategyAll(params.sigma * (int(np.ceil(params.W / 2)) - 1))
         solver = SolverFactory("gurobi")
         solver.options['IntFeasTol'] = 1e-9
-        solver.options['TimeLimit'] = 30
+        solver.options['TimeLimit'] = 1800
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("prepared MILP simulator")
