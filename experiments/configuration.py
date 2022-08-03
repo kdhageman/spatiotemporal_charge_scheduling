@@ -40,20 +40,23 @@ class Configuration:
         conf['charging_optimization']['time_limit'] = self.time_limit
         conf['charging_optimization']['int_feas_tol'] = self.int_feas_tol
         conf['charging_optimization']['rescheduling_frequency'] = self.rescheduling_frequency
+        conf['charging_optimization']['r_charge'] = self.r_charge
+        conf['charging_optimization']['r_deplete'] = self.r_deplete
+
         return conf
 
 
 class NaiveConfiguration(Configuration):
-    def __init__(self, baseconf, basedir, n_drones, flight_sequence_fpath):
-        super().__init__(baseconf, basedir, "naive", n_drones, 0, 0, flight_sequence_fpath)
+    def __init__(self, baseconf, basedir, n_drones, flight_sequence_fpath, r_charge=0.00067, r_deplete=0.006):
+        super().__init__(baseconf, basedir, "naive", n_drones, 0, 0, flight_sequence_fpath, r_charge=r_charge, r_deplete=r_deplete)
 
     def outputdir(self):
         return os.path.join(self.basedir, f"naive_{self.n_drones}_rc{self.r_charge}_rd{self.r_deplete}")
 
 
 class MilpConfiguration(Configuration):
-    def __init__(self, baseconf: dict, basedir, n_drones, W, sigma, flight_sequence_fpath, time_limit=60, int_feas_tol=1e-7, rescheduling_frequency=None):
-        super().__init__(baseconf, basedir, "milp", n_drones, W, sigma, flight_sequence_fpath, time_limit=time_limit, int_feas_tol=int_feas_tol, rescheduling_frequency=rescheduling_frequency)
+    def __init__(self, baseconf: dict, basedir, n_drones, W, sigma, flight_sequence_fpath, time_limit=60, int_feas_tol=1e-7, rescheduling_frequency=None, r_charge=0.00067, r_deplete=0.006):
+        super().__init__(baseconf, basedir, "milp", n_drones, W, sigma, flight_sequence_fpath, time_limit=time_limit, int_feas_tol=int_feas_tol, rescheduling_frequency=rescheduling_frequency, r_charge=r_charge, r_deplete=r_deplete)
 
     def outputdir(self):
         return os.path.join(self.basedir, f"{self.charging_strategy}_ndrones{self.n_drones}_sigma{self.sigma}_W{self.W}_tl{self.time_limit}_rc{self.r_charge}_rd{self.r_deplete}_n{self.rescheduling_frequency}")
