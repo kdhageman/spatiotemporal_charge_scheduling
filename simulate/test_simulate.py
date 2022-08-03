@@ -8,10 +8,10 @@ import yaml
 from pyomo.opt import SolverFactory
 
 from experiments.util_funcs import ChargingStrategy
-from simulate.event import EventType
-from simulate.node import NodeType
+from simulate.event import EventType, StartedEvent, ReachedEvent, ChargedEvent
+from simulate.node import NodeType, Node, ChargingStation, AuxWaypoint, Waypoint
 from simulate.scheduling import MilpScheduler, NaiveScheduler
-from simulate.simulate import Parameters, Simulator
+from simulate.simulate import Parameters, Simulator, plot_events_battery
 from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
 from util.scenario import Scenario
 
@@ -59,7 +59,6 @@ class TestSimulator(TestCase):
             # write mission execution time to disk
             with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
                 f.write(f"{env.now}")
-
 
     def test_milp_three_drones_circling(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -135,7 +134,6 @@ class TestSimulator(TestCase):
             # write mission execution time to disk
             with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
                 f.write(f"{env.now}")
-
 
     def test_naive_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -270,3 +268,27 @@ class TestSimulator(TestCase):
                 f.write(f"{env.now}")
 
         return env, events
+
+
+class TestPlotBattery(TestCase):
+    def test_plot_events_battery(self):
+        r_charge = 0.1
+
+        events = [
+            [
+                StartedEvent(0, 0, AuxWaypoint(0, 0, 0), None, battery=1, depletion=0, forced=False),
+                ReachedEvent(0, 1, Waypoint(0, 0, 0), None, battery=0.9, depletion=0.1, forced=False),
+                ReachedEvent(1, 3, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.6, depletion=0.3, forced=False),
+                ChargedEvent(4, 2, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.8, depletion=-0.2, forced=False),
+                ReachedEvent(6, 7, Waypoint(1, 0, 0), None, battery=0.1, depletion=0.7, forced=False)
+            ],
+            [
+                StartedEvent(0, 0, AuxWaypoint(0, 0, 0), None, battery=1, depletion=0, forced=False),
+                ReachedEvent(0, 1, Waypoint(0, 0, 0), None, battery=0.9, depletion=0.1, forced=False),
+                ReachedEvent(1, 3, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.6, depletion=0.3, forced=False),
+                ChargedEvent(4, 2, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.8, depletion=-0.2, forced=False),
+                ReachedEvent(6, 7, Waypoint(1, 0, 0), None, battery=0.1, depletion=0.7, forced=False)
+            ]
+        ]
+
+        plot_events_battery(events, fname="test.pdf", aspect=1 / r_charge)

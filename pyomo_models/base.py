@@ -101,6 +101,37 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * m.C_max[d]
         )
 
+        # TODO: add block for discounting
+        self.M_disc = [self.remaining_depletion(d) for d in self.d]
+        self.z_disc = pyo.Var(self.d)
+        self.y_disc_1 = pyo.Var(self.d, domain=pyo.Binary)
+        self.y_disc_2 = pyo.Var(self.d, domain=pyo.Binary)
+
+        self.z_dics_constr_1 = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.z_disc[d] >= 0
+        )
+
+        self.z_dics_constr_2 = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.z_disc[d] >= m.rd(d) - m.oc(d)
+        )
+
+        self.z_disc_constr_3 = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.z_disc[d] <= m.M_disc[d] * m.y_disc_1[d]
+        )
+
+        self.z_disc_constr_4 = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.z_disc[d] <= m.rd(d) - m.oc(d) + m.M_disc[d] * m.y_disc_2[d]
+        )
+
+        self.y_disc_constr = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.y_disc_1[d] + m.y_disc_2[d] <= 1
+        )
+
         # TODO: reconsider the correct value of ulim
         def W_ulim_rule(m, d, w_s):
             ulim = 0
@@ -179,12 +210,19 @@ class BaseModel(pyo.ConcreteModel):
 
     # OBJECTIVE
     def E(self, d):
-        return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d)
+        return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d) + self.lambda_charge(d)
+
+    def remaining_move_time(self, d):
+        return self.remaining_distances[d] / self.v[d]
+
+    def remaining_depletion(self, d):
+        return self.remaining_move_time(d) * self.r_deplete[d]
 
     def lambda_move(self, d):
-        if self.remaining_distances[d] == 0:
-            return 0
         return self.remaining_distances[d] / self.v[d]
+
+    def lambda_charge(self, d):
+        return self.z_disc[d] / self.r_charge[d]
 
     def plot(self, ax=None):
         if not ax:
@@ -234,6 +272,18 @@ class BaseModel(pyo.ConcreteModel):
 
     def t(self, d, w_s):
         return sum(self.P[d, n, w_s] * (self.D_N[d, n, w_s] + self.D_W[d, n, w_s]) for n in self.n) / self.v[d]
+
+    def oc(self, d):
+        """
+        Return the overcharge for drone 'd'
+        """
+        return self.b_arr(d, self.N_w - 1) - self.B_end[d]
+
+    def rd(self, d):
+        """
+        Return the remaining depletion for drone 'd'
+        """
+        return self.remaining_distances[d] * self.r_deplete[d] / self.v[d]
 
     def schedules(self):
         schedules = []

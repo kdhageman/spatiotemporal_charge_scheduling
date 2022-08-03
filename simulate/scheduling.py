@@ -203,6 +203,9 @@ class MilpScheduler(Scheduler):
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         sc, remaining_distances = self.sf.next(start_positions, self.offsets)
 
+        for d, remaining_distance in enumerate(remaining_distances):
+            self.logger.debug(f"[{datetime.now()}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
+
         # correct original parameters
         params = self.params.copy()
         params.remaining_distances = remaining_distances
@@ -237,16 +240,24 @@ class MilpScheduler(Scheduler):
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
         elapsed = time.perf_counter() - t_start
         self.logger.debug(f"[{datetime.now()}] constructed MILP model in {elapsed:.2f}s")
+
         t_start = time.perf_counter()
-        solution = self.solver.solve(model)
+        solution = self.solver.solve(model, tee=True)
         t_solve = time.perf_counter() - t_start
+
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
-        optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
+        for d in model.d:
+            self.logger.debug(f"[{datetime.now()}] UAV [{d}] has a projected end battery of {model.b_arr(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")
 
-        for d, remaining_distance in enumerate(remaining_distances):
-            self.logger.debug(f"[{datetime.now()}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
+        for d in model.d:
+            self.logger.debug(f"[{datetime.now()}] UAV [{d}] is penalized by {model.lambda_move(d):.2f}s (moving) and {model.lambda_charge(d)():.2f}s (charging) [=max{{0, {model.rd(d):.1f}-{np.round(model.oc(d)(), 1):.1f}}} / {model.r_charge[d]}")
+
+        for d in model.d:
+            self.logger.debug(f"[{datetime.now()}] short term mission execution time for UAV [{d}] is {model.E(d)():.2f}")
+
+        optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
 
         # For debugging purposes
         # extract charging windows

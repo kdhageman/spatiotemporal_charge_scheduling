@@ -35,7 +35,7 @@ if __name__ == "__main__":
         MilpConfiguration(baseconf, basedir, 3, W=20, sigma=9, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30),
         MilpConfiguration(baseconf, basedir, 4, W=20, sigma=7, flight_sequence_fpath=flight_sequence_fpath4, time_limit=30),
         MilpConfiguration(baseconf, basedir, 5, W=20, sigma=5, flight_sequence_fpath=flight_sequence_fpath5, time_limit=30),
-        MilpConfiguration(baseconf, basedir, 6, W=20, sigma=4, flight_sequence_fpath=flight_sequence_fpath6, time_limit=30),
+        MilpConfiguration(baseconf, basedir, 6, W=20, sigma=4, flight_sequence_fpath=flight_sequence_fpath6, time_limit=120, int_feas_tol=1e-9),
     ]
 
     for conf in confs:

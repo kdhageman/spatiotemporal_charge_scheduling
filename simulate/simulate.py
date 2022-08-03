@@ -283,7 +283,8 @@ class Simulator:
     def debug(self, env, msg):
         self.logger.debug(f"[{datetime.now()}] [{env.now:.2f}] {msg}")
 
-def plot_events_battery(events: List[Event], fname: str, aspect: float = None):
+
+def plot_events_battery(events: List[List[Event]], fname: str, aspect: float = None):
     """
     Plots the battery over time for the given events
     """

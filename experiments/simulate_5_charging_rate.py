@@ -33,8 +33,8 @@ if __name__ == "__main__":
         MilpConfiguration(baseconf, basedir, 3, W=8, sigma=24, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=84, r_charge=0.0035, r_deplete=0.007, int_feas_tol=1e-7),
         MilpConfiguration(baseconf, basedir, 3, W=8, sigma=24, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=84, r_charge=0.007, r_deplete=0.007, int_feas_tol=1e-7),
         MilpConfiguration(baseconf, basedir, 3, W=8, sigma=24, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=84, r_charge=0.014, r_deplete=0.007, int_feas_tol=1e-7),
-        # MilpConfiguration(baseconf, basedir, 3, W=8, sigma=24, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=84, r_charge=0.035, r_deplete=0.007, int_feas_tol=1e-7),
-        # MilpConfiguration(baseconf, basedir, 3, W=8, sigma=24, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=84, r_charge=0.07, r_deplete=0.007, int_feas_tol=1e-7),  # TODO: fix bug where problem is not solvable
+        # MilpConfiguration(baseconf, basedir, 3, W=8, sigma=24, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=84, r_charge=0.035, r_deplete=0.007, int_feas_tol=1e-9),
+        # MilpConfiguration(baseconf, basedir, 3, W=8, sigma=24, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=84, r_charge=0.07, r_deplete=0.007, int_feas_tol=1e-9),  # TODO: fix bug where problem is not solvable
     ]
 
     for conf in confs:
