@@ -5,7 +5,7 @@ import numpy as np
 
 class Parameters:
     def __init__(self, v: float, r_charge: float, r_deplete: float, B_start: float, B_min: float, B_max: float, epsilon: float = 0.1, W_zero_min=[], B_end=[], remaining_distances=[], schedule_delta=1, plot_delta=0, W: int = 0, sigma=1, time_limit=60,
-                 int_feas_tol=1e-9):
+                 int_feas_tol=1e-9, rescheduling_frequency=1):
         self.v = np.array(v)
         self.r_charge = np.array(r_charge)
         self.r_deplete = np.array(r_deplete)
@@ -26,6 +26,7 @@ class Parameters:
             self.W_zero_min = np.array([0] * len(v))
         self.time_limit = time_limit
         self.int_feas_tol = int_feas_tol
+        self.rescheduling_frequency = rescheduling_frequency
 
     def as_dict(self):
         return dict(
@@ -45,6 +46,7 @@ class Parameters:
             remaining_distances=self.remaining_distances,
             time_limit=self.time_limit,
             int_feas_tol=self.int_feas_tol,
+            rescheduling_frequency=self.rescheduling_frequency,
         )
 
     def copy(self):

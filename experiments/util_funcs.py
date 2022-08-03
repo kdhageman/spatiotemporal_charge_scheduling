@@ -369,10 +369,10 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     logger.debug(f"[{datetime.now()}] B_min:                  {params.B_min}")
     logger.debug(f"[{datetime.now()}] Time limit :            {params.time_limit}")
     logger.debug(f"[{datetime.now()}] IntFeasTol :            {params.int_feas_tol}")
-
+    logger.debug(f"[{datetime.now()}] Rescheduling freq.:     {params.rescheduling_frequency}")
 
     if strategy == ChargingStrategy.Milp:
-        strat = AfterNEventsStrategyAll(params.sigma * (int(np.ceil(params.W / 2)) - 1))
+        strat = AfterNEventsStrategyAll(params.rescheduling_frequency)
         solver = SolverFactory("gurobi")
         solver.options['IntFeasTol'] = params.int_feas_tol
         solver.options['TimeLimit'] = params.time_limit
@@ -416,12 +416,12 @@ def schedule_charge_from_conf(conf):
     charging_station_positions = co['charging_positions']
     time_limit = co['time_limit']
     int_feas_tol = co['int_feas_tol']
+    rescheduling_frequency = co['rescheduling_frequency']
     output_dir = conf['output_directory']
 
     flight_sequence_fpath = conf['flight_sequence_fpath']
     with open(flight_sequence_fpath, 'rb') as f:
         flight_sequences = pickle.load(f)
-
 
     logger.debug(f"[{datetime.now()}] starting charge scheduling..")
     params = Parameters(
@@ -437,6 +437,7 @@ def schedule_charge_from_conf(conf):
         sigma=sigma,
         time_limit=time_limit,
         int_feas_tol=int_feas_tol,
+        rescheduling_frequency=rescheduling_frequency
     )
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     _, schedules = schedule_charge(flight_sequences, charging_station_positions, params, directory=output_dir, strategy=strategy)

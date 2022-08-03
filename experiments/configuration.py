@@ -1,8 +1,10 @@
 import os
 
+import numpy as np
+
 
 class Configuration:
-    def __init__(self, baseconf: dict, basedir, charging_strategy, n_drones, W, sigma, flight_sequence_fpath, v=1.5, r_charge=0.00067, r_deplete=0.006, time_limit=60, int_feas_tol=1e-9):
+    def __init__(self, baseconf: dict, basedir, charging_strategy, n_drones, W, sigma, flight_sequence_fpath, v=1.5, r_charge=0.00067, r_deplete=0.006, time_limit=60, int_feas_tol=1e-9, rescheduling_frequency=None):
         self.baseconf = baseconf
         self.charging_strategy = charging_strategy
         self.n_drones = n_drones
@@ -15,6 +17,10 @@ class Configuration:
         self.r_deplete = r_deplete
         self.time_limit = time_limit
         self.int_feas_tol = int_feas_tol
+        if rescheduling_frequency:
+            self.rescheduling_frequency = rescheduling_frequency
+        else:
+            self.rescheduling_frequency = sigma * (int(np.ceil(W / 2)) - 1)
 
     def outputdir(self):
         raise NotImplementedError
@@ -33,6 +39,7 @@ class Configuration:
         conf['charging_optimization']['sigma'] = self.sigma
         conf['charging_optimization']['time_limit'] = self.time_limit
         conf['charging_optimization']['int_feas_tol'] = self.int_feas_tol
+        conf['charging_optimization']['rescheduling_frequency'] = self.rescheduling_frequency
         return conf
 
 
@@ -45,8 +52,8 @@ class NaiveConfiguration(Configuration):
 
 
 class MilpConfiguration(Configuration):
-    def __init__(self, baseconf: dict, basedir, n_drones, W, sigma, flight_sequence_fpath, time_limit=60, int_feas_tol=1e-7):
-        super().__init__(baseconf, basedir, "milp", n_drones, W, sigma, flight_sequence_fpath, time_limit=time_limit, int_feas_tol=int_feas_tol)
+    def __init__(self, baseconf: dict, basedir, n_drones, W, sigma, flight_sequence_fpath, time_limit=60, int_feas_tol=1e-7, rescheduling_frequency=None):
+        super().__init__(baseconf, basedir, "milp", n_drones, W, sigma, flight_sequence_fpath, time_limit=time_limit, int_feas_tol=int_feas_tol, rescheduling_frequency=rescheduling_frequency)
 
     def outputdir(self):
-        return os.path.join(self.basedir, f"{self.charging_strategy}_ndrones{self.n_drones}_sigma{self.sigma}_W{self.W}_tl{self.time_limit}_rc{self.r_charge}_rd{self.r_deplete}")
+        return os.path.join(self.basedir, f"{self.charging_strategy}_ndrones{self.n_drones}_sigma{self.sigma}_W{self.W}_tl{self.time_limit}_rc{self.r_charge}_rd{self.r_deplete}_n{self.rescheduling_frequency}")

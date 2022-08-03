@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from typing import List, Dict, Tuple
 
@@ -39,14 +40,13 @@ class Scheduler:
     def _handle_event(self, event: simpy.Event):
         raise NotImplementedError
 
-    @timed
-    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
+    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         """
         Creates a new schedule for the drones
         :return: optimal: True if the schedule is optimal, False otherwise
         :return: schedules: list of nodes for each schedules drone to follow
         """
-        t_solve, schedules = self._schedule(start_positions, batteries, state_types, uavs_to_schedule)
+        t_solve, (optimal, schedules) = self._schedule(start_positions, batteries, state_types, uavs_to_schedule)
 
         for d, schedule in schedules.items():
             # ignore schedule when no waypoints are remaining
@@ -78,7 +78,7 @@ class Scheduler:
                         offset += 1
             except TypeError as e:
                 pass
-        return t_solve, schedules
+        return t_solve, (optimal, schedules)
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         raise NotImplementedError
@@ -233,11 +233,13 @@ class MilpScheduler(Scheduler):
             W_zero_min.append(self.params.epsilon if state_type == UavStateType.FinishedCharging else 0)
         params.W_zero_min = np.array(W_zero_min)
 
-        t_before = datetime.now()
+        t_start = time.perf_counter()
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
-        elapsed = datetime.now() - t_before
-        self.logger.debug(f"[{datetime.now()}] constructed MILP model in {elapsed.seconds + elapsed.microseconds / 1000000:.2f}s")
+        elapsed = time.perf_counter() - t_start
+        self.logger.debug(f"[{datetime.now()}] constructed MILP model in {elapsed:.2f}s")
+        t_start = time.perf_counter()
         solution = self.solver.solve(model)
+        t_solve = time.perf_counter() - t_start
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
@@ -298,7 +300,7 @@ class MilpScheduler(Scheduler):
                     nodes.append(wp)
 
             res[d] = nodes
-        return optimal, res
+        return t_solve, (optimal, res)
 
 
 class NaiveScheduler(Scheduler):
@@ -366,4 +368,4 @@ class NaiveScheduler(Scheduler):
                 wp = Waypoint(*pos)
                 nodes.append(wp)
             res[d] = nodes
-        return False, res
+        return float(0), (False, res)
