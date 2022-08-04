@@ -242,7 +242,7 @@ class MilpScheduler(Scheduler):
         self.logger.debug(f"[{datetime.now()}] constructed MILP model in {elapsed:.2f}s")
 
         t_start = time.perf_counter()
-        solution = self.solver.solve(model, tee=True)
+        solution = self.solver.solve(model)
         t_solve = time.perf_counter() - t_start
 
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:

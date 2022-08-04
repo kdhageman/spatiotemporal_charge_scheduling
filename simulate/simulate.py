@@ -362,7 +362,6 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
     figheight = ((1 + grid[0].figure.subplotpars.hspace) * x * N_d - grid[0].figure.subplotpars.hspace * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
     grid[0].figure.set_figheight(figheight)
 
-    plt.tight_layout()
     plt.savefig(fname, bbox_inches='tight')
 
 
@@ -410,5 +409,4 @@ def plot_station_occupancy(events: List[List[Event]], nstations: int, total_dura
     figheight = ((1 + grid[0].figure.subplotpars.hspace) * x * nstations - grid[0].figure.subplotpars.hspace * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
     grid[0].figure.set_figheight(figheight)
 
-    plt.tight_layout()
     plt.savefig(fname, bbox_inches='tight')

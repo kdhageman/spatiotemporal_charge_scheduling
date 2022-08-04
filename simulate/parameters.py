@@ -13,6 +13,8 @@ class Parameters:
         self.B_min = np.array(B_min)
         self.B_max = np.array(B_max)
         self.B_end = np.array(B_end)
+        if not B_end:
+            self.B_end = self.B_min
         self.epsilon = epsilon
         self.remaining_distances = remaining_distances
         if not remaining_distances:
