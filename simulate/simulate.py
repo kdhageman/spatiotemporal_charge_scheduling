@@ -240,7 +240,7 @@ class Simulator:
 
                 # plot occupancy
                 fname = os.path.join(self.directory, "occupancy.pdf")
-                plot_station_occupancy([u.events for u in self.uavs], self.sc.N_s, self.env.now, fname)
+                plot_station_occupancy([u.events for u in self.uavs], self.sc.N_s, self.env.now, fname, r_charge=self.params.r_charge.min())
 
                 # output events
                 event_dir = os.path.join(self.directory, "events")
@@ -285,6 +285,7 @@ class Simulator:
 
 
 def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float = 0.00067):
+
     """
     Plots the battery over time for the given events
     """
@@ -333,14 +334,15 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
                     color=station_colors[e.node.identifier],
                     fill=None,
                     linewidth=0,
-                    alpha=0.1,
+                    alpha=0.3,
                     hatch="/" * 6,
-                    ec=None,
+                    ec=station_colors[e.node.identifier],
                     zorder=-1
                 )
                 grid[d].add_patch(rect)
 
         grid[d].plot(X, Y, c=uav_colors[d])
+        grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([0, 1])
 
     # add vertical lines
@@ -349,27 +351,29 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
     grid[np.argmin(execution_times)].text(max_execution_time, 0.5, f'{max_execution_time:.1f}s', color='red',
                                           backgroundcolor='white', fontsize='xx-small', ha='center', zorder=-9)
 
-    x = 1
     N_d = len(events)
-    figheight = (1.1 * x * N_d - 0.1 * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
-    grid[0].figure.set_figheight(figheight)
-    aspect = 1/r_charge
-    for d in range(len(events)):
+    aspect = 1 / r_charge
+    for d in range(N_d):
         grid[d].set_aspect(aspect)
-    grid[len(events)-1].set_xlabel("Time (s)")
+    grid[N_d - 1].set_xlabel("Time (s)")
 
+    # set figure height
+    x = 1
+    figheight = ((1 + grid[0].figure.subplotpars.hspace) * x * N_d - grid[0].figure.subplotpars.hspace * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
+    grid[0].figure.set_figheight(figheight)
+
+    plt.tight_layout()
     plt.savefig(fname, bbox_inches='tight')
 
 
-def plot_station_occupancy(events: List[Event], nstations: int, total_duration: float, fname: str):
+def plot_station_occupancy(events: List[List[Event]], nstations: int, total_duration: float, fname: str, r_charge: float = 0.00067):
     """
     Plot the number of UAVs that use a charging station over time
     """
     colors = gen_colors(nstations)
 
-    _, axes = plt.subplots(nrows=nstations, ncols=1, sharex=True, sharey=True)
-    if nstations == 1:
-        axes = [axes]
+    fig = plt.figure()
+    grid = ImageGrid(fig, 111, (nstations, 1), axes_pad=0.15, aspect=True, share_all=True)
 
     for station in range(nstations):
         X = [0]
@@ -391,9 +395,20 @@ def plot_station_occupancy(events: List[Event], nstations: int, total_duration: 
             Y += [prev_charged, cur_charged]
         X.append(total_duration)
         Y.append(cur_charged)
-        axes[station].set_title(f"Station {station}")
-        axes[station].plot(X, Y, colors[station])
-        axes[station].fill_between(X, Y, facecolor=colors[station], alpha=0.2)
+        grid[station].set_ylabel(f"Station {station+1}", fontsize=9)
+        grid[station].plot(X, Y, colors[station])
+        grid[station].fill_between(X, Y, facecolor=colors[station], alpha=0.2)
+
+    # correct aspect
+    aspect = 1 / r_charge
+    for d in range(nstations):
+        grid[d].set_aspect(aspect)
+    grid[nstations - 1].set_xlabel("Time (s)")
+
+    # set figure height
+    x = 1
+    figheight = ((1 + grid[0].figure.subplotpars.hspace) * x * nstations - grid[0].figure.subplotpars.hspace * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
+    grid[0].figure.set_figheight(figheight)
 
     plt.tight_layout()
     plt.savefig(fname, bbox_inches='tight')
