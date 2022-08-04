@@ -5,6 +5,7 @@ import yaml
 from matplotlib import pyplot as plt
 from yaml import Loader
 
+from simulate.util import gen_colors, gen_linestyles
 from util import distance, constants
 from util.distance import dist3
 
@@ -133,9 +134,15 @@ class Scenario:
 
         return min(X), max(X), min(Y), max(Y)
 
-    def plot(self, ax=None, draw_distances=True):
+    def plot(self, ax=None, draw_distances=True, greyscale=False):
         if not ax:
             _, ax = plt.subplots()
+
+        colors = gen_colors(self.N_d)
+        if greyscale:
+            # TODO: implement grey scale plotting
+            pass
+        linestyles = gen_linestyles(self.N_d)
 
         if draw_distances:
             # draw lines between waypoints and S
@@ -168,14 +175,15 @@ class Scenario:
             waypoints = self.positions_w[d]
             x = [i[0] for i in waypoints]
             y = [i[1] for i in waypoints]
-            ax.plot(x, y, color=constants.W_COLORS[d], zorder=-1)
-            ax.scatter(x, y, marker='o', color=constants.W_COLORS[d], facecolor='white', s=70)
+            ax.plot(x, y, color=colors[d], linestyle=linestyles[d], zorder=-1)
+            ax.scatter(x, y, marker='o', color=colors[d], facecolor='white', s=70)
+            ax.scatter(x[:1], y[:1], marker='o', color=colors[d], facecolor=colors[d], s=100)
 
             # label waypoints
             for w in range(self.N_w):
                 x_text = waypoints[w][0]
                 y_text = waypoints[w][1] + 0.05
-                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=constants.W_COLORS[d], fontsize=15)
+                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=colors[d], fontsize=15)
 
             # label time between waypoints
             if draw_distances:
@@ -188,4 +196,4 @@ class Scenario:
 
                     x_text = pos_w_s[0] + alpha * (pos_w_d[0] - pos_w_s[0])
                     y_text = pos_w_s[1] + alpha * (pos_w_d[1] - pos_w_s[1]) + 0.05
-                    ax.text(x_text, y_text, f"{dist:.2f}", color=constants.W_COLORS[d])
+                    ax.text(x_text, y_text, f"{dist:.2f}", color=colors[d])

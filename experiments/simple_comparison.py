@@ -1,5 +1,7 @@
 import os
 
+from matplotlib import pyplot as plt
+
 from simulate.parameters import Parameters
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Simulator
@@ -9,6 +11,15 @@ from util.scenario import Scenario
 
 def main():
     sc = Scenario.from_file("scenarios/three_drones_circling.yml")
+    _, ax = plt.subplots(figsize=(3, 3))
+    ax.axis('equal')
+
+    sc.plot(ax=ax, draw_distances=False)
+    plt.axis('off')
+
+    basedir = 'out/simple_comparison'
+    fname = os.path.join(basedir, "scenario.pdf")
+    plt.savefig(fname, bbox_inches='tight')
 
     p = dict(
         v=[1, 1, 1],
@@ -26,7 +37,7 @@ def main():
     params = Parameters(**p)
 
     # MILP
-    directory = 'out/simple_comparison/naive'
+    directory = os.path.join(basedir, 'naive')
     os.makedirs(directory, exist_ok=True)
     strat = OnEventStrategySingle()
     scheduler = NaiveScheduler(params, sc)
@@ -34,12 +45,13 @@ def main():
     _, _, _ = simulator.sim()
 
     # MILP
-    directory = 'out/simple_comparison/milp'
+    directory = os.path.join(basedir, 'milp')
     os.makedirs(directory, exist_ok=True)
     strat = AfterNEventsStrategyAll(4)
     scheduler = MilpScheduler(params, sc)
     simulator = Simulator(scheduler, strat, params, sc, directory=directory)
     _, _, _ = simulator.sim()
+
 
 if __name__ == "__main__":
     main()

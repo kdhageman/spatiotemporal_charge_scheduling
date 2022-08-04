@@ -352,13 +352,13 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
                                           backgroundcolor='white', fontsize='xx-small', ha='center', zorder=-9)
 
     N_d = len(events)
-    aspect = 1 / r_charge
+    aspect = 0.8 / r_charge
     for d in range(N_d):
         grid[d].set_aspect(aspect)
     grid[N_d - 1].set_xlabel("Time (s)")
 
     # set figure height
-    x = 1
+    x = 0.6
     figheight = ((1 + grid[0].figure.subplotpars.hspace) * x * N_d - grid[0].figure.subplotpars.hspace * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
     grid[0].figure.set_figheight(figheight)
 
@@ -399,13 +399,13 @@ def plot_station_occupancy(events: List[List[Event]], nstations: int, total_dura
         grid[station].fill_between(X, Y, facecolor=colors[station], alpha=0.2)
 
     # correct aspect
-    aspect = 1 / r_charge
+    aspect = 0.8 / r_charge
     for d in range(nstations):
         grid[d].set_aspect(aspect)
     grid[nstations - 1].set_xlabel("Time (s)")
 
     # set figure height
-    x = 1
+    x = 0.6
     figheight = ((1 + grid[0].figure.subplotpars.hspace) * x * nstations - grid[0].figure.subplotpars.hspace * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
     grid[0].figure.set_figheight(figheight)
 
