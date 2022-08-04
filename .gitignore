@@ -8,3 +8,5 @@ scratch*.ipynb
 __pycache__/
 pointclouds
 cache
+.run
+test.pdf

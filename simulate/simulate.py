@@ -8,8 +8,8 @@ import numpy as np
 import simpy
 from PyPDF2 import PdfMerger
 from matplotlib import pyplot as plt
-from matplotlib.figure import figaspect
 from matplotlib.patches import Rectangle
+from mpl_toolkits.axes_grid1 import ImageGrid
 
 from simulate.event import EventType, Event
 from simulate.node import ChargingStation, NodeType, AuxWaypoint
@@ -236,7 +236,7 @@ class Simulator:
 
                 # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
-                plot_events_battery([u.events for u in self.uavs], fname, aspect=self.params.r_charge.min())
+                plot_events_battery([u.events for u in self.uavs], fname, r_charge=self.params.r_charge.min())
 
                 # plot occupancy
                 fname = os.path.join(self.directory, "occupancy.pdf")
@@ -284,7 +284,7 @@ class Simulator:
         self.logger.debug(f"[{datetime.now()}] [{env.now:.2f}] {msg}")
 
 
-def plot_events_battery(events: List[List[Event]], fname: str, aspect: float = None):
+def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float = 0.00067):
     """
     Plots the battery over time for the given events
     """
@@ -293,15 +293,8 @@ def plot_events_battery(events: List[List[Event]], fname: str, aspect: float = N
         execution_times.append(events[d][-1].t_end)
     max_execution_time = max(execution_times)
 
-    if aspect:
-        w, h = figaspect(aspect)
-        h = h * len(events)
-        figsize = (w, h)
-    else:
-        figsize = None
-    _, axes = plt.subplots(len(events), 1, sharex=True, sharey=True, figsize=figsize)
-    if len(events) == 1:
-        axes = [axes]
+    fig = plt.figure()
+    grid = ImageGrid(fig, 111, (len(events), 1), axes_pad=0.15, aspect=True, share_all=True)
 
     uav_colors = gen_colors(len(events))
 
@@ -331,7 +324,7 @@ def plot_events_battery(events: List[List[Event]], fname: str, aspect: float = N
                     alpha=0.3,
                     zorder=-1
                 )
-                axes[d].add_patch(rect)
+                grid[d].add_patch(rect)
             elif e.type == EventType.waited:
                 rect = Rectangle(
                     (e.t_start, 0),
@@ -345,16 +338,25 @@ def plot_events_battery(events: List[List[Event]], fname: str, aspect: float = N
                     ec=None,
                     zorder=-1
                 )
-                axes[d].add_patch(rect)
+                grid[d].add_patch(rect)
 
-        axes[d].plot(X, Y, c=uav_colors[d])
-        axes[d].set_ylim([0, 1])
+        grid[d].plot(X, Y, c=uav_colors[d])
+        grid[d].set_ylim([0, 1])
 
     # add vertical lines
     for d in range(len(events)):
-        axes[d].axvline(max_execution_time, color='red', zorder=-10)
-    axes[np.argmin(execution_times)].text(max_execution_time, 0.5, f'{max_execution_time:.1f}s', color='red',
+        grid[d].axvline(max_execution_time, color='red', zorder=-10)
+    grid[np.argmin(execution_times)].text(max_execution_time, 0.5, f'{max_execution_time:.1f}s', color='red',
                                           backgroundcolor='white', fontsize='xx-small', ha='center', zorder=-9)
+
+    x = 1
+    N_d = len(events)
+    figheight = (1.1 * x * N_d - 0.1 * x) / (1 - grid[0].figure.subplotpars.bottom - (1 - grid[0].figure.subplotpars.top))
+    grid[0].figure.set_figheight(figheight)
+    aspect = 1/r_charge
+    for d in range(len(events)):
+        grid[d].set_aspect(aspect)
+    grid[len(events)-1].set_xlabel("Time (s)")
 
     plt.savefig(fname, bbox_inches='tight')
 

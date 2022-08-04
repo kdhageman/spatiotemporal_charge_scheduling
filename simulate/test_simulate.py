@@ -291,4 +291,4 @@ class TestPlotBattery(TestCase):
             ]
         ]
 
-        plot_events_battery(events, fname="test.pdf", aspect=1 / r_charge)
+        plot_events_battery(events, fname="test.pdf", r_charge=r_charge)
