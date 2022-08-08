@@ -285,7 +285,6 @@ class Simulator:
 
 
 def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float = 0.00067):
-
     """
     Plots the battery over time for the given events
     """
@@ -305,7 +304,13 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
             if type(e.node) == ChargingStation:
                 if e.node.identifier not in station_ids:
                     station_ids.append(e.node.identifier)
-    station_colors = gen_colors(len(station_ids))
+    if len(station_ids) == 1:
+        # make grey
+        station_colors = [
+            [0.5] * 3,
+        ]
+    else:
+        station_colors = gen_colors(len(station_ids))
 
     for d in range(len(events)):
         X = []
@@ -344,6 +349,7 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
         grid[d].plot(X, Y, c=uav_colors[d])
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([0, 1])
+        grid[d].spines.right.set_visible(False)
 
     # add vertical lines
     for d in range(len(events)):
@@ -394,7 +400,7 @@ def plot_station_occupancy(events: List[List[Event]], nstations: int, total_dura
             Y += [prev_charged, cur_charged]
         X.append(total_duration)
         Y.append(cur_charged)
-        grid[station].set_ylabel(f"Station {station+1}", fontsize=9)
+        grid[station].set_ylabel(f"Station {station + 1}", fontsize=9)
         grid[station].plot(X, Y, colors[station])
         grid[station].fill_between(X, Y, facecolor=colors[station], alpha=0.2)
 
