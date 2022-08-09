@@ -64,17 +64,17 @@ class TestSimulator(TestCase):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
 
         p = dict(
-            v=[1] * 3,
-            r_charge=[0.04] * 3,
-            r_deplete=[0.3] * 3,
-            B_min=[0.1] * 3,
-            B_max=[1] * 3,
-            B_start=[1] * 3,
-            # plot_delta=0.1,
-            plot_delta=0,
-            W=4,
+            v=[1, 1, 1],
+            r_charge=[0.2, 0.2, 0.2],
+            r_deplete=[0.3, 0.3, 0.3],
+            B_min=[0.1, 0.1, 0.1],
+            B_max=[1, 1, 1],
+            B_start=[1, 1, 1],
+            plot_delta=0.1,
+            # plot_delta=0,
+            W=5,
             sigma=1,
-            epsilon=1,
+            epsilon=2,
         )
         params = Parameters(**p)
 
@@ -103,17 +103,17 @@ class TestSimulator(TestCase):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
 
         p = dict(
-            v=[1] * 3,
-            r_charge=[0.04] * 3,
-            r_deplete=[0.3] * 3,
-            B_min=[0.1] * 3,
-            B_max=[1] * 3,
-            B_start=[1] * 3,
-            # plot_delta=0.1,
-            plot_delta=0,
+            v=[1, 1, 1],
+            r_charge=[0.2, 0.2, 0.2],
+            r_deplete=[0.3, 0.3, 0.3],
+            B_min=[0.1, 0.1, 0.1],
+            B_max=[1, 1, 1],
+            B_start=[1, 1, 1],
+            plot_delta=0.1,
+            # plot_delta=0,
             W=5,
             sigma=1,
-            epsilon=1,
+            epsilon=2,
         )
         params = Parameters(**p)
 

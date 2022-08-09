@@ -252,7 +252,7 @@ class MilpScheduler(Scheduler):
             self.logger.debug(f"[{datetime.now()}] UAV [{d}] has a projected end battery of {model.b_arr(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now()}] UAV [{d}] is penalized by {model.lambda_move(d):.2f}s (moving) and {model.lambda_charge(d)():.2f}s (charging) [=max{{0, {model.rd(d):.1f}-{np.round(model.oc(d)(), 1):.1f}}} / {model.r_charge[d]}")
+            self.logger.debug(f"[{datetime.now()}] UAV [{d}] is penalized by {model.lambda_move(d):.2f}s (moving) and {model.lambda_charge(d)():.2f}s (charging) [=max{{0, {model.rd(d):.1f} - {np.round(model.oc(d)(), 1):.1f}}} / {model.r_charge[d]}]")
 
         for d in model.d:
             self.logger.debug(f"[{datetime.now()}] short term mission execution time for UAV [{d}] is {model.E(d)():.2f}")

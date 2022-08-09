@@ -204,6 +204,21 @@ class BaseModel(pyo.ConcreteModel):
         """
         return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
 
+    def total_waiting_time(self, d):
+        """
+        Return the total waiting time for d in the calculated schedule
+        """
+        return sum(self.W[d, w_s] for w_s in self.w_s)
+
+    def total_charging_time(self, d):
+        """
+        Return the total charging time for d in the calculated schedule
+        """
+        return sum(self.C[d, w_s] for w_s in self.w_s)
+
+    def total_moving_time(self, d):
+        return sum(self.t(d, w_s) for w_s in self.w_s)
+
     @property
     def W_max(self):
         return sum(self.C_max)

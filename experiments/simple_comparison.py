@@ -23,16 +23,16 @@ def main():
 
     p = dict(
         v=[1, 1, 1],
-        r_charge=[0.15, 0.15, 0.15],
+        r_charge=[0.2, 0.2, 0.2],
         r_deplete=[0.3, 0.3, 0.3],
         B_min=[0.1, 0.1, 0.1],
         B_max=[1, 1, 1],
         B_start=[1, 1, 1],
         # plot_delta=0.1,
         plot_delta=0,
-        W=4,
+        W=5,
         sigma=1,
-        epsilon=0.1,
+        epsilon=2,
     )
     params = Parameters(**p)
 
