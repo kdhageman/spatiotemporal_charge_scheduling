@@ -30,8 +30,10 @@ def main(conf):
 
     # open3d config
     o = conf['open3d']
-    camera_x = o['camera_x']
-    camera_y = o['camera_y']
+    camera_x_rot = o['camera_x_rot']
+    camera_y_rot = o['camera_y_rot']
+    camera_x_trans = o['camera_x_trans']
+    camera_y_trans = o['camera_y_trans']
     open3d_width = o['width']
     open3d_height = o['height']
 
@@ -72,14 +74,14 @@ def main(conf):
     aabb = pcd.get_axis_aligned_bounding_box()
     cf = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1, origin=[0, 0, 0])
     fname = os.path.join(output_dir, f"{filecounter}_pcd_translation.png") if not visualize else None
-    draw_geometries([pcd, aabb, cf], camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries([pcd], camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
 
     if mesh:
         geos = [aabb, cf]
         geos.append(mesh)
         fname = os.path.join(output_dir, f"{filecounter}_inner_mesh.png") if not visualize else None
-        draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
+        draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
         filecounter += 1
 
     # remove any point too close to the ground
@@ -90,7 +92,7 @@ def main(conf):
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_pcd_above_ground.png") if not visualize else None
-    draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
 
     t_downsample, pcd = downsample(pcd, 0.1, False)
@@ -100,7 +102,7 @@ def main(conf):
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_pcd.png") if not visualize else None
-    draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
 
     t_subsampled, pcd = downsample(pcd, voxel_size, True)
@@ -108,7 +110,7 @@ def main(conf):
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_downsampled.png") if not visualize else None
-    draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
     logger.debug(f"finished downsampling (got {len(pcd.points):,} remaining points)")
 
@@ -118,7 +120,7 @@ def main(conf):
         if mesh:
             geos.append(mesh)
         fname = os.path.join(output_dir, f"{filecounter}_no_downward.png") if not visualize else None
-        draw_geometries(geos, camera_x, camera_y, fname=fname, width=open3d_width, height=open3d_height)
+        draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
         filecounter += 1
         logger.debug("finished downward normal removal")
     else:
@@ -131,7 +133,7 @@ def main(conf):
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_graph.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
     logger.debug("finished geometry extraction from graphs")
 
@@ -139,7 +141,7 @@ def main(conf):
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_subgraphs.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
     logger.debug("finished geometry extraction from subgraphs")
 
@@ -157,7 +159,7 @@ def main(conf):
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_paths.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
 
     flight_sequences = []
@@ -170,13 +172,12 @@ def main(conf):
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_flight_paths.png") if not visualize else None
-    draw_geometries(geos, x=camera_x, y=camera_y, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
     filecounter += 1
 
     fname = os.path.join(output_dir, "flight_sequences.pkl")
     with open(fname, 'wb') as f:
         pickle.dump(flight_sequences, f)
-
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

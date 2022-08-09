@@ -56,13 +56,15 @@ def estimate_normal(pcd: o3d.geometry.PointCloud):
     return pcd
 
 
-def draw_geometries(geometries: List[Geometry3D], x: float, y: float, fname: str = None, **kwargs):
+def draw_geometries(geometries: List[Geometry3D], xrot: float, yrot: float, xtrans: float = 0, ytrans: float = 0, fname: str = None, **kwargs):
     vis = o3d.visualization.Visualizer()
+
     vis.create_window(**kwargs)
     for g in geometries:
         vis.add_geometry(g)
     ctr = vis.get_view_control()
-    ctr.rotate(x, y)
+    ctr.translate(xtrans, ytrans)
+    ctr.rotate(xrot, yrot)
     if fname:
         dat = np.asarray(vis.capture_screen_float_buffer(True))
         dat = np.minimum(dat, 1)
