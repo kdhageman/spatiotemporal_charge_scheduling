@@ -95,6 +95,7 @@ class Simulator:
         self.directory = directory
         self.remaining = sc.N_d
         self.charging_stations = []
+        self.charging_stations_locks = {}
 
         # for outputting simulation
         self.plot_params = {}
@@ -110,11 +111,12 @@ class Simulator:
             self.charging_stations.append(simpy.PriorityResource(env, capacity=1))
 
         # prepare UAVs
-        def release_lock_cb(env, resource_id):
+        def release_lock_cb(env, uav_id, resource_id):
             epsilon = self.params.epsilon
             resource = self.charging_stations[resource_id]
 
             def release_after_epsilon(env, epsilon, resource, resource_id):
+                self.charging_stations_locks[d] = (env.now, uav_id)
                 self.debug(env, f"simulator is locking charging station [{resource_id}] for {epsilon:.2f} after a UAV finished charging")
                 t_before = env.now
                 req = resource.request(priority=0)
@@ -125,6 +127,7 @@ class Simulator:
                 yield env.timeout(epsilon)
                 resource.release(req)
                 self.debug(env, f"simulator released lock on charging station [{resource_id}]")
+                del self.charging_stations_locks[d]
 
             env.process(release_after_epsilon(env, epsilon, resource, resource_id))
 
@@ -141,14 +144,12 @@ class Simulator:
                 uavs_to_schedule = list(range(self.sc.N_d))
             start_positions = {}
             batteries = {}
-            state_types = {}
             n_waiting = 0
             for d in uavs_to_schedule:
                 uav = self.uavs[d]
                 state = uav.get_state(env)
                 start_positions[d] = state.node.pos.tolist()
                 batteries[d] = state.battery
-                state_types[d] = state.state_type
                 if state.state_type == UavStateType.Waiting:
                     n_waiting += 1
 
@@ -156,10 +157,23 @@ class Simulator:
                 self.debug(env, f"determined position of UAV [{d}] to be {AuxWaypoint(*start_positions[d])}")
             for d in uavs_to_schedule:
                 self.debug(env, f"determined battery of UAV [{d}] to be {batteries[d] * 100:.1f}%")
-            for d in uavs_to_schedule:
-                self.debug(env, f"determined state type UAV [{d}] to be {state_types[d]}")
 
-            t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, state_types, uavs_to_schedule)
+            cs_locks = np.zeros((len(self.uavs), len(self.charging_stations)))
+            for cs, (ts, uav_id) in self.charging_stations_locks.items():
+                elapsed = env.now - ts
+                remaining = self.params.epsilon - elapsed
+                for d in range(len(self.uavs)):
+                    cs_locks[d, cs] = remaining
+                    # TODO: should the original UAV NOT be blocked? (see code below)
+                    # if d != uav_id:
+                    #     cs_locks[d, cs] = remaining
+            for uav in self.uavs:
+                if uav.resource_id is not None:
+                    for d in range(len(self.uavs)):
+                        if d != uav.uav_id:
+                            cs_locks[d, uav.resource_id] = self.params.epsilon
+
+            t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
             self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2}s")
             n_remaining_waypoints = [self.scheduler.n_remaining_waypoints(d) for d in range(self.sc.N_d)]
             self.solve_times.append((env.now, optimal, t_solve, n_remaining_waypoints))

@@ -95,10 +95,26 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: m.b_plus(d, w_s) <= m.B_max[d]
         )
 
-        self.C_lim = pyo.Constraint(
+        self.C_ulim = pyo.Constraint(
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * m.C_max[d]
+        )
+
+        # TODO: reconsider the correct value of ulim
+        def W_ulim_rule(m, d, w_s):
+            ulim = 0
+            for d_prime, C_max in enumerate(m.C_max):
+                if d == d_prime:
+                    continue
+                ulim += C_max
+            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * ulim
+
+        self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
+
+        self.W_llim = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] / m.v[d] for s in m.s) >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
         )
 
         # TODO: add block for discounting
@@ -130,22 +146,6 @@ class BaseModel(pyo.ConcreteModel):
         self.y_disc_constr = pyo.Constraint(
             self.d,
             rule=lambda m, d: m.y_disc_1[d] + m.y_disc_2[d] <= 1
-        )
-
-        # TODO: reconsider the correct value of ulim
-        def W_ulim_rule(m, d, w_s):
-            ulim = 0
-            for d_prime, C_max in enumerate(m.C_max):
-                if d == d_prime:
-                    continue
-                ulim += C_max
-            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * ulim
-
-        self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
-
-        self.W_llim = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.W[d, 0] >= (1 - m.P[d, m.N_s, 0]) * m.W_zero_min[d]
         )
 
         self.alpha_min = pyo.Constraint(
@@ -187,16 +187,14 @@ class BaseModel(pyo.ConcreteModel):
             # base case
             res = self.B_start[d]
         else:
-            res = self.b_plus(d, w - 1) - self.r_deplete[d] / self.v[d] * sum(
-                self.P[d, n, w - 1] * self.D_W[d, n, w - 1] for n in self.n)
+            res = self.b_plus(d, w - 1) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w - 1] * self.D_W[d, n, w - 1] for n in self.n)
         return res
 
     def b_min(self, d, w_s):
         """
         Calculate the battery of drone 'd' when arriving at the next path node after waypoint 'w_s'
         """
-        return self.b_arr(d, w_s) - self.r_deplete[d] / self.v[d] * sum(
-            self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
+        return self.b_arr(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
 
     def b_plus(self, d, w_s):
         """

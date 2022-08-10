@@ -40,13 +40,13 @@ class Scheduler:
     def _handle_event(self, event: simpy.Event):
         raise NotImplementedError
 
-    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
+    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         """
         Creates a new schedule for the drones
         :return: optimal: True if the schedule is optimal, False otherwise
         :return: schedules: list of nodes for each schedules drone to follow
         """
-        t_solve, (optimal, schedules) = self._schedule(start_positions, batteries, state_types, uavs_to_schedule)
+        t_solve, (optimal, schedules) = self._schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
 
         for d, schedule in schedules.items():
             # ignore schedule when no waypoints are remaining
@@ -80,7 +80,7 @@ class Scheduler:
                 pass
         return t_solve, (optimal, schedules)
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         raise NotImplementedError
 
     def n_remaining_waypoints(self, d: int):
@@ -200,7 +200,7 @@ class MilpScheduler(Scheduler):
     def _handle_event(self, event: simpy.Event):
         pass
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         sc, remaining_distances = self.sf.next(start_positions, self.offsets)
 
         for d, remaining_distance in enumerate(remaining_distances):
@@ -231,10 +231,7 @@ class MilpScheduler(Scheduler):
             B_min.append(min(batteries[d] - depletion_to_nearest_station, self.params.B_min[d]))
         params.B_min = np.array(B_min)
 
-        W_zero_min = []
-        for state_type in state_types.values():
-            W_zero_min.append(self.params.epsilon if state_type == UavStateType.FinishedCharging else 0)
-        params.W_zero_min = np.array(W_zero_min)
+        params.W_zero_min = cs_locks
 
         t_start = time.perf_counter()
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
@@ -247,6 +244,23 @@ class MilpScheduler(Scheduler):
 
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
+
+        for constraintset in [
+            model.path_constraint,
+            model.b_arr_llim,
+            model.b_min_llim,
+            model.b_plus_ulim,
+            model.C_ulim,
+            model.W_ulim,
+            model.W_llim,
+            model.alpha_min,
+            model.o_1,
+            model.o_2,
+            model.o_3,
+            model.window_i,
+            model.window_ii,
+        ]:
+            constraintset.pprint()
 
         for d in model.d:
             self.logger.debug(f"[{datetime.now()}] UAV [{d}] has a projected end battery of {model.b_arr(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")

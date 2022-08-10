@@ -171,7 +171,7 @@ class UAV:
             self.resource.release(self.req)
             self.debug(env, f"released lock ({self.resource_id})")
             for cb in self.release_lock_cbs:
-                cb(env, self.resource_id)
+                cb(env, self.uav_id, self.resource_id)
         self.resource = None
         self.req = None
         self.resource_id = None
