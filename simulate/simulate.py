@@ -116,7 +116,7 @@ class Simulator:
             resource = self.charging_stations[resource_id]
 
             def release_after_epsilon(env, epsilon, resource, resource_id):
-                self.charging_stations_locks[d] = (env.now, uav_id)
+                self.charging_stations_locks[resource_id] = (env.now, uav_id)
                 self.debug(env, f"simulator is locking charging station [{resource_id}] for {epsilon:.2f} after a UAV finished charging")
                 t_before = env.now
                 req = resource.request(priority=0)
@@ -127,7 +127,7 @@ class Simulator:
                 yield env.timeout(epsilon)
                 resource.release(req)
                 self.debug(env, f"simulator released lock on charging station [{resource_id}]")
-                del self.charging_stations_locks[d]
+                del self.charging_stations_locks[resource_id]
 
             env.process(release_after_epsilon(env, epsilon, resource, resource_id))
 
@@ -327,12 +327,14 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
         station_colors = gen_colors(len(station_ids))
 
     for d in range(len(events)):
-        X = []
-        Y = []
+        X_line = []
+        Y_line = []
+        X_scatter_wp = []
+        Y_scatter_wp = []
         for i, e in enumerate(events[d]):
             ts = e.t_end
-            X.append(ts)
-            Y.append(e.battery)
+            X_line.append(ts)
+            Y_line.append(e.battery)
 
             if e.type == EventType.charged:
                 rect = Rectangle(
@@ -359,8 +361,12 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
                     zorder=-1
                 )
                 grid[d].add_patch(rect)
+            elif e.type == EventType.reached and e.node.node_type == NodeType.Waypoint:
+                X_scatter_wp.append(e.t_end)
+                Y_scatter_wp.append(e.battery)
 
-        grid[d].plot(X, Y, c=uav_colors[d])
+        grid[d].plot(X_line, Y_line, c=uav_colors[d])
+        grid[d].scatter(X_scatter_wp, Y_scatter_wp, c=[uav_colors[d]], s=10)
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([0, 1])
         grid[d].spines.right.set_visible(False)
