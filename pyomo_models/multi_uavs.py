@@ -73,10 +73,6 @@ class MultiUavModel(BaseModel):
         self.window_i = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_i_rule)
         self.window_ii = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_ii_rule)
 
-    @property
-    def W_max(self):
-        return sum([self.C_max[d] + self.epsilon for d in self.d])
-
     def T_s(self, d, w_s):
         return sum(
             self.C[d, w_p] + self.W[d, w_p] + self.t(d, w_p) for w_p in range(w_s)) + sum(

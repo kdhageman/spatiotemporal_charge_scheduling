@@ -127,7 +127,8 @@ class Simulator:
                 yield env.timeout(epsilon)
                 resource.release(req)
                 self.debug(env, f"simulator released lock on charging station [{resource_id}]")
-                del self.charging_stations_locks[resource_id]
+                if resource_id in self.charging_stations_locks:
+                    del self.charging_stations_locks[resource_id]  # TODO: fix bug here!
 
             env.process(release_after_epsilon(env, epsilon, resource, resource_id))
 
@@ -250,11 +251,11 @@ class Simulator:
 
                 # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
-                plot_events_battery([u.events for u in self.uavs], fname, r_charge=self.params.r_charge.min())
+                plot_events_battery([u.events(self.env) for u in self.uavs], fname, r_charge=self.params.r_charge.min())
 
                 # plot occupancy
                 fname = os.path.join(self.directory, "occupancy.pdf")
-                plot_station_occupancy([u.events for u in self.uavs], self.sc.N_s, self.env.now, fname, r_charge=self.params.r_charge.min())
+                plot_station_occupancy([u.events(self.env) for u in self.uavs], self.sc.N_s, self.env.now, fname, r_charge=self.params.r_charge.min())
 
                 # output events
                 event_dir = os.path.join(self.directory, "events")
@@ -263,7 +264,7 @@ class Simulator:
                     fname = os.path.join(event_dir, f"{d}.csv")
                     with open(fname, "w") as f:
                         f.write("t_start,t_end,duration,event_type,node_type,node_type,node_identifier,node_x,node_y,node_z,uav_id,battery_start,battery_end,depletion,forced\n")
-                        for ev in uav.events:
+                        for ev in uav.events(self.env):
                             t_start = ev.t_start
                             t_end = ev.t_end
                             duration = ev.duration
@@ -287,15 +288,15 @@ class Simulator:
                     pickle.dump(self.all_schedules, f)
 
                 fname = os.path.join(self.directory, "animation.html")
-                events = {d: uav.events for d, uav in enumerate(self.uavs)}
+                events = {d: uav.events(self.env) for d, uav in enumerate(self.uavs)}
                 if self.params.plot_delta:
                     sa = SimulationAnimator(self.sc, events, self.all_schedules, self.params.plot_delta)
                     sa.animate(fname)
 
-        return self.solve_times, self.env, [u.events for u in self.uavs]
+        return self.solve_times, self.env, [u.events(self.env) for u in self.uavs]
 
     def debug(self, env, msg):
-        self.logger.debug(f"[{datetime.now()}] [{env.now:.2f}] {msg}")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [{env.now:.2f}] {msg}")
 
 
 def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float = 0.00067):

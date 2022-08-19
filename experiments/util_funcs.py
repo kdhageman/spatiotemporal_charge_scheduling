@@ -357,21 +357,21 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         os.makedirs(directory, exist_ok=True)
 
     sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
-    logger.debug(f"[{datetime.now()}] # drones:               {sc.N_d}")
-    logger.debug(f"[{datetime.now()}] # stations:             {sc.N_s}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # drones:               {sc.N_d}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # stations:             {sc.N_s}")
     for d in range(sc.N_d):
-        logger.debug(f" [{datetime.now()}] # waypoints for UAV[{d}]: {len(seqs[d])}")
-    logger.debug(f"[{datetime.now()}] sigma:                  {params.sigma}")
-    logger.debug(f"[{datetime.now()}] W:                      {params.W}")
-    logger.debug(f"[{datetime.now()}] epsilon:                {params.epsilon}")
-    logger.debug(f"[{datetime.now()}] v:                      {params.v}")
-    logger.debug(f"[{datetime.now()}] r_charge:               {params.r_charge}")
-    logger.debug(f"[{datetime.now()}] r_deplete:              {params.r_deplete}")
-    logger.debug(f"[{datetime.now()}] B_start:                {params.B_start}")
-    logger.debug(f"[{datetime.now()}] B_min:                  {params.B_min}")
-    logger.debug(f"[{datetime.now()}] Time limit :            {params.time_limit}")
-    logger.debug(f"[{datetime.now()}] IntFeasTol :            {params.int_feas_tol}")
-    logger.debug(f"[{datetime.now()}] Rescheduling freq.:     {params.rescheduling_frequency}")
+        logger.debug(f" [{datetime.now().strftime('%H:%M:%S')}] # waypoints for UAV[{d}]: {len(seqs[d])}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] sigma:                  {params.sigma}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] W:                      {params.W}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] epsilon:                {params.epsilon}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] v:                      {params.v}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] r_charge:               {params.r_charge}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] r_deplete:              {params.r_deplete}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] B_start:                {params.B_start}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] B_min:                  {params.B_min}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] Time limit :            {params.time_limit}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] IntFeasTol :            {params.int_feas_tol}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] Rescheduling freq.:     {params.rescheduling_frequency}")
 
     if strategy == ChargingStrategy.Milp:
         strat = AfterNEventsStrategyAll(params.rescheduling_frequency)
@@ -380,12 +380,12 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         solver.options['TimeLimit'] = params.time_limit
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        logger.debug(f"[{datetime.now()}] prepared MILP simulator")
+        logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] prepared MILP simulator")
     elif strategy == ChargingStrategy.Naive:
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        logger.debug("[{datetime.now()}] prepared naive simulator")
+        logger.debug("[{datetime.now().strftime('%H:%M:%S')}] prepared naive simulator")
     solve_times, env, events = simulator.sim()
 
     # write solve times to disk
@@ -425,7 +425,7 @@ def schedule_charge_from_conf(conf):
     with open(flight_sequence_fpath, 'rb') as f:
         flight_sequences = pickle.load(f)
 
-    logger.debug(f"[{datetime.now()}] starting charge scheduling..")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] starting charge scheduling..")
     params = Parameters(
         v=v,
         r_charge=r_charge,

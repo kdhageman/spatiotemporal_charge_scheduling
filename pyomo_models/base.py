@@ -54,7 +54,7 @@ class BaseModel(pyo.ConcreteModel):
         # control
         self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
         self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
-        self.W = pyo.Var(self.d, self.w_s, bounds=(0, self.W_max))
+        self.W = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.alpha = pyo.Var()  # used for minmax
 
         # CONSTRAINTS
@@ -101,25 +101,19 @@ class BaseModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * m.C_max[d]
         )
 
-        # TODO: reconsider the correct value of ulim
         def W_ulim_rule(m, d, w_s):
-            ulim = 0
-            for d_prime, C_max in enumerate(m.C_max):
-                if d == d_prime:
-                    continue
-                ulim += C_max
-            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * ulim
+            wmax = self.W_max(d)
+            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * wmax
 
         self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
 
         self.W_llim = pyo.Constraint(
             self.d,
-            rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] / m.v[d] for s in m.s) >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
+            rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
         )
 
-        # TODO: add block for discounting
         self.M_disc = [self.remaining_depletion(d) for d in self.d]
-        self.z_disc = pyo.Var(self.d)
+        self.z_disc = pyo.Var(self.d, domain=pyo.NonNegativeReals)
         self.y_disc_1 = pyo.Var(self.d, domain=pyo.Binary)
         self.y_disc_2 = pyo.Var(self.d, domain=pyo.Binary)
 
@@ -158,26 +152,13 @@ class BaseModel(pyo.ConcreteModel):
             sense=pyo.minimize,
         )
 
-    def initialize_variables(self, seed=None):
-        np.random.seed(seed=seed)
-
-        # randomly intitialize P
-        for d, w_s in product(self.d, self.w_s):
-            # pick path node
-            n_selected = np.random.randint(self.N_s + 1)
-            for n in range(self.N_s + 1):
-                if n == n_selected:
-                    self.P[d, n, w_s] = 1
-                else:
-                    self.P[d, n, w_s] = 0
-
-        # randomize W
-        for d, w_s in product(self.d, self.w_s):
-            self.W[d, w_s] = np.random.rand() * self.W_max
-
-        # randomize C
-        for d, w_s in product(self.d, self.w_s):
-            self.C[d, w_s] = np.random.rand() * self.C_max[d]
+    def W_max(self, d):
+        res = 0
+        for d_prime, C_max in enumerate(self.C_max):
+            if d == d_prime:
+                continue
+            res += C_max
+        return res * (self.N_w - 1)
 
     def b_arr(self, d, w):
         """
@@ -216,10 +197,6 @@ class BaseModel(pyo.ConcreteModel):
 
     def total_moving_time(self, d):
         return sum(self.t(d, w_s) for w_s in self.w_s)
-
-    @property
-    def W_max(self):
-        return sum(self.C_max)
 
     # OBJECTIVE
     def E(self, d):

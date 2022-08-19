@@ -50,7 +50,7 @@ class UAV:
         self.waypoint_id = 0
         self.dest_node = None
 
-        self.events = []
+        self._events = []
         self.buffered_events = []
 
         self.proc = None
@@ -59,7 +59,7 @@ class UAV:
         self.resource_id = None
 
         def add_ev_cb(ev):
-            self.events.append(ev.value)
+            self._events.append(ev.value)
 
         self.arrival_cbs = [add_ev_cb]
         self.waited_cbs = [add_ev_cb]
@@ -118,6 +118,21 @@ class UAV:
         for ins in self.instructions:
             if ins.node not in res:
                 res.append(ins.node)
+        return res
+
+    def events(self, env: simpy.Environment):
+        res = self._events
+        duration = env.now - self.t_start
+        state = self.get_state(env)
+        pre_battery = self.battery
+        depletion = pre_battery - state.battery
+
+        if self.state_type == UavStateType.Waiting:
+            ev = WaitedEvent(self.t_start, duration, state.node, uav=self, battery=state.battery, depletion=depletion, forced=True)
+            res.append(ev)
+        elif self.state_type == UavStateType.Charging:
+            ev = ChargedEvent(self.t_start, duration, state.node, uav=self, battery=state.battery, depletion=depletion, forced=True)
+            res.append(ev)
         return res
 
     def add_arrival_cb(self, cb: Callable[[simpy.Event], None]):
@@ -368,11 +383,11 @@ class UAV:
                         cb(event)
 
     def debug(self, env: simpy.Environment, msg: str):
-        self.logger.debug(f"[{datetime.now()}] [{env.now:.2f}] UAV [{self.uav_id}] {msg}")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [{env.now:.2f}] UAV [{self.uav_id}] {msg}")
 
     def sim(self, env: simpy.Environment):
         ev = StartedEvent(env.now, 0, self.last_known_pos, self, battery=self.battery)
-        self.events.append(ev)
+        self._events.append(ev)
 
         self.debug(env, f"is starting new simpy process")
         self.proc = env.process(self._sim(env))

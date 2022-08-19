@@ -228,11 +228,11 @@ class SimulationAnimator:
             # TODO: fix this!
             if t in self.perc_times:
                 perc = t / self.end_time * 100
-                self.logger.debug(f"[{datetime.now()}] {perc:.1f}%")
+                self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] {perc:.1f}%")
 
             return []
 
-        self.logger.debug(f"[{datetime.now()}] animating {self.n_frames} frames")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] animating {self.n_frames} frames")
         ani = FuncAnimation(fig, update, frames=self.frames, blit=True, interval=50)
         video = ani.to_html5_video()
         with open(fname, 'w') as f:

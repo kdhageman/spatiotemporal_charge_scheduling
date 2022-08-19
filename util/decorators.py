@@ -19,13 +19,13 @@ def pickled(filepath):
         def g(*args, **kwargs):
             try:
                 if os.path.exists(filepath):
-                    logging.debug(f"[{datetime.now()}] from file")
+                    logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] from file")
                 with open(filepath, "'rb"):
                     res = pickle.load(filepath)
             except:
-                logging.debug(f"[{datetime.now()}] from source")
+                logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] from source")
                 res = func(*args, **kwargs)
-                logging.debug(f"[{datetime.now()}] to file")
+                logging.debug(f"[{datetime.now().strftime('%H:%M:%S')}] to file")
                 with open(filepath, 'wb'):
                     pickle.dump(res)
             return res

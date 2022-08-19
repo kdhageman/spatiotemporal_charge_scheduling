@@ -47,7 +47,7 @@ class TestUav(TestCase):
         uav.set_schedule(env, nodes)
         env.process(uav.sim(env))
         env.run()
-        self.assertEqual(len(uav.events), 8)
+        self.assertEqual(len(uav._events), 8)
         self.assertEqual(self.n_arrivals, 4)
         self.assertEqual(self.n_waited, 1)
         self.assertEqual(self.n_charged, 2)

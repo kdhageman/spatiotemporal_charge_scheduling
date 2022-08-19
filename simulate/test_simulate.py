@@ -60,7 +60,7 @@ class TestSimulator(TestCase):
             with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
                 f.write(f"{env.now}")
 
-    def test_milp_three_drones_circling(self):
+    def test_milp_three_drones_circling_W4(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
 
         p = dict(
@@ -70,21 +70,26 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
-            plot_delta=0.1,
-            # plot_delta=0,
-            W=5,
+            # plot_delta=0.1,
+            plot_delta=0,
+            W=4,
             sigma=1,
-            epsilon=2,
+            epsilon=2.8,
+            # epsilon=1.9,
         )
         params = Parameters(**p)
 
-        directory = 'out/test/milp_three_drones_circling'
+        directory = 'out/test/milp_three_drones_circling_W4'
         os.makedirs(directory, exist_ok=True)
         # strat = OnEventStrategyAll(interval=3)
-        strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
-        solver = SolverFactory("gurobi")
-        solver.options['MIPFocus'] = 1
-        scheduler = MilpScheduler(params, sc)
+        strat = AfterNEventsStrategyAll(5)
+        solver = SolverFactory("gurobi_ampl", solver_io='nl')
+        solver.options['outlev'] = 1
+        solver.options['iisfind'] = 1
+        solver.options['DualReductions'] = 0
+        # solver = SolverFactory("gurobi")
+        # solver.options['MIPFocus'] = 1
+        scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         solve_times, env, events = simulator.sim()
 
@@ -99,7 +104,7 @@ class TestSimulator(TestCase):
             with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
                 f.write(f"{env.now}")
 
-    def test_naive_three_drones_circling(self):
+    def test_milp_three_drones_circling_W5(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
 
         p = dict(
@@ -117,10 +122,13 @@ class TestSimulator(TestCase):
         )
         params = Parameters(**p)
 
-        directory = 'out/test/naive_three_drones_circling'
+        directory = 'out/test/milp_three_drones_circling_W5'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategySingle()
-        scheduler = NaiveScheduler(params, sc)
+        # strat = OnEventStrategyAll(interval=3)
+        strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
+        solver = SolverFactory("gurobi")
+        solver.options['MIPFocus'] = 1
+        scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         solve_times, env, events = simulator.sim()
 
@@ -154,6 +162,42 @@ class TestSimulator(TestCase):
         params = Parameters(**p)
 
         directory = 'out/test/naive_simulator_long'
+        os.makedirs(directory, exist_ok=True)
+        strat = OnEventStrategySingle()
+        scheduler = NaiveScheduler(params, sc)
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+        solve_times, env, events = simulator.sim()
+
+        # write solve times to disk
+        if directory:
+            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
+                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
+                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
+                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
+
+            # write mission execution time to disk
+            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
+                f.write(f"{env.now}")
+
+    def test_naive_three_drones_circling(self):
+        sc = Scenario.from_file("scenarios/three_drones_circling.yml")
+
+        p = dict(
+            v=[1, 1, 1],
+            r_charge=[0.2, 0.2, 0.2],
+            r_deplete=[0.3, 0.3, 0.3],
+            B_min=[0.1, 0.1, 0.1],
+            B_max=[1, 1, 1],
+            B_start=[1, 1, 1],
+            plot_delta=0.1,
+            # plot_delta=0,
+            W=5,
+            sigma=1,
+            epsilon=2,
+        )
+        params = Parameters(**p)
+
+        directory = 'out/test/naive_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
@@ -215,12 +259,12 @@ class TestSimulator(TestCase):
             os.makedirs(directory, exist_ok=True)
 
         sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
-        self.logger.debug(f"[{datetime.now()}] # drones:               {sc.N_d}")
-        self.logger.debug(f"[{datetime.now()}] # stations:             {sc.N_s}")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # drones:               {sc.N_d}")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # stations:             {sc.N_s}")
         for d in range(sc.N_d):
-            self.logger.debug(f"[{datetime.now()}] # waypoints for UAV[{d}]: {len(seqs[d])}")
-        self.logger.debug(f"[{datetime.now()}] W:                      {params.W}")
-        self.logger.debug(f"[{datetime.now()}] sigma:                  {params.sigma}")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # waypoints for UAV[{d}]: {len(seqs[d])}")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] W:                      {params.W}")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] sigma:                  {params.sigma}")
         if strategy == ChargingStrategy.Milp:
             strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
             solver = SolverFactory("gurobi")
@@ -228,12 +272,12 @@ class TestSimulator(TestCase):
             solver.options['TimeLimit'] = 30
             scheduler = MilpScheduler(params, sc, solver=solver)
             simulator = Simulator(scheduler, strat, params, sc, directory=None)
-            self.logger.debug(f"[{datetime.now()}] prepared MILP simulator")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] prepared MILP simulator")
         elif strategy == ChargingStrategy.Naive:
             strat = OnEventStrategySingle()
             scheduler = NaiveScheduler(params, sc)
             simulator = Simulator(scheduler, strat, params, sc, directory=None)
-            self.logger.debug(f"[{datetime.now()}] prepared naive simulator")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] prepared naive simulator")
 
         visited_positions = {}
         for d, seq in enumerate(seqs):

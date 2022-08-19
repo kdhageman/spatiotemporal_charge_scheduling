@@ -5,13 +5,13 @@ from typing import List, Dict, Tuple
 
 import numpy as np
 import simpy
+from pyomo.core import Suffix
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint, Node
 from simulate.parameters import Parameters
 from simulate.uav import UavStateType
-from util.decorators import timed
 from util.distance import dist3
 from util.exceptions import NotSolvableException
 from util.scenario import Scenario
@@ -26,6 +26,7 @@ class Scheduler:
         self.params = params
         self.sc = sc
         self.offsets = [0] * sc.N_d
+        self.n_scheduled = 0
 
     def handle_event(self, event: simpy.Event):
         """
@@ -78,6 +79,9 @@ class Scheduler:
                         offset += 1
             except TypeError as e:
                 pass
+
+        self.n_scheduled += 1
+
         return t_solve, (optimal, schedules)
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
@@ -204,7 +208,7 @@ class MilpScheduler(Scheduler):
         sc, remaining_distances = self.sf.next(start_positions, self.offsets)
 
         for d, remaining_distance in enumerate(remaining_distances):
-            self.logger.debug(f"[{datetime.now()}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
 
         # correct original parameters
         params = self.params.copy()
@@ -235,41 +239,43 @@ class MilpScheduler(Scheduler):
 
         t_start = time.perf_counter()
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
+        model.iis = Suffix(direction=Suffix.IMPORT)
         elapsed = time.perf_counter() - t_start
-        self.logger.debug(f"[{datetime.now()}] constructed MILP model in {elapsed:.2f}s")
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] constructed MILP model in {elapsed:.2f}s")
 
         t_start = time.perf_counter()
+        # solution = self.solver.solve(model, tee=True, keepfiles=True)
         solution = self.solver.solve(model)
         t_solve = time.perf_counter() - t_start
 
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
+            print("")
+            print("IIS Results")
+            for component, value in model.iis.items():
+                print(f"{component.name} {component.ctype.__name__} {value}")
+
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
-        for constraintset in [
-            model.path_constraint,
-            model.b_arr_llim,
-            model.b_min_llim,
-            model.b_plus_ulim,
-            model.C_ulim,
-            model.W_ulim,
-            model.W_llim,
-            model.alpha_min,
-            model.o_1,
-            model.o_2,
-            model.o_3,
-            model.window_i,
-            model.window_ii,
-        ]:
-            constraintset.pprint()
+        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] solved model successfully in {t_solve:.2f}s!")
+        # if self.n_scheduled == 1:
+        #     raise Exception
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now()}] UAV [{d}] has a projected end battery of {model.b_arr(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a maximum waiting time of:  {model.W_max(d)}")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a maximum charging time of: {model.C_max[d]}")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] scheduled path:\n{model.P_np[d]}")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] scheduled waiting time:\n{model.W_np[d]}")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] scheduled charging time:\n{model.C_np[d]}")
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now()}] UAV [{d}] is penalized by {model.lambda_move(d):.2f}s (moving) and {model.lambda_charge(d)():.2f}s (charging) [=max{{0, {model.rd(d):.1f} - {np.round(model.oc(d)(), 1):.1f}}} / {model.r_charge[d]}]")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected end battery of {model.b_arr(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now()}] short term mission execution time for UAV [{d}] is {model.E(d)():.2f}")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is penalized by {model.lambda_move(d):.2f}s (moving) and {model.lambda_charge(d)():.2f}s (charging) [=max{{0, {model.rd(d):.1f} - {np.round(model.oc(d)(), 1):.1f}}} / {model.r_charge[d]}]")
+
+        for d in model.d:
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] short term mission execution time for UAV [{d}] is {model.E(d)():.2f}")
+
 
         optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
 
