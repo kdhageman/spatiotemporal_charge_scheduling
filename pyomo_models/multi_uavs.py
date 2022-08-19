@@ -33,15 +33,23 @@ class MultiUavModel(pyo.ConcreteModel):
         self.remaining_distances = parameters.get('remaining_distances', [])
         if not self.remaining_distances:
             self.remaining_distances = [0] * self.N_d
-
-        # self.C_max = (self.B_max - self.B_min) / self.r_charge
-        self.C_max = np.array([100] * self.N_d)
-
         self.positions_S = scenario.positions_S
         self.positions_w = scenario.positions_w
-
         self.D_N = scenario.D_N
         self.D_W = scenario.D_W
+        self.C_max = (self.B_max - self.B_min) / self.r_charge
+        self.W_max = []
+        for d in range(self.N_d):
+            wmax = 0
+            for d_prime in range(self.N_d):
+                if d_prime == d:
+                    continue
+                for w_s in range(self.N_w_s):
+                    wmax += max(self.D_N[d_prime, :-1, w_s]) / self.v[d_prime]
+                wmax += self.N_w_s * (self.C_max[d] + self.epsilon)
+            self.W_max.append(wmax)
+
+        self.M = sum(self.W_max)
 
         # MODEL DEFINITION
         self.d = pyo.RangeSet(0, self.N_d - 1)
@@ -57,6 +65,8 @@ class MultiUavModel(pyo.ConcreteModel):
         self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.W = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.alpha = pyo.Var()  # used for minmax
+        self.o = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)
+        self.y = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
 
         # CONSTRAINTS
         self.path_constraint = pyo.Constraint(
@@ -103,7 +113,7 @@ class MultiUavModel(pyo.ConcreteModel):
         )
 
         def W_ulim_rule(m, d, w_s):
-            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * self.W_max(d)
+            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * self.W_max[d]
 
         self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
 
@@ -142,25 +152,6 @@ class MultiUavModel(pyo.ConcreteModel):
             rule=lambda m, d: m.y_disc_1[d] + m.y_disc_2[d] <= 1
         )
 
-        self.alpha_min = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.alpha >= m.E(d)
-        )
-
-        self.execution_time = pyo.Objective(
-            expr=self.alpha,
-            sense=pyo.minimize,
-        )
-
-
-
-        self.M = scenario.D_N.max(axis=(0,1)).sum() / parameters['v'].min() * parameters['r_deplete'].max() / parameters['r_charge'].min() * self.N_d
-
-        # VARIABLES
-        self.o = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)
-        self.y = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
-
-        # CONSTRAINTS
         def o_1_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
                 return pyo.Constraint.Skip
@@ -217,6 +208,17 @@ class MultiUavModel(pyo.ConcreteModel):
         self.window_i = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_i_rule)
         self.window_ii = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_ii_rule)
 
+        # OBJECTIVE
+        self.alpha_min = pyo.Constraint(
+            self.d,
+            rule=lambda m, d: m.alpha >= m.E(d)
+        )
+
+        self.execution_time = pyo.Objective(
+            expr=self.alpha,
+            sense=pyo.minimize,
+        )
+
     def T_s(self, d, w_s):
         return sum(
             self.C[d, w_p] + self.W[d, w_p] + self.t(d, w_p) for w_p in range(w_s)) + sum(
@@ -228,13 +230,6 @@ class MultiUavModel(pyo.ConcreteModel):
     def O(self, d, d_prime, w_s, w_s_prime):
         return sum(self.o[d, d_prime, w_s, w_s_prime, s] for s in self.s)
 
-    def W_max(self, d):
-        res = 0
-        for d in self.d:
-            for w_s in self.w_s:
-                res += max(self.D_N[d,:-1,w_s]) / self.v[d]
-            res += self.N_w_s * (self.C_max[d] + self.epsilon)
-        return 10000 # TODO: return res
 
     def b_arr(self, d, w):
         """
@@ -274,7 +269,6 @@ class MultiUavModel(pyo.ConcreteModel):
     def total_moving_time(self, d):
         return sum(self.t(d, w_s) for w_s in self.w_s)
 
-    # OBJECTIVE
     def E(self, d):
         return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d) + self.lambda_charge(d)
 

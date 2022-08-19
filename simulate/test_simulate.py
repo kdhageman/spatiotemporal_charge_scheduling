@@ -75,7 +75,6 @@ class TestSimulator(TestCase):
             W=4,
             sigma=1,
             epsilon=5,
-            # epsilon=1.9,
         )
         params = Parameters(**p)
 
