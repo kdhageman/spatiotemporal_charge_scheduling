@@ -242,10 +242,12 @@ class MilpScheduler(Scheduler):
         model.iis = Suffix(direction=Suffix.IMPORT)
         elapsed = time.perf_counter() - t_start
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] constructed MILP model in {elapsed:.2f}s")
+        for d in model.d:
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a maximum waiting time of:  {model.W_max(d):,.1f}s")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a maximum charging time of: {model.C_max[d]:,.1f}s")
 
         t_start = time.perf_counter()
-        # solution = self.solver.solve(model, tee=True, keepfiles=True)
-        solution = self.solver.solve(model)
+        solution = self.solver.solve(model, tee=True)
         t_solve = time.perf_counter() - t_start
 
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
@@ -261,8 +263,6 @@ class MilpScheduler(Scheduler):
         #     raise Exception
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a maximum waiting time of:  {model.W_max(d)}")
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a maximum charging time of: {model.C_max[d]}")
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] scheduled path:\n{model.P_np[d]}")
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] scheduled waiting time:\n{model.W_np[d]}")
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] scheduled charging time:\n{model.C_np[d]}")
