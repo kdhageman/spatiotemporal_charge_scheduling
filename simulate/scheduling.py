@@ -5,7 +5,6 @@ from typing import List, Dict, Tuple
 
 import numpy as np
 import simpy
-from pyomo.core import Suffix
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
@@ -239,7 +238,6 @@ class MilpScheduler(Scheduler):
 
         t_start = time.perf_counter()
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
-        model.iis = Suffix(direction=Suffix.IMPORT)
         elapsed = time.perf_counter() - t_start
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] constructed MILP model in {elapsed:.2f}s")
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] model has M: {model.M:,.1f}s")
@@ -252,11 +250,6 @@ class MilpScheduler(Scheduler):
         t_solve = time.perf_counter() - t_start
 
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
-            print("")
-            print("IIS Results")
-            for component, value in model.iis.items():
-                print(f"{component.name} {component.ctype.__name__} {value}")
-
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] solved model successfully in {t_solve:.2f}s!")
@@ -272,11 +265,21 @@ class MilpScheduler(Scheduler):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected end battery of {model.b_arr(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is penalized by {model.lambda_move(d):.2f}s (moving) and {model.lambda_charge(d)():.2f}s (charging) [=max{{0, {model.rd(d):.1f} - {np.round(model.oc(d)(), 1):.1f}}} / {model.r_charge[d]}]")
+            try:
+                erd = model.erd(d)
+                erd = erd()
+            except:
+                pass
+            try:
+                oc = model.oc(d)
+                oc = oc()
+            except:
+                pass
+
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is penalized by {model.lambda_move(d):.2f}s (moving) and {model.lambda_charge(d)():.2f}s (charging) [=({erd:.1f} - {oc:.1f}) / {model.r_charge[d]}]")
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] short term mission execution time for UAV [{d}] is {model.E(d)():.2f}")
-
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected mission execution time of {model.E(d)():.2f}s")
 
         optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
 

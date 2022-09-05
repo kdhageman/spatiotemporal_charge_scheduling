@@ -15,50 +15,24 @@ if __name__ == "__main__":
 
     basedir = "out/villalvernia/1_planning_horizon/increase_sigma"
     # increase sigmas
+    sigmas = [1, 4, 7, 10, 13, 16, 19]
+    rescheduling_frequencies = [3, 5, 7, 9]
+    Ws = [5, 10, 15]
+
     confs = [
         NaiveConfiguration(baseconf, basedir, 3, flight_sequence_fpath3),
-        MilpConfiguration(baseconf, basedir, 3, sigma=1, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=2, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=3, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=4, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=5, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=6, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=7, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=8, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=9, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=10, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=11, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=12, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=13, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=14, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=15, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=16, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=17, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=18, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=19, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
-        MilpConfiguration(baseconf, basedir, 3, sigma=20, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=5),
     ]
 
+    for sigma in sigmas:
+        for rescheduling_frequency in rescheduling_frequencies:
+            for W in Ws:
+                if (W == 15 and rescheduling_frequency == 3 and sigma == 10):
+                    continue
+                if rescheduling_frequency < W:
+                    conf = MilpConfiguration(baseconf, basedir, 3, sigma=sigma, W=W, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=rescheduling_frequency)
+                    confs.append(conf)
+
     basedir = "out/villalvernia/1_planning_horizon/increase_W"
-    # full coverage, but increase W
-    confs += [
-        NaiveConfiguration(baseconf, basedir, 3, flight_sequence_fpath3),
-        MilpConfiguration(baseconf, basedir, 3, sigma=34, W=6, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=29, W=7, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=25, W=8, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=22, W=9, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=19, W=10, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=17, W=11, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=16, W=12, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=15, W=13, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=14, W=14, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=13, W=15, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=12, W=16, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=11, W=17, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=10, W=18, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=9, W=19, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-        MilpConfiguration(baseconf, basedir, 3, sigma=9, W=20, flight_sequence_fpath=flight_sequence_fpath3, time_limit=600, rescheduling_frequency=85),
-    ]
 
     for conf in confs:
         try:
@@ -68,3 +42,4 @@ if __name__ == "__main__":
                 logger.info(f"skipping configuration because it already exists ({conf.outputdir()})")
         except Exception as e:
             logger.error(f"failed to run configuration: {e}")
+            raise e

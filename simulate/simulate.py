@@ -204,7 +204,7 @@ class Simulator:
         strat_proc = env.process(self.strategy.sim(env))
 
         def uav_finished_cb(uav):
-            self.debug(env, f"UAV [{uav.uav_id}] finished")
+            self.debug(env, f"UAV [{uav.uav_id}] finished its mission")
             if self.scheduler.n_remaining_waypoints(uav.uav_id) != 0:
                 raise Exception(f"UAV [{uav.uav_id}] is finished, but still has waypoints to visit")
 
@@ -313,6 +313,13 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
 
     uav_colors = gen_colors(len(events))
 
+    # Do not plot the arrival scatter plot when the amount of waypoints is too high
+    n_wp_arrivals = []
+    for evlist in events:
+        n_wp_arrivals_for_d = sum([e.type == EventType.reached and e.node.node_type == NodeType.Waypoint for e in evlist])
+        n_wp_arrivals.append(n_wp_arrivals_for_d)
+    do_plot_scatter = max(n_wp_arrivals) <= 15
+
     station_ids = []
     for d in range(len(events)):
         for e in events[d]:
@@ -367,7 +374,8 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
                 Y_scatter_wp.append(e.battery)
 
         grid[d].plot(X_line, Y_line, c=uav_colors[d])
-        grid[d].scatter(X_scatter_wp, Y_scatter_wp, c=[uav_colors[d]], s=10)
+        if do_plot_scatter:
+            grid[d].scatter(X_scatter_wp, Y_scatter_wp, c=[uav_colors[d]], s=10)
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([0, 1])
         grid[d].spines.right.set_visible(False)

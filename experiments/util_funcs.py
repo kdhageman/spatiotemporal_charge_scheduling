@@ -1,6 +1,7 @@
 import logging
 import os
 import pickle
+import time
 from datetime import datetime
 from enum import Enum
 from typing import List
@@ -22,6 +23,7 @@ from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import gen_colors, Simulator
 from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
 from util.decorators import timed
+from util.distance import dist3
 from util.scenario import Scenario
 
 logging.basicConfig(
@@ -425,6 +427,38 @@ def schedule_charge_from_conf(conf):
     with open(flight_sequence_fpath, 'rb') as f:
         flight_sequences = pickle.load(f)
 
+    # add intermediate positions
+    dist_cuttoffs = []
+    for seq in flight_sequences:
+        distances = []
+        for i in range(len(seq)-1):
+            pos_i = seq[i]
+            pos_j = seq[i + 1]
+            distance = dist3(pos_i, pos_j)
+            distances.append(distance)
+        dist_cuttoffs.append(np.mean(distances) * 3)
+
+    flight_sequences_segmented = []
+    for d, seq in enumerate(flight_sequences):
+        seq_padded = []
+        for i in range(len(seq)-1):
+            pos_i = seq[i]
+            pos_j = seq[i + 1]
+            distance = dist3(pos_i, pos_j)
+            if distance > dist_cuttoffs[d]:
+                # segmentation needed
+                nr_pads = int(np.ceil(distance / dist_cuttoffs[d]))
+                logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] for UAV [{d}] splitting segment in {nr_pads} parts")
+                for i_pad in range(nr_pads):
+                    frac = (i_pad + 1) / nr_pads
+                    pos_padded = pos_i + frac*(pos_j - pos_i)
+                    seq_padded.append(pos_padded)
+            else:
+                # no padding needed
+                seq_padded.append(pos_i)
+        seq_padded.append(pos_j)  # add last waypoint
+        flight_sequences_segmented.append(np.array(seq_padded))
+
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] starting charge scheduling..")
     params = Parameters(
         v=v,
@@ -442,8 +476,10 @@ def schedule_charge_from_conf(conf):
         rescheduling_frequency=rescheduling_frequency
     )
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
+    t_start = time.perf_counter()
     _, schedules = schedule_charge(flight_sequences, charging_station_positions, params, directory=output_dir, strategy=strategy)
-    logger.debug("finished charge scheduling")
+    elapsed = time.perf_counter() - t_start
+    logger.debug(f"finished charge schedule simulation in {elapsed:.1f}s")
 
 
 def convert_schedule_to_flight_sequence(schedule):

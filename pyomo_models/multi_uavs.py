@@ -122,6 +122,7 @@ class MultiUavModel(pyo.ConcreteModel):
             rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
         )
 
+        # LAMBDA
         self.M_disc = [self.remaining_depletion(d) for d in self.d]
         self.z_disc = pyo.Var(self.d, domain=pyo.NonNegativeReals)
         self.y_disc_1 = pyo.Var(self.d, domain=pyo.Binary)
@@ -152,6 +153,7 @@ class MultiUavModel(pyo.ConcreteModel):
             rule=lambda m, d: m.y_disc_1[d] + m.y_disc_2[d] <= 1
         )
 
+        # WINDOW OVERLAP CONSTRAINTS
         def o_1_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
                 return pyo.Constraint.Skip
@@ -282,7 +284,7 @@ class MultiUavModel(pyo.ConcreteModel):
         return self.remaining_distances[d] / self.v[d]
 
     def lambda_charge(self, d):
-        return self.z_disc[d] / self.r_charge[d]
+        return (self.erd(d) - self.oc(d)) / self.r_charge[d]
 
     def plot(self, ax=None):
         if not ax:
@@ -339,11 +341,11 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         return self.b_arr(d, self.N_w - 1) - self.B_end[d]
 
-    def rd(self, d):
+    def erd(self, d):
         """
-        Return the remaining depletion for drone 'd'
+        Return the expected remaining depletion for drone 'd'
         """
-        return self.remaining_distances[d] * self.r_deplete[d] / self.v[d]
+        return self.remaining_move_time(d) * self.r_deplete[d]
 
     def schedules(self):
         schedules = []
