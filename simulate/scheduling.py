@@ -5,6 +5,7 @@ from typing import List, Dict, Tuple
 
 import numpy as np
 import simpy
+from pyomo.core import Suffix
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
@@ -195,7 +196,7 @@ class ScenarioFactory:
 
 
 class MilpScheduler(Scheduler):
-    def __init__(self, params: Parameters, scenario: Scenario, solver=SolverFactory("gurobi")):
+    def __init__(self, params: Parameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
         super().__init__(params, scenario)
         self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
         self.solver = solver
@@ -238,6 +239,7 @@ class MilpScheduler(Scheduler):
 
         t_start = time.perf_counter()
         model = MultiUavModel(scenario=sc, parameters=params.as_dict())
+        model.iis = Suffix(direction=Suffix.IMPORT)
         elapsed = time.perf_counter() - t_start
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] constructed MILP model in {elapsed:.2f}s")
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] model has M: {model.M:,.1f}s")
@@ -250,6 +252,10 @@ class MilpScheduler(Scheduler):
         t_solve = time.perf_counter() - t_start
 
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
+            print("")
+            print("IIS Results")
+            for component, value in model.iis.items():
+                print(f"{component.name} {component.ctype.__name__} {value}")
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] solved model successfully in {t_solve:.2f}s!")
@@ -262,7 +268,7 @@ class MilpScheduler(Scheduler):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] scheduled charging time:\n{model.C_np[d]}")
 
         for d in model.d:
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected end battery of {model.b_arr(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected end battery of {model.b_star(d, model.N_w - 1)() * 100:.1f}% ({model.oc(d)() * 100:.1f}% more than necessary)")
 
         for d in model.d:
             try:

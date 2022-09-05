@@ -45,7 +45,8 @@ class TestSimulator(TestCase):
         directory = 'out/test/milp_simulator_long'
         os.makedirs(directory, exist_ok=True)
         strat = AfterNEventsStrategyAll(3) # TODO: fix bug with pi < 4
-        scheduler = MilpScheduler(params, sc)
+        solver = SolverFactory("gurobi_ampl", solver_io='nl')
+        scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         solve_times, env, events = simulator.sim()
 
@@ -124,7 +125,7 @@ class TestSimulator(TestCase):
         os.makedirs(directory, exist_ok=True)
         # strat = OnEventStrategyAll(interval=3)
         strat = AfterNEventsStrategyAll(params.sigma * (params.W - 1))
-        solver = SolverFactory("gurobi")
+        solver = SolverFactory("gurobi_ampl", solver_io='nl')
         solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)

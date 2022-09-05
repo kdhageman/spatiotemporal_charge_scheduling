@@ -51,7 +51,8 @@ class MultiUavModel(pyo.ConcreteModel):
 
         self.M = sum(self.W_max)
 
-        # MODEL DEFINITION
+        ### MODEL DEFINITION
+        # INDICES
         self.d = pyo.RangeSet(0, self.N_d - 1)
         self.s = pyo.RangeSet(0, self.N_s - 1)
         self.w = pyo.RangeSet(0, self.N_w - 1)
@@ -59,51 +60,23 @@ class MultiUavModel(pyo.ConcreteModel):
         self.w_d = pyo.RangeSet(1, self.N_w - 1)
         self.n = pyo.RangeSet(0, self.N_s)
 
-        # VARIABLES
-        # control
+        # CONTROL VARIABLES
         self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
         self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.W = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
-        self.alpha = pyo.Var()  # used for minmax
-        self.o = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)
-        self.y = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
+        self.Gamma = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
 
-        # CONSTRAINTS
+        # STATE VARIABLES
+        self.theta = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)  # used for linearazing the Theta state variable
+        self.alpha = pyo.Var()  # used for linearizing the minmax objective
+
+        # STATE COMPUTATION CONSTRAINTS
+
+        # CONTROL VARIABLE LIMIT CONSTRATINS
         self.path_constraint = pyo.Constraint(
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: sum(m.P[d, n, w_s] for n in self.n) == 1
-        )
-
-        # lower and upper bounds of variables values
-        def b_arr_llim_rule(m, d, w_d):
-            if w_d == m.N_w - 1:
-                lim = m.B_end[d]
-            else:
-                lim = m.B_min[d]
-            return m.b_arr(d, w_d) >= lim
-
-        self.b_arr_llim = pyo.Constraint(
-            self.d,
-            self.w_d,
-            rule=b_arr_llim_rule
-        )
-
-        def b_min_llim_rule(m, d, w_s):
-            res = m.b_min(d, w_s)
-            if type(res) != SumExpression:
-                return pyo.Constraint.Skip
-            return res >= m.B_min[d]
-
-        self.b_min_llim = pyo.Constraint(
-            self.d,
-            self.w_s,
-            rule=b_min_llim_rule
-        )
-        self.b_plus_ulim = pyo.Constraint(
-            self.d,
-            self.w_s,
-            rule=lambda m, d, w_s: m.b_plus(d, w_s) <= m.B_max[d]
         )
 
         self.C_ulim = pyo.Constraint(
@@ -113,13 +86,39 @@ class MultiUavModel(pyo.ConcreteModel):
         )
 
         def W_ulim_rule(m, d, w_s):
-            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * self.W_max[d]
+            try:
+                return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * sum([self.W_max[d_prime] for d_prime in m.d if d_prime != d])
+            except Exception as e:
+                raise e
 
         self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
 
         self.W_llim = pyo.Constraint(
             self.d,
             rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
+        )
+
+        def b_star_llim_rule(m, d, w_d):
+            if w_d == m.N_w - 1:
+                lim = m.B_end[d]
+            else:
+                lim = m.B_min[d]
+            return m.b_star(d, w_d) >= lim
+
+        self.b_star_llim = pyo.Constraint(self.d, self.w_d, rule=b_star_llim_rule)
+
+        def b_min_llim_rule(m, d, w_s):
+            b_min = m.b_min(d, w_s)
+            if type(b_min) != SumExpression:
+                return pyo.Constraint.Skip
+            return b_min >= m.B_min[d]
+
+        self.b_min_llim = pyo.Constraint(self.d, self.w_s, rule=b_min_llim_rule)
+
+        self.b_plus_ulim = pyo.Constraint(
+            self.d,
+            self.w_s,
+            rule=lambda m, d, w_s: m.b_plus(d, w_s) <= m.B_max[d]
         )
 
         # LAMBDA
@@ -135,7 +134,7 @@ class MultiUavModel(pyo.ConcreteModel):
 
         self.z_dics_constr_2 = pyo.Constraint(
             self.d,
-            rule=lambda m, d: m.z_disc[d] >= m.rd(d) - m.oc(d)
+            rule=lambda m, d: m.z_disc[d] >= m.erd(d) - m.oc(d)
         )
 
         self.z_disc_constr_3 = pyo.Constraint(
@@ -145,7 +144,7 @@ class MultiUavModel(pyo.ConcreteModel):
 
         self.z_disc_constr_4 = pyo.Constraint(
             self.d,
-            rule=lambda m, d: m.z_disc[d] <= m.rd(d) - m.oc(d) + m.M_disc[d] * m.y_disc_2[d]
+            rule=lambda m, d: m.z_disc[d] <= m.erd(d) - m.oc(d) + m.M_disc[d] * m.y_disc_2[d]
         )
 
         self.y_disc_constr = pyo.Constraint(
@@ -153,59 +152,59 @@ class MultiUavModel(pyo.ConcreteModel):
             rule=lambda m, d: m.y_disc_1[d] + m.y_disc_2[d] <= 1
         )
 
+        # THETA LINEARIZATION
+        def theta_1_rule(m, d, d_prime, w_s, w_s_prime, s):
+            if d == d_prime:
+                return pyo.Constraint.Skip
+            return m.theta[d, d_prime, w_s, w_s_prime, s] <= m.P[d, s, w_s]
+
+        self.theta_1 = pyo.Constraint(
+            self.d,
+            self.d,
+            self.w_s,
+            self.w_s,
+            self.s,
+            rule=theta_1_rule
+        )
+
+        def theta_2_rule(m, d, d_prime, w_s, w_s_prime, s):
+            if d == d_prime:
+                return pyo.Constraint.Skip
+            return m.theta[d, d_prime, w_s, w_s_prime, s] <= m.P[d_prime, s, w_s_prime]
+
+        self.theta_2 = pyo.Constraint(
+            self.d,
+            self.d,
+            self.w_s,
+            self.w_s,
+            self.s,
+            rule=theta_2_rule
+        )
+
+        def theta_3_rule(m, d, d_prime, w_s, w_s_prime, s):
+            if d == d_prime:
+                return pyo.Constraint.Skip
+            return m.theta[d, d_prime, w_s, w_s_prime, s] >= m.P[d, s, w_s] + m.P[d_prime, s, w_s_prime] - 1
+
+        self.theta_3 = pyo.Constraint(
+            self.d,
+            self.d,
+            self.w_s,
+            self.w_s,
+            self.s,
+            rule=theta_3_rule
+        )
+
         # WINDOW OVERLAP CONSTRAINTS
-        def o_1_rule(m, d, d_prime, w_s, w_s_prime, s):
-            if d == d_prime:
-                return pyo.Constraint.Skip
-            return m.o[d, d_prime, w_s, w_s_prime, s] <= m.P[d, s, w_s]
-
-        self.o_1 = pyo.Constraint(
-            self.d,
-            self.d,
-            self.w_s,
-            self.w_s,
-            self.s,
-            rule=o_1_rule
-        )
-
-        def o_2_rule(m, d, d_prime, w_s, w_s_prime, s):
-            if d == d_prime:
-                return pyo.Constraint.Skip
-            return m.o[d, d_prime, w_s, w_s_prime, s] <= m.P[d_prime, s, w_s_prime]
-
-        self.o_2 = pyo.Constraint(
-            self.d,
-            self.d,
-            self.w_s,
-            self.w_s,
-            self.s,
-            rule=o_2_rule
-        )
-
-        def o_3_rule(m, d, d_prime, w_s, w_s_prime, s):
-            if d == d_prime:
-                return pyo.Constraint.Skip
-            return m.o[d, d_prime, w_s, w_s_prime, s] >= m.P[d, s, w_s] + m.P[d_prime, s, w_s_prime] - 1
-
-        self.o_3 = pyo.Constraint(
-            self.d,
-            self.d,
-            self.w_s,
-            self.w_s,
-            self.s,
-            rule=o_3_rule
-        )
-
-        # window constraints
         def window_i_rule(m, d, d_prime, w_s, w_s_prime):
             if d == d_prime:
                 return pyo.Constraint.Skip
-            return m.T_e(d, w_s) <= m.T_s(d_prime, w_s_prime) - m.epsilon + m.M * (1 + m.y[d, d_prime, w_s, w_s_prime] - m.O(d, d_prime, w_s, w_s_prime))
+            return m.T_e(d, w_s) <= m.T_s(d_prime, w_s_prime) - m.epsilon + m.M * (1 + m.Gamma[d, d_prime, w_s, w_s_prime] - m.Theta(d, d_prime, w_s, w_s_prime))
 
         def window_ii_rule(m, d, d_prime, w_s, w_s_prime):
             if d == d_prime:
                 return pyo.Constraint.Skip
-            return m.T_s(d_prime, w_s_prime) <= m.T_s(d, w_s) - m.epsilon + m.M * (2 - m.y[d, d_prime, w_s, w_s_prime] - m.O(d, d_prime, w_s, w_s_prime))
+            return m.T_s(d_prime, w_s_prime) <= m.T_s(d, w_s) - m.epsilon + m.M * (2 - m.Gamma[d, d_prime, w_s, w_s_prime] - m.Theta(d, d_prime, w_s, w_s_prime))
 
         self.window_i = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_i_rule)
         self.window_ii = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_ii_rule)
@@ -221,19 +220,7 @@ class MultiUavModel(pyo.ConcreteModel):
             sense=pyo.minimize,
         )
 
-    def T_s(self, d, w_s):
-        return sum(
-            self.C[d, w_p] + self.W[d, w_p] + self.t(d, w_p) for w_p in range(w_s)) + sum(
-            self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n) / self.v[d] + self.W[d, w_s]
-
-    def T_e(self, d, w_s):
-        return self.T_s(d, w_s) + self.C[d, w_s]
-
-    def O(self, d, d_prime, w_s, w_s_prime):
-        return sum(self.o[d, d_prime, w_s, w_s_prime, s] for s in self.s)
-
-
-    def b_arr(self, d, w):
+    def b_star(self, d, w):
         """
         Calculate the battery at arrival at waypoint 'w' for drone 'd'
         """
@@ -248,13 +235,27 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         Calculate the battery of drone 'd' when arriving at the next path node after waypoint 'w_s'
         """
-        return self.b_arr(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
+        return self.b_star(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
 
     def b_plus(self, d, w_s):
         """
         Calculate the battery of drone 'd' after charging after waypoint 'w_s'
         """
         return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
+
+    def T_s(self, d, w_s):
+        return sum(
+            self.C[d, w_p] + self.W[d, w_p] + self.t(d, w_p) for w_p in range(w_s)) + sum(
+            self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n) / self.v[d] + self.W[d, w_s]
+
+    def Theta(self, d, d_prime, w_s, w_s_prime):
+        return sum(self.theta[d, d_prime, w_s, w_s_prime, s] for s in self.s)
+
+    def T_e(self, d, w_s):
+        return self.T_s(d, w_s) + self.C[d, w_s]
+
+    def E(self, d):
+        return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d) + self.lambda_charge(d)
 
     def total_waiting_time(self, d):
         """
@@ -270,9 +271,6 @@ class MultiUavModel(pyo.ConcreteModel):
 
     def total_moving_time(self, d):
         return sum(self.t(d, w_s) for w_s in self.w_s)
-
-    def E(self, d):
-        return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d) + self.lambda_charge(d)
 
     def remaining_move_time(self, d):
         return self.remaining_distances[d] / self.v[d]
@@ -339,7 +337,7 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         Return the overcharge for drone 'd'
         """
-        return self.b_arr(d, self.N_w - 1) - self.B_end[d]
+        return self.b_star(d, self.N_w - 1) - self.B_end[d]
 
     def erd(self, d):
         """
@@ -394,7 +392,7 @@ class MultiUavModel(pyo.ConcreteModel):
         P = np.reshape(self.P[:, :, :](), (self.N_d, self.N_s + 1, self.N_w_s))
         C = np.reshape(self.C[:, :](), (self.N_d, self.N_w_s)).round(7)
         W = np.reshape(self.W[:, :](), (self.N_d, self.N_w_s)).round(7)
-        b_arr = np.reshape(self.b_arr[:, :](), (self.N_d, self.N_w))
+        b_arr = np.reshape(self.b_star[:, :](), (self.N_d, self.N_w))
         b_min = np.reshape(self.b_min[:, :](), (self.N_d, self.N_w_s))
         b_plus = np.reshape(self.b_plus[:, :](), (self.N_d, self.N_w_s))
 
