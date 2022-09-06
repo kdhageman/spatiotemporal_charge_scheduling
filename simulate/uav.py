@@ -52,6 +52,11 @@ class UAV:
 
         self._events = []
         self.buffered_events = []
+        self.time_spent = {
+            "moving": 0,
+            "waiting": 0,
+            "charging": 0,
+        }
 
         self.proc = None
         self.resource = None
@@ -228,6 +233,7 @@ class UAV:
                         self.last_known_pos = self.dest_node
                         self.state_type = UavStateType.Idle
                         self.battery = event.value.battery
+                        self.time_spent['moving'] += t_move
 
                         if self.dest_node.node_type == NodeType.Waypoint:
                             self.waypoint_id += 1
@@ -238,9 +244,11 @@ class UAV:
                     except simpy.Interrupt:
                         self.last_known_pos = self.get_state(env).node
                         self.battery = self._get_battery(env, 0)
+                        elapsed = env.now - self.t_start
+                        self.time_spent['moving'] += elapsed
+
                         if not self.dest_node.same_pos(self.instructions[0].node):
                             # change direction
-                            elapsed = env.now - self.t_start
                             depletion = self.battery - pre_move_battery
                             event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, depletion=depletion, forced=True))
                             yield event
@@ -265,6 +273,7 @@ class UAV:
 
                     self.debug(env, f"finished waiting at station {self.dest_node.identifier} for {waiting_time:.2f}s")
                     self.state_type = UavStateType.Idle
+                    self.time_spent['waiting'] += waiting_time
 
                     for cb in self.waited_cbs:
                         cb(event)
@@ -273,6 +282,7 @@ class UAV:
                     event = env.timeout(0, value=WaitedEvent(self.t_start, elapsed, self.dest_node, self, battery=self.battery, forced=True))
                     yield event
 
+                    self.time_spent['waiting'] += elapsed
                     self.debug(env, f"forcefully finished waiting at station {self.dest_node.identifier} for {elapsed:.2f}s")
                     for cb in self.waited_cbs:
                         cb(event)
@@ -316,6 +326,7 @@ class UAV:
 
                         self.debug(env, f"finished waiting at station {self.dest_node.identifier} for {event.value.duration:.2f}s to become available")
                         self.state_type = UavStateType.Idle
+                        self.time_spent['waiting'] += elapsed
 
                         for cb in self.waited_cbs:
                             cb(event)
@@ -328,9 +339,9 @@ class UAV:
 
                     try:
                         yield event
-
                         self.debug(env, f"finished waiting at station {self.dest_node.identifier} for {event.value.duration:.2f}s to become available")
                         self.state_type = UavStateType.Idle
+                        self.time_spent['waiting'] += elapsed
 
                         for cb in self.waited_cbs:
                             cb(event)
@@ -340,6 +351,7 @@ class UAV:
                         yield event
 
                         self.debug(env, f"forcefully finished waiting at station {self.dest_node.identifier} for {elapsed:.2f}s to become available")
+                        self.time_spent['waiting'] += elapsed
 
                         for cb in self.waited_cbs():
                             cb(event)
@@ -363,6 +375,7 @@ class UAV:
                     self.debug(env, f"finished charging at station {self.dest_node.identifier} {ct_str}")
                     self.battery = post_charge_battery
                     self.state_type = UavStateType.FinishedCharging
+                    self.time_spent['charging'] += charging_time
 
                     for cb in self.charged_cbs:
                         cb(event)
@@ -378,6 +391,7 @@ class UAV:
 
                     self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {t_charged:.2f}")
                     self.state_type = UavStateType.Idle
+                    self.time_spent['charging'] += t_charged
 
                     for cb in self.charged_cbs:
                         cb(event)

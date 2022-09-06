@@ -303,7 +303,10 @@ class Simulator:
                     sa.animate(fname)
 
         events = [u.events(self.env) for u in self.uavs]
-        result = SimResult(self.params, events, self.solve_times, self.env.now)
+        time_spent = {d: uav.time_spent for d, uav in enumerate(self.uavs)}
+        for d in range(len(self.uavs)):
+            time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum()
+        result = SimResult(self.params, events, self.solve_times, self.env.now, time_spent)
         return result
 
     def debug(self, env, msg):
