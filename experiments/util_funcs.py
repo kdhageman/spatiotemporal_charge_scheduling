@@ -394,7 +394,8 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
 
     if directory:
         with open(os.path.join(directory, "result.json"), 'w') as f:
-            json.dump(jsons.dump(result), f)
+            dumped = jsons.dump(result)
+            json.dump(dumped, f)
 
     return result
 

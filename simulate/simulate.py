@@ -266,36 +266,6 @@ class Simulator:
                 fname = os.path.join(self.directory, "occupancy.pdf")
                 plot_station_occupancy([u.events(self.env) for u in self.uavs], self.sc.N_s, self.env.now, fname, r_charge=self.params.r_charge.min())
 
-                # output events
-                event_dir = os.path.join(self.directory, "events")
-                os.makedirs(event_dir, exist_ok=True)
-                for d, uav in enumerate(self.uavs):
-                    fname = os.path.join(event_dir, f"{d}.csv")
-                    with open(fname, "w") as f:
-                        f.write("t_start,t_end,duration,event_type,node_type,node_type,node_identifier,node_x,node_y,node_z,uav_id,battery_start,battery_end,depletion,forced\n")
-                        for ev in uav.events(self.env):
-                            t_start = ev.t_start
-                            t_end = ev.t_end
-                            duration = ev.duration
-                            event_type = ev.type.value
-                            node_type = ev.node.node_type.value
-                            node_identifier = ev.node.identifier
-                            node_x = ev.node.x
-                            node_y = ev.node.y
-                            node_z = ev.node.z
-                            uav_id = ev.uav.uav_id
-                            battery_start = ev.pre_battery
-                            battery_end = ev.battery
-                            depletion = ev.depletion
-                            forced = ev.forced
-                            data = [t_start, t_end, duration, event_type, node_type, node_identifier, node_x, node_y, node_z, uav_id, battery_start, battery_end, depletion, forced]
-                            data = [str(v) for v in data]
-                            f.write(f"{','.join(data)}\n")
-
-                fname = os.path.join(self.directory, "schedules.pkl")
-                with open(fname, 'wb') as f:
-                    pickle.dump(self.all_schedules, f)
-
                 fname = os.path.join(self.directory, "animation.html")
                 events = {d: uav.events(self.env) for d, uav in enumerate(self.uavs)}
                 if self.params.plot_delta:
@@ -305,9 +275,9 @@ class Simulator:
         events = [u.events(self.env) for u in self.uavs]
         time_spent = {d: uav.time_spent for d, uav in enumerate(self.uavs)}
         for d in range(len(self.uavs)):
-            time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum()
+            time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum() / self.params.v[d]
         nr_visited_waypoints = [uav.waypoint_id for uav in self.uavs]
-        result = SimResult(self.params, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints)
+        result = SimResult(self.params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints)
         return result
 
     def debug(self, env, msg):

@@ -1,5 +1,6 @@
 from itertools import product
 
+import jsons
 import numpy as np
 import yaml
 from matplotlib import pyplot as plt
@@ -197,3 +198,16 @@ class Scenario:
                     x_text = pos_w_s[0] + alpha * (pos_w_d[0] - pos_w_s[0])
                     y_text = pos_w_s[1] + alpha * (pos_w_d[1] - pos_w_s[1]) + 0.05
                     ax.text(x_text, y_text, f"{dist:.2f}", color=colors[d])
+
+
+def scenario_serializer(obj: Scenario, *args, **kwargs):
+    return dict(
+        waypoints=obj.positions_w,
+        charging_stations=obj.positions_S,
+        nr_drones=obj.N_d,
+        nr_charging_stations=obj.N_s,
+        nr_waypoints=obj.N_w,
+    )
+
+
+jsons.set_serializer(scenario_serializer, Scenario)

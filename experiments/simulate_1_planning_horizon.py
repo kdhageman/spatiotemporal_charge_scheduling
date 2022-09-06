@@ -34,12 +34,13 @@ if __name__ == "__main__":
 
     basedir = "out/villalvernia/1_planning_horizon/increase_W"
 
-    for conf in confs:
+    for conf in confs[0:1]:
         try:
-            if not os.path.exists(conf.outputdir()):
-                schedule_charge_from_conf(conf.as_dict())
-            else:
-                logger.info(f"skipping configuration because it already exists ({conf.outputdir()})")
+            schedule_charge_from_conf(conf.as_dict())
+            # if not os.path.exists(conf.outputdir()):
+            #     schedule_charge_from_conf(conf.as_dict())
+            # else:
+            #     logger.info(f"skipping configuration because it already exists ({conf.outputdir()})")
         except Exception as e:
             logger.error(f"failed to run configuration: {e}")
             raise e

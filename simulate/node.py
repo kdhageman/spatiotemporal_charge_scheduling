@@ -120,7 +120,7 @@ def node_serializer(obj: Node, *args, **kwargs):
         z=obj.z,
         wt=obj.wt,
         ct=obj.ct,
-        id=obj.identifier,
+        id=int(obj.identifier) if obj.identifier is not None else None,
         type=obj.node_type.value,
     )
 
