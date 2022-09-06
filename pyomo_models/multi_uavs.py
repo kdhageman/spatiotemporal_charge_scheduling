@@ -10,7 +10,7 @@ from util.scenario import Scenario
 
 
 class MultiUavModel(pyo.ConcreteModel):
-    def __init__(self, scenario: Scenario, parameters: Parameters):
+    def __init__(self, scenario: Scenario, parameters: dict):
         super().__init__()
 
         # extract from function parameters
@@ -121,79 +121,27 @@ class MultiUavModel(pyo.ConcreteModel):
             rule=lambda m, d, w_s: m.b_plus(d, w_s) <= m.B_max[d]
         )
 
-        # LAMBDA
-        self.M_disc = [self.remaining_depletion(d) for d in self.d]
-        self.z_disc = pyo.Var(self.d, domain=pyo.NonNegativeReals)
-        self.y_disc_1 = pyo.Var(self.d, domain=pyo.Binary)
-        self.y_disc_2 = pyo.Var(self.d, domain=pyo.Binary)
-
-        self.z_dics_constr_1 = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.z_disc[d] >= 0
-        )
-
-        self.z_dics_constr_2 = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.z_disc[d] >= m.erd(d) - m.oc(d)
-        )
-
-        self.z_disc_constr_3 = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.z_disc[d] <= m.M_disc[d] * m.y_disc_1[d]
-        )
-
-        self.z_disc_constr_4 = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.z_disc[d] <= m.erd(d) - m.oc(d) + m.M_disc[d] * m.y_disc_2[d]
-        )
-
-        self.y_disc_constr = pyo.Constraint(
-            self.d,
-            rule=lambda m, d: m.y_disc_1[d] + m.y_disc_2[d] <= 1
-        )
-
         # THETA LINEARIZATION
         def theta_1_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
                 return pyo.Constraint.Skip
             return m.theta[d, d_prime, w_s, w_s_prime, s] <= m.P[d, s, w_s]
 
-        self.theta_1 = pyo.Constraint(
-            self.d,
-            self.d,
-            self.w_s,
-            self.w_s,
-            self.s,
-            rule=theta_1_rule
-        )
+        self.theta_1 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, self.s, rule=theta_1_rule)
 
         def theta_2_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
                 return pyo.Constraint.Skip
             return m.theta[d, d_prime, w_s, w_s_prime, s] <= m.P[d_prime, s, w_s_prime]
 
-        self.theta_2 = pyo.Constraint(
-            self.d,
-            self.d,
-            self.w_s,
-            self.w_s,
-            self.s,
-            rule=theta_2_rule
-        )
+        self.theta_2 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, self.s, rule=theta_2_rule)
 
         def theta_3_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
                 return pyo.Constraint.Skip
             return m.theta[d, d_prime, w_s, w_s_prime, s] >= m.P[d, s, w_s] + m.P[d_prime, s, w_s_prime] - 1
 
-        self.theta_3 = pyo.Constraint(
-            self.d,
-            self.d,
-            self.w_s,
-            self.w_s,
-            self.s,
-            rule=theta_3_rule
-        )
+        self.theta_3 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, self.s, rule=theta_3_rule)
 
         # WINDOW OVERLAP CONSTRAINTS
         def window_i_rule(m, d, d_prime, w_s, w_s_prime):

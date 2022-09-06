@@ -3,6 +3,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Callable
 
+import jsons
 import simpy.exceptions
 from simpy import PriorityResource
 
@@ -29,7 +30,6 @@ class UavState:
     @property
     def pos_str(self):
         return f"{self.node}"
-
 
 
 class UAV:
@@ -395,3 +395,11 @@ class UAV:
         self.state_type = UavStateType.Finished
         for cb in self.finish_cbs:
             cb(self)
+
+
+def uav_serializer(obj: UAV, *args, **kwargs):
+    return dict(id=obj.uav_id)
+    # return obj.uav_id
+
+
+jsons.set_serializer(uav_serializer, UAV)

@@ -1,9 +1,11 @@
+import json
 import logging
 import os
 import pickle
 from datetime import datetime
 from unittest import TestCase
 
+import jsons
 import yaml
 from pyomo.opt import SolverFactory
 
@@ -30,7 +32,7 @@ class TestSimulator(TestCase):
         p = dict(
             v=[1, 1],
             r_charge=[0.04, 0.04],
-            r_deplete=[0.3, 0.3],
+            r_deplete=[0.28, 0.28],
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
@@ -44,22 +46,15 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/milp_simulator_long'
         os.makedirs(directory, exist_ok=True)
-        strat = AfterNEventsStrategyAll(3) # TODO: fix bug with pi < 4
+        strat = AfterNEventsStrategyAll(3)  # TODO: fix bug with pi < 4
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        solve_times, env, events = simulator.sim()
+        result = simulator.sim()
 
-        # write solve times to disk
         if directory:
-            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
-                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
-
-            # write mission execution time to disk
-            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-                f.write(f"{env.now}")
+            with open(os.path.join(directory, "result.json"), 'w') as f:
+                json.dump(jsons.dump(result), f)
 
     def test_milp_three_drones_circling_W4(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -90,18 +85,11 @@ class TestSimulator(TestCase):
         # solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        solve_times, env, events = simulator.sim()
+        result = simulator.sim()
 
-        # write solve times to disk
         if directory:
-            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
-                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
-
-            # write mission execution time to disk
-            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-                f.write(f"{env.now}")
+            with open(os.path.join(directory, "result.json"), 'w') as f:
+                json.dump(jsons.dump(result), f)
 
     def test_milp_three_drones_circling_W5(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -129,18 +117,11 @@ class TestSimulator(TestCase):
         solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        solve_times, env, events = simulator.sim()
+        result = simulator.sim()
 
-        # write solve times to disk
         if directory:
-            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
-                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
-
-            # write mission execution time to disk
-            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-                f.write(f"{env.now}")
+            with open(os.path.join(directory, "result.json"), 'w') as f:
+                json.dump(jsons.dump(result), f)
 
     def test_naive_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -148,7 +129,7 @@ class TestSimulator(TestCase):
         p = dict(
             v=[1, 1],
             r_charge=[0.04, 0.04],
-            r_deplete=[0.3, 0.3],
+            r_deplete=[0.28, 0.28],
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
@@ -165,18 +146,11 @@ class TestSimulator(TestCase):
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        solve_times, env, events = simulator.sim()
+        result = simulator.sim()
 
-        # write solve times to disk
         if directory:
-            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
-                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
-
-            # write mission execution time to disk
-            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-                f.write(f"{env.now}")
+            with open(os.path.join(directory, "result.json"), 'w') as f:
+                json.dump(jsons.dump(result), f)
 
     def test_naive_three_drones_circling(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -201,18 +175,11 @@ class TestSimulator(TestCase):
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-        solve_times, env, events = simulator.sim()
+        result = simulator.sim()
 
-        # write solve times to disk
         if directory:
-            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
-                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
-
-            # write mission execution time to disk
-            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-                f.write(f"{env.now}")
+            with open(os.path.join(directory, "result.json"), 'w') as f:
+                json.dump(jsons.dump(result), f)
 
     def test_villalvernia_3_milp_sigma6_w4(self):
         fpath_conf = "config/charge_scheduling/villalvernia_3_milp_sigma6_w4.yml"
@@ -297,20 +264,11 @@ class TestSimulator(TestCase):
         for uav in simulator.uavs:
             uav.add_arrival_cb(cb)
 
-        solve_times, env, events = simulator.sim()
+        result = simulator.sim()
 
-        # write solve times to disk
         if directory:
-            with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-                f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
-                for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                    f.write(f"{i},{sim_timestamp},{optimal},{solve_time},{n_remaining_waypoints}\n")
-
-            # write mission execution time to disk
-            with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-                f.write(f"{env.now}")
-
-        return env, events
+            with open(os.path.join(directory, "result.json"), 'w') as f:
+                json.dump(jsons.dump(result), f)
 
 
 class TestPlotBattery(TestCase):

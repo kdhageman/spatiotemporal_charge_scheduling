@@ -1,5 +1,6 @@
 import copy
 
+import jsons
 import numpy as np
 
 
@@ -53,3 +54,14 @@ class Parameters:
 
     def copy(self):
         return copy.deepcopy(self)
+
+
+def parameters_serializer(obj: Parameters, *args, **kwargs):
+    res = obj.as_dict()
+    for k, v in res.items():
+        if type(v) == np.ndarray:
+            res[k] = v.astype(float).tolist()
+    return res
+
+
+jsons.set_serializer(parameters_serializer, Parameters)

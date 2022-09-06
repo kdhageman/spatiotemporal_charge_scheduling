@@ -1,5 +1,6 @@
 from enum import Enum
 
+import jsons
 import numpy as np
 
 from util.distance import dist3
@@ -51,7 +52,7 @@ class Node:
         return dir_vector / np.linalg.norm(dir_vector)
 
     @property
-    def node_type(self):
+    def node_type(self) -> NodeType:
         raise NotImplementedError
 
     def __repr__(self):
@@ -64,7 +65,7 @@ class ChargingStation(Node):
         self._identifier = identifier
 
     @property
-    def node_type(self):
+    def node_type(self) -> NodeType:
         return NodeType.ChargingStation
 
     @property
@@ -82,7 +83,7 @@ class Waypoint(Node):
         self._identifier = identifier
 
     @property
-    def node_type(self):
+    def node_type(self) -> NodeType:
         return NodeType.Waypoint
 
     @property
@@ -101,7 +102,7 @@ class AuxWaypoint(Node):
         super().__init__(x, y, z, 0, 0)
 
     @property
-    def node_type(self):
+    def node_type(self) -> NodeType:
         return NodeType.AuxWaypoint
 
     @property
@@ -110,3 +111,18 @@ class AuxWaypoint(Node):
 
     def __repr__(self):
         return f"AUX{super().__repr__()}"
+
+
+def node_serializer(obj: Node, *args, **kwargs):
+    return dict(
+        x=obj.x,
+        y=obj.y,
+        z=obj.z,
+        wt=obj.wt,
+        ct=obj.ct,
+        id=obj.identifier,
+        type=obj.node_type.value,
+    )
+
+
+jsons.set_serializer(node_serializer, Node)

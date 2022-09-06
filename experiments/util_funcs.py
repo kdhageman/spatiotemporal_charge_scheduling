@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import pickle
@@ -7,6 +8,7 @@ from enum import Enum
 from typing import List
 
 import cvxpy
+import jsons
 import networkx as nx
 import numpy as np
 import nxmetis
@@ -388,20 +390,13 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         scheduler = NaiveScheduler(params, sc)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug("[{datetime.now().strftime('%H:%M:%S')}] prepared naive simulator")
-    solve_times, env, events = simulator.sim()
+    result = simulator.sim()
 
-    # write solve times to disk
     if directory:
-        with open(os.path.join(directory, 'solve_times.csv'), 'w') as f:
-            f.write("iteration,sim_timestamp,optimal,solve_time,n_remaining_waypoints\n")
-            for i, (sim_timestamp, optimal, solve_time, n_remaining_waypoints) in enumerate(solve_times):
-                f.write(f"{i},{sim_timestamp},{optimal},{solve_time},\"{n_remaining_waypoints}\"\n")
+        with open(os.path.join(directory, "result.json"), 'w') as f:
+            json.dump(jsons.dump(result), f)
 
-        # write mission execution time to disk
-        with open(os.path.join(directory, "execution_time.txt"), 'w') as f:
-            f.write(f"{env.now}")
-
-    return env, events
+    return result
 
 
 def schedule_charge_from_conf(conf):
@@ -477,7 +472,7 @@ def schedule_charge_from_conf(conf):
     )
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     t_start = time.perf_counter()
-    _, schedules = schedule_charge(flight_sequences, charging_station_positions, params, directory=output_dir, strategy=strategy)
+    _ = schedule_charge(flight_sequences, charging_station_positions, params, directory=output_dir, strategy=strategy)
     elapsed = time.perf_counter() - t_start
     logger.debug(f"finished charge schedule simulation in {elapsed:.1f}s")
 

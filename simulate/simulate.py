@@ -15,10 +15,19 @@ from simulate.event import EventType, Event
 from simulate.node import ChargingStation, NodeType, AuxWaypoint
 from simulate.parameters import Parameters
 from simulate.plot import SimulationAnimator
+from simulate.result import SimResult
 from simulate.scheduling import Scheduler
 from simulate.uav import UAV, UavStateType
 from simulate.util import gen_colors
 from util.scenario import Scenario
+
+
+class SolveTime:
+    def __init__(self, timestamp, optimal, t_solve, n_remaining_waypoints):
+        self.timestamp = timestamp
+        self.optimal = optimal
+        self.t_solve = t_solve
+        self.n_remaining_waypoints = n_remaining_waypoints
 
 
 class Schedule:
@@ -177,7 +186,7 @@ class Simulator:
             t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
             self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2}s")
             n_remaining_waypoints = [self.scheduler.n_remaining_waypoints(d) for d in range(self.sc.N_d)]
-            self.solve_times.append((env.now, optimal, t_solve, n_remaining_waypoints))
+            self.solve_times.append(SolveTime(env.now, optimal, t_solve, n_remaining_waypoints))
 
             for d, nodes in schedules.items():
                 wps = [n for n in nodes if n.node_type == NodeType.Waypoint]
@@ -225,7 +234,7 @@ class Simulator:
         self.env = env
         self.strat_proc = strat_proc
 
-    def sim(self):
+    def sim(self) -> SimResult:
         try:
             self.env.run(until=self.strat_proc)
         finally:
@@ -293,7 +302,9 @@ class Simulator:
                     sa = SimulationAnimator(self.sc, events, self.all_schedules, self.params.plot_delta)
                     sa.animate(fname)
 
-        return self.solve_times, self.env, [u.events(self.env) for u in self.uavs]
+        events = [u.events(self.env) for u in self.uavs]
+        result = SimResult(self.params, events, self.solve_times, self.env.now)
+        return result
 
     def debug(self, env, msg):
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [{env.now:.2f}] {msg}")
