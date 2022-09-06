@@ -306,7 +306,8 @@ class Simulator:
         time_spent = {d: uav.time_spent for d, uav in enumerate(self.uavs)}
         for d in range(len(self.uavs)):
             time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum()
-        result = SimResult(self.params, events, self.solve_times, self.env.now, time_spent)
+        nr_visited_waypoints = [uav.waypoint_id for uav in self.uavs]
+        result = SimResult(self.params, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints)
         return result
 
     def debug(self, env, msg):
