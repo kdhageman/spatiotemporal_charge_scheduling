@@ -22,6 +22,7 @@ class Configuration:
         else:
             self.rescheduling_frequency = sigma * (int(np.ceil(W / 2)) - 1)
         self.B_min = B_min
+        self.h = (self.W - 1) * self.sigma
 
     def outputdir(self):
         raise NotImplementedError

@@ -36,10 +36,6 @@ class Scheduler:
         uav_id = event.value.uav.uav_id
         if event.value.node.node_type == NodeType.Waypoint:
             self.offsets[uav_id] += 1
-        self._handle_event(event)
-
-    def _handle_event(self, event: simpy.Event):
-        raise NotImplementedError
 
     def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         """
@@ -201,9 +197,6 @@ class MilpScheduler(Scheduler):
         self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
         self.solver = solver
 
-    def _handle_event(self, event: simpy.Event):
-        pass
-
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         sc, remaining_distances = self.sf.next(start_positions, self.offsets)
 
@@ -346,9 +339,6 @@ class MilpScheduler(Scheduler):
 
 class NaiveScheduler(Scheduler):
     _EPSILON = 0.0001
-
-    def _handle_event(self, event: simpy.Event):
-        pass
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         res = {}

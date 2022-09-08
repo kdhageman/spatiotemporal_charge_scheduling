@@ -400,6 +400,44 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
     return result
 
 
+def load_flight_sequences(path):
+    with open(path, 'rb') as f:
+        flight_sequences = pickle.load(f)
+
+    # add intermediate positions
+    dist_cuttoffs = []
+    for seq in flight_sequences:
+        distances = []
+        for i in range(len(seq) - 1):
+            pos_i = seq[i]
+            pos_j = seq[i + 1]
+            distance = dist3(pos_i, pos_j)
+            distances.append(distance)
+        dist_cuttoffs.append(np.mean(distances) * 3)
+
+    flight_sequences_segmented = []
+    for d, seq in enumerate(flight_sequences):
+        seq_padded = []
+        for i in range(len(seq) - 1):
+            pos_i = seq[i]
+            pos_j = seq[i + 1]
+            distance = dist3(pos_i, pos_j)
+            if distance > dist_cuttoffs[d]:
+                # segmentation needed
+                nr_pads = int(np.ceil(distance / dist_cuttoffs[d]))
+                logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] for UAV [{d}] splitting segment in {nr_pads} parts")
+                for i_pad in range(nr_pads):
+                    frac = (i_pad + 1) / nr_pads
+                    pos_padded = pos_i + frac * (pos_j - pos_i)
+                    seq_padded.append(pos_padded)
+            else:
+                # no padding needed
+                seq_padded.append(pos_i)
+        seq_padded.append(pos_j)  # add last waypoint
+        flight_sequences_segmented.append(np.array(seq_padded))
+    return flight_sequences_segmented
+
+
 def schedule_charge_from_conf(conf):
     co = conf["charging_optimization"]
     n_drones = conf['n_drones']
@@ -420,40 +458,7 @@ def schedule_charge_from_conf(conf):
     output_dir = conf['output_directory']
 
     flight_sequence_fpath = conf['flight_sequence_fpath']
-    with open(flight_sequence_fpath, 'rb') as f:
-        flight_sequences = pickle.load(f)
-
-    # add intermediate positions
-    dist_cuttoffs = []
-    for seq in flight_sequences:
-        distances = []
-        for i in range(len(seq)-1):
-            pos_i = seq[i]
-            pos_j = seq[i + 1]
-            distance = dist3(pos_i, pos_j)
-            distances.append(distance)
-        dist_cuttoffs.append(np.mean(distances) * 3)
-
-    flight_sequences_segmented = []
-    for d, seq in enumerate(flight_sequences):
-        seq_padded = []
-        for i in range(len(seq)-1):
-            pos_i = seq[i]
-            pos_j = seq[i + 1]
-            distance = dist3(pos_i, pos_j)
-            if distance > dist_cuttoffs[d]:
-                # segmentation needed
-                nr_pads = int(np.ceil(distance / dist_cuttoffs[d]))
-                logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] for UAV [{d}] splitting segment in {nr_pads} parts")
-                for i_pad in range(nr_pads):
-                    frac = (i_pad + 1) / nr_pads
-                    pos_padded = pos_i + frac*(pos_j - pos_i)
-                    seq_padded.append(pos_padded)
-            else:
-                # no padding needed
-                seq_padded.append(pos_i)
-        seq_padded.append(pos_j)  # add last waypoint
-        flight_sequences_segmented.append(np.array(seq_padded))
+    flight_sequences = load_flight_sequences(flight_sequence_fpath)
 
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] starting charge scheduling..")
     params = Parameters(

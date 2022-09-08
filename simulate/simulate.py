@@ -2,7 +2,7 @@ import logging
 import os.path
 import pickle
 from datetime import datetime
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import simpy
@@ -238,9 +238,9 @@ class Simulator:
         try:
             self.env.run(until=self.strat_proc)
         finally:
-            self.logger.info(f"finished simulation in {self.env.now:.2f}s")
+            self.info(self.env, f"finished simulation in {self.env.now:.2f}s")
             for d in range(self.sc.N_d):
-                self.logger.info(f"UAV [{d}] has {self.scheduler.n_remaining_waypoints(d)} remaining waypoints")
+                self.info(self.env, f"UAV [{d}] has {self.scheduler.n_remaining_waypoints(d)} remaining waypoints")
 
             if self.directory:
                 fname = os.path.join(self.directory, "combined.pdf")
@@ -277,11 +277,35 @@ class Simulator:
         for d in range(len(self.uavs)):
             time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum() / self.params.v[d]
         nr_visited_waypoints = [uav.waypoint_id for uav in self.uavs]
-        result = SimResult(self.params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints)
+        occupancy = events_to_occupancy(events)
+        result = SimResult(self.params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints, occupancy, self.scheduler)
         return result
 
     def debug(self, env, msg):
-        self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [{env.now:.2f}] {msg}")
+        self.logger.debug(self._craft_msg(env, msg))
+
+    def info(self, env, msg):
+        self.logger.info(self._craft_msg(env, msg))
+
+    def _craft_msg(self, env, msg):
+        return f"[{datetime.now().strftime('%H:%M:%S')}] [{env.now:.2f}] {msg}"
+
+
+def events_to_occupancy(events: List[List[Event]]) -> Dict[int, List[Dict[str, float]]]:
+    res = {}
+    for eventlist in events:
+        for ev in eventlist:
+            if ev.type == EventType.charged:
+                identifier = int(ev.node.identifier)
+                occupancies = res.get(identifier, [])
+                occupancies.append(dict(
+                    t_start=ev.t_start,
+                    t_end=ev.t_end,
+                ))
+                res[identifier] = occupancies
+    for k, v in res.items():
+        res[k] = sorted(v, key=lambda x: x['t_start'])
+    return res
 
 
 def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float = 0.00067):

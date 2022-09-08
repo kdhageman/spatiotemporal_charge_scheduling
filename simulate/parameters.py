@@ -30,6 +30,7 @@ class Parameters:
         self.time_limit = time_limit
         self.int_feas_tol = int_feas_tol
         self.rescheduling_frequency = rescheduling_frequency
+        self.h = (self.W - 1) * self.sigma
 
     def as_dict(self):
         return dict(
