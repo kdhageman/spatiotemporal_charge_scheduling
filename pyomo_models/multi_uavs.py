@@ -1,10 +1,13 @@
+import logging
+from datetime import datetime
+from functools import lru_cache
+
 import numpy as np
 import pyomo.environ as pyo
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from pyomo.core.expr.numeric_expr import SumExpression
 
-from simulate.parameters import Parameters
 from util.constants import W_COLORS
 from util.scenario import Scenario
 
@@ -12,6 +15,7 @@ from util.scenario import Scenario
 class MultiUavModel(pyo.ConcreteModel):
     def __init__(self, scenario: Scenario, parameters: dict):
         super().__init__()
+        self.logger = logging.getLogger(__name__)
 
         # extract from function parameters
         self.N_d = scenario.N_d
@@ -59,31 +63,36 @@ class MultiUavModel(pyo.ConcreteModel):
         self.w_s = pyo.RangeSet(0, self.N_w_s - 1)
         self.w_d = pyo.RangeSet(1, self.N_w - 1)
         self.n = pyo.RangeSet(0, self.N_s)
+        self.info("created control indices")
 
         # CONTROL VARIABLES
         self.P = pyo.Var(self.d, self.n, self.w_s, domain=pyo.Binary)
         self.C = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.W = pyo.Var(self.d, self.w_s, domain=pyo.NonNegativeReals)
         self.Gamma = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
+        self.info("created control variables")
 
         # STATE VARIABLES
         self.theta = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)  # used for linearazing the Theta state variable
         self.alpha = pyo.Var()  # used for linearizing the minmax objective
+        self.info("created state variables")
 
         # STATE COMPUTATION CONSTRAINTS
 
-        # CONTROL VARIABLE LIMIT CONSTRATINS
+        # CONTROL VARIABLE LIMIT CONSTRAINTS
         self.path_constraint = pyo.Constraint(
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: sum(m.P[d, n, w_s] for n in self.n) == 1
         )
+        self.info(f"finished initializing 'path_constraint' ({len(self.path_constraint):,})")
 
         self.C_ulim = pyo.Constraint(
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.C[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * m.C_max[d]
         )
+        self.info(f"finished initializing 'C_ulim' ({len(self.C_ulim):,})")
 
         def W_ulim_rule(m, d, w_s):
             try:
@@ -92,11 +101,13 @@ class MultiUavModel(pyo.ConcreteModel):
                 raise e
 
         self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
+        self.info(f"finished initializing 'W_ulim' ({len(self.W_ulim):,})")
 
         self.W_llim = pyo.Constraint(
             self.d,
             rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
         )
+        self.info(f"finished initializing 'W_llim' ({len(self.W_llim):,})")
 
         def b_star_llim_rule(m, d, w_d):
             if w_d == m.N_w - 1:
@@ -106,6 +117,7 @@ class MultiUavModel(pyo.ConcreteModel):
             return m.b_star(d, w_d) >= lim
 
         self.b_star_llim = pyo.Constraint(self.d, self.w_d, rule=b_star_llim_rule)
+        self.info(f"finished initializing 'b_star_llim' ({len(self.b_star_llim):,})")
 
         def b_min_llim_rule(m, d, w_s):
             b_min = m.b_min(d, w_s)
@@ -114,12 +126,14 @@ class MultiUavModel(pyo.ConcreteModel):
             return b_min >= m.B_min[d]
 
         self.b_min_llim = pyo.Constraint(self.d, self.w_s, rule=b_min_llim_rule)
+        self.info(f"finished initializing 'b_min_llim' ({len(self.b_min_llim):,})")
 
         self.b_plus_ulim = pyo.Constraint(
             self.d,
             self.w_s,
             rule=lambda m, d, w_s: m.b_plus(d, w_s) <= m.B_max[d]
         )
+        self.info(f"finished initializing 'b_plus_ulim' ({len(self.b_plus_ulim):,})")
 
         # THETA LINEARIZATION
         def theta_1_rule(m, d, d_prime, w_s, w_s_prime, s):
@@ -128,6 +142,7 @@ class MultiUavModel(pyo.ConcreteModel):
             return m.theta[d, d_prime, w_s, w_s_prime, s] <= m.P[d, s, w_s]
 
         self.theta_1 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, self.s, rule=theta_1_rule)
+        self.info(f"finished initializing 'theta_1' ({len(self.theta_1):,})")
 
         def theta_2_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
@@ -135,6 +150,7 @@ class MultiUavModel(pyo.ConcreteModel):
             return m.theta[d, d_prime, w_s, w_s_prime, s] <= m.P[d_prime, s, w_s_prime]
 
         self.theta_2 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, self.s, rule=theta_2_rule)
+        self.info(f"finished initializing 'theta_2' ({len(self.theta_2):,})")
 
         def theta_3_rule(m, d, d_prime, w_s, w_s_prime, s):
             if d == d_prime:
@@ -142,6 +158,7 @@ class MultiUavModel(pyo.ConcreteModel):
             return m.theta[d, d_prime, w_s, w_s_prime, s] >= m.P[d, s, w_s] + m.P[d_prime, s, w_s_prime] - 1
 
         self.theta_3 = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, self.s, rule=theta_3_rule)
+        self.info(f"finished initializing 'theta_3' ({len(self.theta_3):,})")
 
         # WINDOW OVERLAP CONSTRAINTS
         def window_i_rule(m, d, d_prime, w_s, w_s_prime):
@@ -155,19 +172,33 @@ class MultiUavModel(pyo.ConcreteModel):
             return m.T_s(d_prime, w_s_prime) <= m.T_s(d, w_s) - m.epsilon + m.M * (2 - m.Gamma[d, d_prime, w_s, w_s_prime] - m.Theta(d, d_prime, w_s, w_s_prime))
 
         self.window_i = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_i_rule)
+        self.info(f"finished initializing 'window_i' ({len(self.window_i):,})")
         self.window_ii = pyo.Constraint(self.d, self.d, self.w_s, self.w_s, rule=window_ii_rule)
+        self.info(f"finished initializing 'window_ii' ({len(self.window_ii):,})")
 
         # OBJECTIVE
         self.alpha_min = pyo.Constraint(
             self.d,
             rule=lambda m, d: m.alpha >= m.E(d)
         )
+        self.info(f"finished initializing 'alpha_min' ({len(self.alpha_min):,})")
 
         self.execution_time = pyo.Objective(
             expr=self.alpha,
             sense=pyo.minimize,
         )
+        self.info("finished initializing 'execution_time'")
 
+    def debug(self, msg):
+        self.logger.debug(self._craft_msg(msg))
+
+    def info(self, msg):
+        self.logger.debug(self._craft_msg(msg))
+
+    def _craft_msg(self, msg):
+        return f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
+
+    @lru_cache(maxsize=None)
     def b_star(self, d, w):
         """
         Calculate the battery at arrival at waypoint 'w' for drone 'd'
@@ -179,29 +210,35 @@ class MultiUavModel(pyo.ConcreteModel):
             res = self.b_plus(d, w - 1) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w - 1] * self.D_W[d, n, w - 1] for n in self.n)
         return res
 
+    @lru_cache(maxsize=None)
     def b_min(self, d, w_s):
         """
         Calculate the battery of drone 'd' when arriving at the next path node after waypoint 'w_s'
         """
         return self.b_star(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
 
+    @lru_cache(maxsize=None)
     def b_plus(self, d, w_s):
         """
         Calculate the battery of drone 'd' after charging after waypoint 'w_s'
         """
         return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
 
+    @lru_cache(maxsize=None)
     def T_s(self, d, w_s):
         return sum(
             self.C[d, w_p] + self.W[d, w_p] + self.t(d, w_p) for w_p in range(w_s)) + sum(
             self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n) / self.v[d] + self.W[d, w_s]
 
+    @lru_cache(maxsize=None)
     def Theta(self, d, d_prime, w_s, w_s_prime):
         return sum(self.theta[d, d_prime, w_s, w_s_prime, s] for s in self.s)
 
+    @lru_cache(maxsize=None)
     def T_e(self, d, w_s):
         return self.T_s(d, w_s) + self.C[d, w_s]
 
+    @lru_cache(maxsize=None)
     def E(self, d):
         return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d) + self.lambda_charge(d)
 
