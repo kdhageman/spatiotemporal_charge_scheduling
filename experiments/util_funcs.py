@@ -427,7 +427,7 @@ def load_flight_sequences(path):
                 nr_pads = int(np.ceil(distance / dist_cuttoffs[d]))
                 logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] for UAV [{d}] splitting segment in {nr_pads} parts")
                 for i_pad in range(nr_pads):
-                    frac = (i_pad + 1) / nr_pads
+                    frac = i_pad / nr_pads
                     pos_padded = pos_i + frac * (pos_j - pos_i)
                     seq_padded.append(pos_padded)
             else:

@@ -305,7 +305,7 @@ class MilpScheduler(Scheduler):
         for d in uavs_to_schedule:
             start_node = AuxWaypoint(*start_positions[d])
             wps_full = [start_positions[d]] + self.remaining_waypoints(d)
-            while len(wps_full) < self.params.sigma * (len(sc.positions_w[d]) - 1) + 1:
+            while len(wps_full) <= self.params.sigma * (sc.N_w - 1):
                 wps_full.append(wps_full[-1])
 
             nodes = []
