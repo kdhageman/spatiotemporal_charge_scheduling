@@ -19,7 +19,7 @@ def main():
 
     basedir = "out/villalvernia/baseline"
 
-    conf = MilpConfiguration(baseconf, basedir, 3, sigma=1, W=max_nr_waypoints, flight_sequence_fpath=flight_sequence_fpath3, time_limit=3600, rescheduling_frequency=max_nr_waypoints+2)
+    conf = MilpConfiguration(baseconf, basedir, 3, sigma=1, W=max_nr_waypoints, flight_sequence_fpath=flight_sequence_fpath3, time_limit=3600, rescheduling_frequency=max_nr_waypoints + 2)
     schedule_charge_from_conf(conf.as_dict())
 
 
