@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  drone_charging:
+    image: drone_charging
+    build: .
+    volumes:
+      - ./:/project
+#      - ${HOME}/gurobi.lic:/root/gurobi.lic
+#      - /home/kh/gurobi.lic:/root/gurobi.lic
+      - /Users/au13241/gurobi.lic:/root/gurobi.lic
+#    stdin_open: true
+#    tty: true
