@@ -1,5 +1,4 @@
 import logging
-import math
 
 import yaml
 
@@ -19,11 +18,7 @@ def main():
     max_nr_waypoints = max(len(seq) for seq in flight_sequences)
 
     basedir = "out/villalvernia/baseline"
-    W = math.ceil(max_nr_waypoints / 2) + 1
-    sigma = 2
-    pi = W - 1
-    time_limit = 3600
-    conf = MilpConfiguration(baseconf, basedir, 3, sigma=sigma, W=W, flight_sequence_fpath=flight_sequence_fpath3, time_limit=time_limit, rescheduling_frequency=pi)
+    conf = MilpConfiguration(baseconf, basedir, 3, sigma=10, W=11, flight_sequence_fpath=flight_sequence_fpath3, time_limit=3600, rescheduling_frequency=50)
     schedule_charge_from_conf(conf.as_dict())
 
 

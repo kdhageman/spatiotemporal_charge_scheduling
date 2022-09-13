@@ -382,6 +382,7 @@ def schedule_charge(seqs: list, charging_station_positions: list, params: Parame
         solver = SolverFactory("gurobi")
         solver.options['IntFeasTol'] = params.int_feas_tol
         solver.options['TimeLimit'] = params.time_limit
+        # solver.options['MIPGap'] = 25
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
         logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] prepared MILP simulator")

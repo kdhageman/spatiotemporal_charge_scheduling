@@ -241,7 +241,7 @@ class MilpScheduler(Scheduler):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a maximum charging time of: {model.C_max[d]:,.1f}s")
 
         t_start = time.perf_counter()
-        solution = self.solver.solve(model)
+        solution = self.solver.solve(model, tee=True)
         t_solve = time.perf_counter() - t_start
 
         if solution['Solver'][0]['Status'] not in ['ok', 'aborted']:
