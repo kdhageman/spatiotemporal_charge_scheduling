@@ -22,9 +22,9 @@ def main():
     plt.savefig(fname, bbox_inches='tight')
 
     p = dict(
-        v=[1, 1, 1],
+        v=[1.3, 1.15, 1],
         r_charge=[0.2, 0.2, 0.2],
-        r_deplete=[0.3, 0.3, 0.3],
+        r_deplete=[0.35, 0.35, 0.25],
         B_min=[0.1, 0.1, 0.1],
         B_max=[1, 1, 1],
         B_start=[1, 1, 1],
