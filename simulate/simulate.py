@@ -335,13 +335,13 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
             if type(e.node) == ChargingStation:
                 if e.node.identifier not in station_ids:
                     station_ids.append(e.node.identifier)
+    station_colors = {}
     if len(station_ids) == 1:
         # make grey
-        station_colors = [
-            [0.5] * 3,
-        ]
+        station_colors[station_ids[0]] = [0.5] * 3
     else:
-        station_colors = gen_colors(len(station_ids))
+        for i, color in zip(station_ids, gen_colors(len(station_ids))):
+            station_colors[station_ids[i]] = color
 
     for d in range(len(events)):
         X_line = []

@@ -1,11 +1,11 @@
 import logging
 from unittest import TestCase
 
+import numpy as np
 from pyomo.opt import SolverFactory
 
 from simulate.parameters import Parameters
 from simulate.scheduling import MilpScheduler, ScenarioFactory
-from simulate.uav import UavStateType
 from util.scenario import Scenario
 
 
@@ -27,9 +27,10 @@ class TestMilpScheduler(TestCase):
             B_start=[1] * 3,
             plot_delta=0.1,
             # plot_delta=0,
-            W=4,
+            W=3,
             sigma=1,
             epsilon=1e-2,
+            W_zero_min=None
         )
         params = Parameters(**p)
 
@@ -38,8 +39,8 @@ class TestMilpScheduler(TestCase):
 
         start_positions = {i: x[0] for i, x in enumerate(sc.positions_w)}
         batteries = {d: 1 for d in range(sc.N_d)}
-        state_types = [UavStateType.Idle] * sc.N_d
-        _, (_, schedules) = sched.schedule(start_positions, batteries, state_types, uavs_to_schedule=list(range(sc.N_d)))
+        cs_locks = np.zeros((sc.N_d, sc.N_s))
+        _, (_, schedules) = sched.schedule(start_positions, batteries, cs_locks, uavs_to_schedule=list(range(sc.N_d)))
 
 
 class TestScenarioFactory(TestCase):

@@ -12,11 +12,12 @@ from util.distance import dist3
 
 
 class Scenario:
-    def __init__(self, positions_S: list, positions_w: list):
+    def __init__(self, start_positions: list, positions_S: list, positions_w: list):
         """
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
         """
+        self.start_positions = start_positions
         self.positions_S = []
         for pos in positions_S:
             if len(pos) == 2:
@@ -36,19 +37,21 @@ class Scenario:
 
         self.N_d = len(self.positions_w)
         self.N_s = len(self.positions_S)
-        self.N_w_s = self.N_w - 1
         self.n_original_waypoints = [len(l) for l in positions_w]
 
         # calculate distance matrices
         self.D_N = self._get_D_N()
         self.D_W = self._get_D_W()
 
+    def waypoints(self, d):
+        return [self.start_positions[d]] + self.positions_w[d]
+
     def _get_D_N(self):
         T_n = []
         for d in range(self.N_d):
             matr = []
-            waypoints = self.positions_w[d]
-            for w_s in range(self.N_w_s):
+            waypoints = self.waypoints(d)
+            for w_s in range(self.N_w):
                 row = []
                 cur_waypoint = waypoints[w_s]
 
@@ -71,8 +74,8 @@ class Scenario:
         T_w = []
         for d in range(self.N_d):
             matr = []
-            waypoints = self.positions_w[d]
-            for w_s in range(self.N_w_s):
+            waypoints = self.waypoints(d)
+            for w_s in range(self.N_w):
                 row = []
                 next_waypoint = waypoints[w_s + 1]
 
@@ -98,17 +101,22 @@ class Scenario:
             x, y, z = cs['x'], cs['y'], cs.get('z', 0)
             positions_S.append((x, y, z))
 
+        start_positions = []
         positions_w = []
         drones = doc.get('drones', [])
 
         for drone in drones:
             waypoints = []
-            for wp in drone.get('waypoints', []):
+            for i, wp in enumerate(drone.get('waypoints', [])):
                 x, y, z = wp['x'], wp['y'], wp.get('z', 0)
-                waypoints.append((x, y, z))
+                if i == 0:
+                    # start position
+                    start_positions.append((x, y, z))
+                else:
+                    waypoints.append((x, y, z))
             positions_w.append(waypoints)
 
-        return Scenario(positions_S, positions_w)
+        return Scenario(start_positions, positions_S, positions_w)
 
     def nearest_station(self, pos):
         """
@@ -133,7 +141,17 @@ class Scenario:
             X += [pos[0] for pos in l]
             Y += [pos[1] for pos in l]
 
+        X += [pos[0] for pos in self.start_positions]
+        Y += [pos[1] for pos in self.start_positions]
+
         return min(X), max(X), min(Y), max(Y)
+
+    def receding_horizon(self, starting_positions: list, progress: list, N_w: int):
+        positions_w = []
+        for d, start_pos in enumerate(starting_positions):
+            wps = [start_pos] + self.positions_w[d][progress[d]:progress[d] + N_w]
+            positions_w.append(wps)
+        return Scenario(self.positions_S, positions_w)
 
     def plot(self, ax=None, draw_distances=True, greyscale=False):
         if not ax:

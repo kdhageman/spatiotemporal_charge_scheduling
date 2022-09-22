@@ -7,6 +7,7 @@ from unittest import TestCase
 
 import jsons
 import yaml
+from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 
 from experiments.util_funcs import ChargingStrategy
@@ -36,16 +37,23 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
-            # plot_delta=0.1,
+            # plot_delta=3,
             plot_delta=0,
-            W=8,
+            W=4,
             sigma=2,
             epsilon=1,
+            W_zero_min=None,
         )
         params = Parameters(**p)
 
         directory = 'out/test/milp_simulator_long'
         os.makedirs(directory, exist_ok=True)
+
+        if directory:
+            _, ax = plt.subplots()
+            sc.plot(ax=ax, draw_distances=False)
+            plt.savefig(os.path.join(directory, "scenario.pdf"), bbox_inches='tight')
+
         strat = AfterNEventsStrategyAll(3)  # TODO: fix bug with pi < 4
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(params, sc, solver=solver)
