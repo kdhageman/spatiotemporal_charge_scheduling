@@ -279,6 +279,7 @@ class MultiUavModel(pyo.ConcreteModel):
         return self.remaining_distances[d] / self.v[d]
 
     def lambda_charge(self, d):
+        # TODO: add max statement
         return (self.erd(d) - self.oc(d)) / self.r_charge[d]
 
     def t(self, d, w_s):

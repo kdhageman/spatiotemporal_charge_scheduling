@@ -108,7 +108,6 @@ class Simulator:
 
         # for outputting simulation
         self.plot_params = {}
-        self.pdfs = []
         self.solve_times = []
         self.all_schedules = {}
 
@@ -243,28 +242,21 @@ class Simulator:
                 self.info(self.env, f"UAV [{d}] has {self.scheduler.n_remaining_waypoints(d)} remaining waypoints")
 
             if self.directory:
-                fname = os.path.join(self.directory, "combined.pdf")
-                if self.pdfs:
-                    merger = PdfMerger()
-                    for pdf in self.pdfs:
-                        merger.append(pdf)
-
-                    merger.write(fname)
-                    merger.close()
-
-                    # remove the intermediate files
-                    for pdf in self.pdfs:
-                        os.remove(pdf)
-                elif os.path.exists(fname):
-                    os.remove(fname)
+                events = [u.events(self.env) for u in self.uavs]
+                time_spent = {d: uav.time_spent for d, uav in enumerate(self.uavs)}
+                for d in range(len(self.uavs)):
+                    time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum() / self.params.v[d]
+                nr_visited_waypoints = [uav.waypoint_id for uav in self.uavs]
+                occupancy = events_to_occupancy(events)
+                result = SimResult(self.params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints, occupancy, self.scheduler)
 
                 # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
-                plot_events_battery([u.events(self.env) for u in self.uavs], fname, r_charge=self.params.r_charge.min())
+                plot_events_battery(result, fname)
 
                 # plot occupancy
                 fname = os.path.join(self.directory, "occupancy.pdf")
-                plot_station_occupancy([u.events(self.env) for u in self.uavs], self.sc.N_s, self.env.now, fname, r_charge=self.params.r_charge.min())
+                plot_station_occupancy(result, fname)
 
                 fname = os.path.join(self.directory, "animation.html")
                 events = {d: uav.events(self.env) for d, uav in enumerate(self.uavs)}
@@ -272,13 +264,6 @@ class Simulator:
                     sa = SimulationAnimator(self.sc, events, self.all_schedules, self.params.plot_delta)
                     sa.animate(fname)
 
-        events = [u.events(self.env) for u in self.uavs]
-        time_spent = {d: uav.time_spent for d, uav in enumerate(self.uavs)}
-        for d in range(len(self.uavs)):
-            time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum() / self.params.v[d]
-        nr_visited_waypoints = [uav.waypoint_id for uav in self.uavs]
-        occupancy = events_to_occupancy(events)
-        result = SimResult(self.params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints, occupancy, self.scheduler)
         return result
 
     def debug(self, env, msg):
@@ -308,10 +293,13 @@ def events_to_occupancy(events: List[List[Event]]) -> Dict[int, List[Dict[str, f
     return res
 
 
-def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float = 0.00067):
+def plot_events_battery(result: SimResult, fname: str):
     """
     Plots the battery over time for the given events
     """
+    events = result.events
+    r_charge = result.params.r_charge.min()
+
     execution_times = []
     for d in range(len(events)):
         execution_times.append(events[d][-1].t_end)
@@ -409,10 +397,15 @@ def plot_events_battery(events: List[List[Event]], fname: str, r_charge: float =
     plt.savefig(fname, bbox_inches='tight')
 
 
-def plot_station_occupancy(events: List[List[Event]], nstations: int, total_duration: float, fname: str, r_charge: float = 0.00067):
+def plot_station_occupancy(result: SimResult, fname: str):
     """
     Plot the number of UAVs that use a charging station over time
     """
+    events = result.events
+    nstations = result.scenario.N_s
+    r_charge = result.params.r_charge.min()
+    total_duration = result.execution_time
+
     colors = gen_colors(nstations)
 
     fig = plt.figure()
