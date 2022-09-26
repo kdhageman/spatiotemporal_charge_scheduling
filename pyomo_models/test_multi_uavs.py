@@ -2,6 +2,8 @@ import logging
 from unittest import TestCase
 
 import numpy as np
+import pyomo.environ as pyo
+from pyomo.core import ConcreteModel
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
@@ -30,7 +32,7 @@ class TestMultiUavModel(TestCase):
         W_zero_min=np.zeros((sc.N_d, sc.N_s))
     )
 
-    model = MultiUavModel(sc, params)
+    model = MultiUavModel(sc, params, anchor_offsets=[0, 0])
     solver = SolverFactory("gurobi")
     solver.solve(model)
 

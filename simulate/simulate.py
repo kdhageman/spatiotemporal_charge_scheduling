@@ -149,6 +149,7 @@ class Simulator:
 
         # get initial schedule
         def reschedule_cb(uavs_to_schedule):
+            self.info(env, "--------- START RESCHEDULING ---------")
             if uavs_to_schedule == 'all':
                 uavs_to_schedule = list(range(self.sc.N_d))
             start_positions = {}
@@ -183,7 +184,7 @@ class Simulator:
                             cs_locks[d, uav.resource_id] = self.params.epsilon
 
             t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
-            self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2}s")
+            self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2f}s")
             n_remaining_waypoints = [self.scheduler.n_remaining_waypoints(d) for d in range(self.sc.N_d)]
             self.solve_times.append(SolveTime(env.now, optimal, t_solve, n_remaining_waypoints))
 
@@ -206,6 +207,7 @@ class Simulator:
                     self.debug(env, f"charging station {i} is locked")
                 else:
                     self.debug(env, f"charging station {i} is NOT locked")
+            self.info(env, "--------- END RESCHEDULING ---------")
 
         reschedule_cb('all')
         self.strategy.set_cb(reschedule_cb)
@@ -376,12 +378,14 @@ def plot_events_battery(result: SimResult, fname: str):
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([0, 1])
         grid[d].spines.right.set_visible(False)
+        for ts, _ in result.schedules[d]:
+            grid[d].axvline(ts, color='black', linestyle=":", alpha=0.5, zorder=1)
 
     # add vertical lines
     for d in range(len(events)):
         grid[d].axvline(max_execution_time, color='red', zorder=-10)
     grid[np.argmin(execution_times)].text(max_execution_time, 0.5, f'{max_execution_time:.1f}s', color='red',
-                                          backgroundcolor='white', fontsize='xx-small', ha='center', zorder=-9)
+                                          backgroundcolor='white', fontsize='xx-small', ha='left', zorder=-9)
 
     N_d = len(events)
     aspect = 0.8 / r_charge

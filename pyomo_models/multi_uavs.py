@@ -5,6 +5,7 @@ from typing import List
 
 import numpy as np
 import pyomo.environ as pyo
+from pyomo.core import Block
 from pyomo.core.expr.numeric_expr import SumExpression
 
 from simulate.parameters import Parameters
@@ -12,7 +13,7 @@ from util.scenario import Scenario
 
 
 class MultiUavModel(pyo.ConcreteModel):
-    def __init__(self, sc: Scenario, params: Parameters, anchor_offsets=List[int]):
+    def __init__(self, sc: Scenario, params: Parameters, anchor_offsets: List[int]):
         super().__init__()
         self.logger = logging.getLogger(__name__)
 
@@ -67,6 +68,30 @@ class MultiUavModel(pyo.ConcreteModel):
         self.Gamma = pyo.Var(self.d, self.d, self.w_s, self.w_s, domain=pyo.Binary)
         self.info("created control variables")
 
+        # BLOCKS
+        def lambda_charge_block_rule(block, d):
+            m = self.erd(d)
+            vars = [0, self.erd(d) - self.oc(d)]
+
+            n = len(vars)
+            block.n = pyo.RangeSet(0, n - 1)
+            block.z = pyo.Var(domain=pyo.NonNegativeReals)
+            block.y = pyo.Var(block.n, domain=pyo.Binary)
+            block.lower = pyo.Constraint(
+                block.n,
+                rule=lambda b, i: b.z >= vars[i]
+            )
+            block.upper = pyo.Constraint(
+                block.n,
+                rule=lambda b, i: b.z <= vars[i] + m * b.y[i]
+            )
+            block.binding = pyo.Constraint(
+                rule=lambda b: sum([b.y[i] for i in b.n]) <= n - 1
+            )
+
+        self.lambda_charge_block = Block(self.d, rule=lambda_charge_block_rule)
+
+        # TODO: ensure the anchor's are calculcated ok!
         for d in self.d:
             anchor_ids = []
             anchor_id = anchor_offsets[d] % params.sigma
@@ -279,8 +304,8 @@ class MultiUavModel(pyo.ConcreteModel):
         return self.remaining_distances[d] / self.v[d]
 
     def lambda_charge(self, d):
-        # TODO: add max statement
-        return (self.erd(d) - self.oc(d)) / self.r_charge[d]
+        # return (self.erd(d) - self.oc(d)) / self.r_charge[d]
+        return self.lambda_charge_block[d].z / self.r_charge[d]
 
     def t(self, d, w_s):
         return sum(self.P[d, n, w_s] * (self.D_N[d, n, w_s] + self.D_W[d, n, w_s]) for n in self.n) / self.v[d]

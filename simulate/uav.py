@@ -51,7 +51,6 @@ class UAV:
         self.dest_node = None
 
         self._events = []
-        self.buffered_events = []
         self.time_spent = {
             "moving": 0,
             "waiting": 0,
@@ -201,10 +200,6 @@ class UAV:
         Simulate the following of the internal schedule of the UAV
         :return:
         """
-        for ev in self.buffered_events:
-            yield ev
-        self.buffered_events = []
-
         while len(self.instructions) > 0:
             cur_instruction = self.instructions[0]
             self.instructions = self.instructions[1:]

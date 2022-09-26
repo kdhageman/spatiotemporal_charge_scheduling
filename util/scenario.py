@@ -17,7 +17,11 @@ class Scenario:
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
         """
-        self.start_positions = start_positions
+        self.start_positions = []
+        for pos in start_positions:
+            if len(pos) == 2:
+                pos = (pos[0], pos[1], 0)
+            self.start_positions.append(pos)
         self.positions_S = []
         for pos in positions_S:
             if len(pos) == 2:
@@ -25,13 +29,16 @@ class Scenario:
             self.positions_S.append(pos)
         self.N_w = max([len(l) for l in positions_w])
         self.positions_w = []
-        for l in positions_w:
+        for d, l in enumerate(positions_w):
             waypoints = []
             for wp in l:
                 if len(wp) == 2:
                     wp = (wp[0], wp[1], 0)
                 waypoints.append(wp)
-            padding_val = waypoints[-1]
+            if waypoints:
+                padding_val = waypoints[-1]
+            else:
+                padding_val = start_positions[d]
             padcount = self.N_w - len(l)
             self.positions_w.append(waypoints + [padding_val] * padcount)
 
@@ -67,7 +74,11 @@ class Scenario:
                 row.append(d)
                 matr.append(row)
             T_n.append(matr)
-        T_n = np.array(T_n).transpose(0, 2, 1)
+        if self.N_w == 0:
+            # no waypoints to visit
+            T_n = None
+        else:
+            T_n = np.array(T_n).transpose(0, 2, 1)
         return T_n
 
     def _get_D_W(self):
@@ -88,7 +99,11 @@ class Scenario:
                 row.append(0)
                 matr.append(row)
             T_w.append(matr)
-        T_w = np.array(T_w).transpose(0, 2, 1)
+        if self.N_w == 0:
+            # no waypoints to visit
+            T_w = None
+        else:
+            T_w = np.array(T_w).transpose(0, 2, 1)
         return T_w
 
     @classmethod

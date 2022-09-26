@@ -84,3 +84,32 @@ class TestScenarioFactory(TestCase):
         expected = [1]
         _, actual = sf.next(start_positions, offsets=[2])
         self.assertEqual(expected, actual)
+
+    def test_anchors(self):
+        positions_S = []
+        positions_w = [
+            [
+                (0, 0),
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+                (8, 0),
+                (9, 0),
+            ]
+        ]
+        start_positions = [(-1, 0)]
+        sc = Scenario(start_positions, positions_S, positions_w)
+        sf = ScenarioFactory(sc, W=3, sigma=3)
+        actual = sf.anchors()
+        expected = [2, 5, 8]
+        self.assertEqual(expected, actual)
+
+        sf = ScenarioFactory(sc, W=10, sigma=2)
+        actual = sf.anchors()
+        expected = [1, 3, 5, 7]
+        self.assertEqual(expected, actual)
+

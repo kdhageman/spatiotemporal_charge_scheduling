@@ -113,12 +113,21 @@ class ScenarioFactory:
         self.W = W
         self.sigma = sigma
 
+    def anchors(self):
+        res = []
+
+        n = self.sigma - 1
+        while n < self.N_w - 1:
+            res.append(n)
+            n += self.sigma
+        return res
+
     def next(self, start_positions: Dict[int, tuple], offsets: List[int]) -> Tuple[Scenario, List[float]]:
         """
         Returns the next scenario
         """
         positions_w = []
-        for d, start_pos in start_positions.items():
+        for d in range(self.N_d):
             start = offsets[d]
             end = offsets[d] + self.W
             wps = self.positions_w[d][start:end]
@@ -139,8 +148,12 @@ class MilpScheduler(Scheduler):
         self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
         self.solver = solver
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
-        sc, remaining_distances = self.sf.next(start_positions, self.offsets)
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
+        start_positions_list = list(start_positions.values())
+        sc, remaining_distances = self.sf.next(start_positions_list, self.offsets)
+        if sc.N_w == 0:
+            # return empty schedules
+            return 0, (True, {d: [] for d in uavs_to_schedule})
 
         for d, remaining_distance in enumerate(remaining_distances):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
@@ -152,23 +165,26 @@ class MilpScheduler(Scheduler):
 
         B_end = []
         for d in range(self.sc.N_d):
-            shortest_distance_to_station = 0
+            last_scheduled_wp = self.offsets[d] + params.W
+            if last_scheduled_wp >= self.sf.N_w:
+                self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is scheduled until the end, so ends with B_end of {params.B_min[d]:.2f}")
+                B_end.append(params.B_min[d])
+            else:
+                remaining_anchors = [a for a in self.sf.anchors() if a >= last_scheduled_wp]
+                if not remaining_anchors:
+                    self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has no anchor before the end, so ends with B_end of {params.B_min[d]:.2f}")
+                    B_end.append(params.B_min[d])
+                else:
+                    total_dist_to_cs = 0
+                    next_anchor = remaining_anchors[0]
+                    # distance from from last waypoint to anchor
+                    for i in range(last_scheduled_wp, next_anchor):
+                        total_dist_to_cs += self.sc.D_N[d, -1, i + 1]  # +1 to offset the starting position
+                    total_dist_to_cs += self.sc.D_N[d, :-1, next_anchor + 1].min()
+                    additional_depletion = total_dist_to_cs / self.params.v[d] * self.params.r_deplete[d]
 
-            # add distance to next anchor
-            last_scheduled_idx = self.offsets[d] + params.W - 1  # last ID
-            id_next_anchor = np.ceil(last_scheduled_idx / params.sigma).astype(int) * params.sigma
-            if id_next_anchor < self.sf.sc.N_w:
-                for n in range(last_scheduled_idx, id_next_anchor):
-                    shortest_distance_to_station += self.sf.sc.D_N[d, -1, n]
-
-                # add distance from anchor to station
-                pos_N = self.sf.sc.positions_w[d][last_scheduled_idx]
-                _, dist_to_station = sc.nearest_station(pos_N)
-                shortest_distance_to_station += dist_to_station
-
-            depletion_to_station = shortest_distance_to_station / params.v[d] * params.r_deplete[d]
-            B_end.append(depletion_to_station + params.B_min[d])
-
+                    self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] must end with an additional {additional_depletion * 100:.2f}% battery, so ends up with B_end of {params.B_min[d] + additional_depletion:.2f}")
+                    B_end.append(params.B_min[d] + additional_depletion)
         params.B_end = np.array(B_end)
 
         # TODO: let the current battery value on apply to arrival at the FIRST node
@@ -218,7 +234,7 @@ class MilpScheduler(Scheduler):
             end_battery = model.b_star(d, model.N_w)
             if type(end_battery) not in [np.int64, np.float64]:
                 end_battery = end_battery()
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected end battery of {end_battery * 100:.1f}% ({oc * 100:.1f}% more than necessary)")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected end battery of {end_battery * 100:.1f}% ({np.abs(oc) * 100:.1f}% more than necessary)")
 
         for d in model.d:
             lambda_charge = model.lambda_charge(d)
@@ -233,7 +249,7 @@ class MilpScheduler(Scheduler):
             oc = model.oc(d)
             if type(oc) not in [np.int64, np.float64]:
                 oc = oc()
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is penalized by {lambda_move:.2f}s (moving) and {lambda_charge:.2f}s (charging) [=({erd:.1f} - {oc:.1f}) / {model.r_charge[d]}]")
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is penalized by {lambda_move:.2f}s (moving) and {lambda_charge:.2f}s (charging) [=({erd.round(1)} - {np.abs(oc.round(1))}) / {model.r_charge[d]}]")
 
         for d in model.d:
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has a projected mission execution time of {model.E(d)():.2f}s")
