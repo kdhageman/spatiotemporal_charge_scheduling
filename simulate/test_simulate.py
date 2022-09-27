@@ -39,7 +39,8 @@ class TestSimulator(TestCase):
             B_start=[1, 1],
             # plot_delta=3,
             plot_delta=0,
-            W=10,
+            W=4,
+            # W=sc.N_w,
             sigma=2,
             epsilon=1,
             W_zero_min=None,
@@ -54,7 +55,8 @@ class TestSimulator(TestCase):
             sc.plot(ax=ax, draw_distances=False)
             plt.savefig(os.path.join(directory, "scenario.pdf"), bbox_inches='tight')
 
-        strat = AfterNEventsStrategyAll(6)  # TODO: this should not affect the results
+        strat = AfterNEventsStrategyAll(3)  # TODO: this should not affect the results
+        # strat = AfterNEventsStrategyAll(sc.N_w + 1)  # TODO: this should not affect the results
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)

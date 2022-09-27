@@ -13,7 +13,7 @@ from util.scenario import Scenario
 
 
 class MultiUavModel(pyo.ConcreteModel):
-    def __init__(self, sc: Scenario, params: Parameters, anchor_offsets: List[int]):
+    def __init__(self, sc: Scenario, params: Parameters, anchors: List[List[int]]):
         super().__init__()
         self.logger = logging.getLogger(__name__)
 
@@ -93,20 +93,14 @@ class MultiUavModel(pyo.ConcreteModel):
 
         # TODO: ensure the anchor's are calculcated ok!
         for d in self.d:
-            anchor_ids = []
-            anchor_id = anchor_offsets[d] % params.sigma
-            while anchor_id <= self.N_w:
-                anchor_ids.append(anchor_id)
-                anchor_id += params.sigma
-            self.info(f"anchor ids for UAV [{d}]: {anchor_ids}")
-
+            self.info(f"anchors for UAV [{d}]: {anchors[d]}")
             for w_s in self.w_s:
-                if w_s not in anchor_ids:
+                if w_s not in anchors[d]:
                     for s in self.s:
-                        self.P[d, s, w_s].fix(0)
-                    self.P[d, self.N_s, w_s].fix(1)
-                    self.C[d, w_s].fix(0)
-                    self.W[d, w_s].fix(0)
+                        self.P[d, s, w_s].fix(0)  # charging stations
+                    self.P[d, self.N_s, w_s].fix(1)  # next waypoint
+                    self.C[d, w_s].fix(0)  # don't charge
+                    self.W[d, w_s].fix(0)  # don't wait
         self.info("fixed control variable values")
 
         # STATE VARIABLES

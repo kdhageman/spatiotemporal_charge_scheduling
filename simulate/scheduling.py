@@ -12,6 +12,7 @@ from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint, Node
 from simulate.parameters import Parameters
 from simulate.uav import UavStateType
+from simulate.util import is_feasible
 from util.distance import dist3
 from util.exceptions import NotSolvableException
 from util.scenario import Scenario
@@ -114,10 +115,10 @@ class ScenarioFactory:
         self.sigma = sigma
 
     def anchors(self):
-        res = []
+        res = [0]
 
-        n = self.sigma - 1
-        while n < self.N_w - 1:
+        n = self.sigma
+        while n < self.N_w:
             res.append(n)
             n += self.sigma
         return res
@@ -163,30 +164,33 @@ class MilpScheduler(Scheduler):
         params.remaining_distances = remaining_distances
         params.B_start = np.array(list(batteries.values()))
 
+        # prepare B_end
         B_end = []
         for d in range(self.sc.N_d):
-            last_scheduled_wp = self.offsets[d] + params.W
-            if last_scheduled_wp >= self.sf.N_w:
+            idx_last_scheduled_wp = self.offsets[d] + params.W
+            if idx_last_scheduled_wp >= self.sf.N_w:
                 self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is scheduled until the end, so ends with B_end of {params.B_min[d]:.2f}")
                 B_end.append(params.B_min[d])
             else:
-                remaining_anchors = [a for a in self.sf.anchors() if a >= last_scheduled_wp]
+                remaining_anchors = [a for a in self.sf.anchors() if a >= idx_last_scheduled_wp]
                 if not remaining_anchors:
                     self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has no anchor before the end, so ends with B_end of {params.B_min[d]:.2f}")
                     B_end.append(params.B_min[d])
                 else:
                     total_dist_to_cs = 0
                     next_anchor = remaining_anchors[0]
-                    # distance from from last waypoint to anchor
-                    for i in range(last_scheduled_wp, next_anchor):
-                        total_dist_to_cs += self.sc.D_N[d, -1, i + 1]  # +1 to offset the starting position
-                    total_dist_to_cs += self.sc.D_N[d, :-1, next_anchor + 1].min()
+                    for i in range(idx_last_scheduled_wp, next_anchor):
+                        # distance from last waypoint to anchor
+                        total_dist_to_cs += self.sc.D_N[d, -1, i]  # +1 to offset the starting position
+                    total_dist_to_cs += self.sc.D_N[d, :-1, next_anchor].min()
                     additional_depletion = total_dist_to_cs / self.params.v[d] * self.params.r_deplete[d]
 
-                    self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] must end with an additional {additional_depletion * 100:.2f}% battery, so ends up with B_end of {params.B_min[d] + additional_depletion:.2f}")
-                    B_end.append(params.B_min[d] + additional_depletion)
+                    b = params.B_min[d] + additional_depletion
+                    self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] must end with an additional {additional_depletion * 100:.2f}% battery, so ends up with B_end of {b * 100:.2f}%")
+                    B_end.append(b)
         params.B_end = np.array(B_end)
 
+        # TODO: revise this for anchors?
         # TODO: let the current battery value on apply to arrival at the FIRST node
         B_min = []
         for d in range(self.sc.N_d):
@@ -197,8 +201,24 @@ class MilpScheduler(Scheduler):
 
         params.W_zero_min = cs_locks
 
+        # calculate anchors in format that the model understands:
+        # - add "1" to adjust for the starting position
+        # - subtract the offset to adjust for the current progress
+        # - the "-1" represents the start position (after adding 1 it becomes zero)
+        anchors = []
+        for d in range(self.sc.N_d):
+            anchors_d = np.array(self.sf.anchors()) - self.offsets[d]
+            anchors_trimmed_d = [e for e in anchors_d if 0 <= e < sc.N_w]
+            anchors.append(anchors_trimmed_d)
+
         t_start = time.perf_counter()
-        model = MultiUavModel(sc=sc, params=params, anchor_offsets=self.offsets)
+        expected_feasible = is_feasible(sc, params, anchors)
+        if not expected_feasible:
+            self.logger.warning(f"[{datetime.now().strftime('%H:%M:%S')}] it is NOT expected that the problem is solvable")
+        else:
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] it IS expected that the problem is solvable")
+
+        model = MultiUavModel(sc=sc, params=params, anchors=anchors)
         # model.iis = Suffix(direction=Suffix.IMPORT)
         elapsed = time.perf_counter() - t_start
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] constructed MILP model in {elapsed:.2f}s")

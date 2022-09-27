@@ -105,11 +105,11 @@ class TestScenarioFactory(TestCase):
         sc = Scenario(start_positions, positions_S, positions_w)
         sf = ScenarioFactory(sc, W=3, sigma=3)
         actual = sf.anchors()
-        expected = [2, 5, 8]
+        expected = [0, 3, 6, 9]
         self.assertEqual(expected, actual)
 
         sf = ScenarioFactory(sc, W=10, sigma=2)
         actual = sf.anchors()
-        expected = [1, 3, 5, 7]
+        expected = [0, 2, 4, 6, 8]
         self.assertEqual(expected, actual)
 
