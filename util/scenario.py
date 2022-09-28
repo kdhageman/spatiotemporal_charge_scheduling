@@ -168,6 +168,15 @@ class Scenario:
             positions_w.append(wps)
         return Scenario(self.positions_S, positions_w)
 
+    def is_at_charging_station(self, pos):
+        """
+        Returns whether the given position is a charging station
+        """
+        if len(pos) == 2:
+            pos = pos[0], pos[1], 0
+        pos = tuple(pos)
+        return pos in self.positions_S
+
     def plot(self, ax=None, draw_distances=True, greyscale=False):
         if not ax:
             _, ax = plt.subplots()

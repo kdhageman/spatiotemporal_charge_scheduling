@@ -11,10 +11,10 @@ from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 
 from experiments.util_funcs import ChargingStrategy
-from simulate.event import EventType, StartedEvent, ReachedEvent, ChargedEvent
-from simulate.node import NodeType, Node, ChargingStation, AuxWaypoint, Waypoint
+from simulate.event import EventType
+from simulate.node import NodeType
 from simulate.scheduling import MilpScheduler, NaiveScheduler
-from simulate.simulate import Parameters, Simulator, plot_events_battery
+from simulate.simulate import Parameters, Simulator
 from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
 from util.scenario import Scenario
 
@@ -39,9 +39,9 @@ class TestSimulator(TestCase):
             B_start=[1, 1],
             # plot_delta=3,
             plot_delta=0,
-            W=4,
-            # W=sc.N_w,
-            sigma=2,
+            # W=4,
+            W=sc.N_w,
+            sigma=1,
             epsilon=1,
             W_zero_min=None,
         )
@@ -55,8 +55,8 @@ class TestSimulator(TestCase):
             sc.plot(ax=ax, draw_distances=False)
             plt.savefig(os.path.join(directory, "scenario.pdf"), bbox_inches='tight')
 
-        strat = AfterNEventsStrategyAll(3)  # TODO: this should not affect the results
-        # strat = AfterNEventsStrategyAll(sc.N_w + 1)  # TODO: this should not affect the results
+        # strat = AfterNEventsStrategyAll(3)  # TODO: this should not affect the results
+        strat = AfterNEventsStrategyAll(sc.N_w + 1)  # TODO: this should not affect the results
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, params, sc, directory=directory)
@@ -81,6 +81,7 @@ class TestSimulator(TestCase):
             W=4,
             sigma=1,
             epsilon=5,
+            W_zero_min=None,
         )
         params = Parameters(**p)
 
@@ -115,7 +116,8 @@ class TestSimulator(TestCase):
             # plot_delta=0,
             W=5,
             sigma=1,
-            epsilon=2,
+            epsilon=5,
+            W_zero_min=None,
         )
         params = Parameters(**p)
 
@@ -143,11 +145,11 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
-            # plot_delta=2,
             plot_delta=0,
-            W=8,
-            sigma=2,
-            epsilon=1
+            W=sc.N_w,
+            sigma=1,
+            epsilon=1,
+            W_zero_min=None,
         )
         params = Parameters(**p)
 
@@ -176,7 +178,8 @@ class TestSimulator(TestCase):
             # plot_delta=0,
             W=5,
             sigma=1,
-            epsilon=2,
+            epsilon=5,
+            W_zero_min=None,
         )
         params = Parameters(**p)
 
@@ -215,6 +218,7 @@ class TestSimulator(TestCase):
         flight_sequence_fpath = conf['flight_sequence_fpath']
         with open(flight_sequence_fpath, 'rb') as f:
             seqs = pickle.load(f)
+            seqs = [seq.tolist() for seq in seqs]
 
         params = Parameters(
             v=v,
@@ -228,13 +232,16 @@ class TestSimulator(TestCase):
             schedule_delta=schedule_delta,
             W=W,
             sigma=sigma,
+            W_zero_min=None,
         )
         strategy = ChargingStrategy.parse(conf['charging_strategy'])
 
         if directory:
             os.makedirs(directory, exist_ok=True)
 
-        sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
+        start_positions = [seq[0] for seq in seqs]
+        positions_w = [seq[1:] for seq in seqs]
+        sc = Scenario(start_positions=start_positions, positions_S=charging_station_positions, positions_w=positions_w)
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # drones:               {sc.N_d}")
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # stations:             {sc.N_s}")
         for d in range(sc.N_d):
@@ -279,27 +286,3 @@ class TestSimulator(TestCase):
         if directory:
             with open(os.path.join(directory, "result.json"), 'w') as f:
                 json.dump(jsons.dump(result), f)
-
-
-class TestPlotBattery(TestCase):
-    def test_plot_events_battery(self):
-        r_charge = 0.1
-
-        events = [
-            [
-                StartedEvent(0, 0, AuxWaypoint(0, 0, 0), None, battery=1, depletion=0, forced=False),
-                ReachedEvent(0, 1, Waypoint(0, 0, 0), None, battery=0.9, depletion=0.1, forced=False),
-                ReachedEvent(1, 3, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.6, depletion=0.3, forced=False),
-                ChargedEvent(4, 2, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.8, depletion=-0.2, forced=False),
-                ReachedEvent(6, 7, Waypoint(1, 0, 0), None, battery=0.1, depletion=0.7, forced=False)
-            ],
-            [
-                StartedEvent(0, 0, AuxWaypoint(0, 0, 0), None, battery=1, depletion=0, forced=False),
-                ReachedEvent(0, 1, Waypoint(0, 0, 0), None, battery=0.9, depletion=0.1, forced=False),
-                ReachedEvent(1, 3, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.6, depletion=0.3, forced=False),
-                ChargedEvent(4, 2, ChargingStation(0, 0, 0, wt=0, ct=0, identifier=0), None, battery=0.8, depletion=-0.2, forced=False),
-                ReachedEvent(6, 7, Waypoint(1, 0, 0), None, battery=0.1, depletion=0.7, forced=False)
-            ]
-        ]
-
-        plot_events_battery(events, fname="test.pdf", r_charge=r_charge)

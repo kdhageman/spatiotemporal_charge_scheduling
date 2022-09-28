@@ -142,7 +142,7 @@ class Simulator:
 
         self.uavs = []
         for d in range(self.sc.N_d):
-            uav = UAV(d, self.charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d], self.sc.positions_w[d][0])
+            uav = UAV(d, self.charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d], self.sc.start_positions[d])
             uav.add_release_lock_cb(release_lock_cb)
             self.uavs.append(uav)
         self.debug(env, f"visiting {self.sc.N_w - 1} waypoints per UAV in total")

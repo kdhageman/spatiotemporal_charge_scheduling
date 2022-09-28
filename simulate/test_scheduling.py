@@ -44,46 +44,39 @@ class TestMilpScheduler(TestCase):
 
 
 class TestScenarioFactory(TestCase):
-    def test_next_remaining_distances(self):
+    def test_next(self):
         positions_S = []
         positions_w = [
             [
                 (0, 0),
                 (1, 0),
-                (2, 0),
                 (3, 0),
-                (4, 0),
-                (5, 0),
                 (6, 0),
-                (7, 0),
-                (8, 0),
-                (9, 0),
+                (10, 0),
+                (15, 0),
+                (21, 0),
+                (28, 0),
+                (36, 0),
+                (45, 0),
             ]
         ]
-        # W=3, sigma=1
-        sc = Scenario(positions_S, positions_w)
-        sf = ScenarioFactory(sc, W=3, sigma=1)
-        start_positions = [(0, 0, 0)]
-        expected = [7]
-        _, actual = sf.next(start_positions, offsets=[0])
-        self.assertEqual(expected, actual)
-
-        expected = [2]
-        start_positions = [(5, 0, 0)]
-        _, actual = sf.next(start_positions, offsets=[5])
-        self.assertEqual(expected, actual)
-
-        # W=3, sigma=3
+        start_positions = [(-0.5, 0)]
+        sc = Scenario(start_positions, positions_S, positions_w)
         sf = ScenarioFactory(sc, W=3, sigma=3)
-        start_positions = [(0, 0, 0)]
-        expected = [3]
-        _, actual = sf.next(start_positions, offsets=[0])
-        self.assertEqual(expected, actual)
 
-        start_positions = [(0, 0, 0)]
-        expected = [1]
-        _, actual = sf.next(start_positions, offsets=[2])
-        self.assertEqual(expected, actual)
+        offsets = [0]
+        sc_new, _ = sf.next(start_positions, offsets)
+
+        D_N_expected = np.reshape([0.5, 1, 2], (1, 1, 3))
+        D_N_actual = sc_new.D_N
+        self.assertTrue(np.array_equal(D_N_expected, D_N_actual))
+
+        offsets = [2]
+        sc_new, _ = sf.next(start_positions, offsets)
+
+        D_N_expected = np.reshape([3.5, 3, 4], (1, 1, 3))
+        D_N_actual = sc_new.D_N
+        self.assertTrue(np.array_equal(D_N_expected, D_N_actual))
 
     def test_anchors(self):
         positions_S = []
@@ -112,4 +105,3 @@ class TestScenarioFactory(TestCase):
         actual = sf.anchors()
         expected = [0, 2, 4, 6, 8]
         self.assertEqual(expected, actual)
-

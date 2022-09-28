@@ -218,10 +218,11 @@ class TestGraph(TestCase):
             [1, 2]
         ]
 
-        g, pos = as_graph(sc, params, anchors, 0)
+        g, pos = as_graph(sc, params, anchors, 0, [0])
 
         plt.subplots()
-        # pos = nx.spring_layout(g, seed=0)  # Seed for reproducible layout
-        nx.draw(g, pos, with_labels=True)
-        nx.draw_networkx_edge_labels(g, pos)
+        nx.draw(g, pos)
+        nx.draw_networkx_labels(g, pos, font_size=6, font_color='white')
+        edge_labels = {(n1, n2): f"{dat['dist']:.1f}" for n1, n2, dat in g.edges(data=True)}
+        nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=6)
         plt.savefig("graph.pdf", bbox_inches='tight')

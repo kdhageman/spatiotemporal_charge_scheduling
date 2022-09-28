@@ -3,16 +3,18 @@ import time
 from datetime import datetime
 from typing import List, Dict, Tuple
 
+import networkx as nx
 import numpy as np
 import simpy
-from pyomo.core import Suffix
+from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
-from simulate.node import ChargingStation, Waypoint, NodeType, AuxWaypoint, Node
+from simulate import util
+from simulate.node import ChargingStation, Waypoint, NodeType, Node
 from simulate.parameters import Parameters
 from simulate.uav import UavStateType
-from simulate.util import is_feasible
+from simulate.util import is_feasible, as_graph
 from util.distance import dist3
 from util.exceptions import NotSolvableException
 from util.scenario import Scenario
@@ -88,13 +90,13 @@ class Scheduler:
         """
         Returns the remaining number of waypoints for the given UAV
         """
-        return self.sc.n_original_waypoints[d] - self.offsets[d] - 1
+        return self.sc.N_w - self.offsets[d]
 
     def remaining_waypoints(self, d: int):
         """
         Returns the list of remaining waypoints for the given UAV that need to be visited
         """
-        return self.sc.positions_w[d][1 + self.offsets[d]:]
+        return self.sc.positions_w[d][self.offsets[d]:]
 
 
 class ScenarioFactory:
@@ -106,7 +108,7 @@ class ScenarioFactory:
     def __init__(self, scenario: Scenario, W: int, sigma: float):
         self.sc = scenario
         self.positions_S = scenario.positions_S
-        self.positions_w = [wps[1:] for wps in scenario.positions_w]
+        self.positions_w = [wps for wps in scenario.positions_w]
         self.N_d = scenario.N_d
         self.N_s = scenario.N_s
         self.N_w = scenario.N_w
@@ -143,11 +145,39 @@ class ScenarioFactory:
         return Scenario(start_positions, self.positions_S, positions_w), remaining_distances
 
 
+def draw_graph(sc: Scenario, params: Parameters, anchors, offsets, fname):
+    height = (sc.N_s + 1) * sc.N_d
+    width = sc.N_w * 2
+    _, axes = plt.subplots(nrows=sc.N_d, ncols=1, figsize=(width, height))
+
+    for d in range(sc.N_d):
+        g, pos = as_graph(sc, params, anchors, d, offsets)
+
+        ax = axes[d]
+        nx.draw(g, pos, ax=ax)
+        nx.draw_networkx_labels(g, pos, font_size=6, font_color='white', ax=ax)
+        edge_labels = {(n1, n2): f"{dat['dist']:.1f}" for n1, n2, dat in g.edges(data=True)}
+        nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=6, ax=ax)
+
+        # battery levels
+        y = -0.1
+        xs = [0, sc.N_w * util.X_OFFSET]
+        vals = [params.B_start[d], params.B_end[d]]
+        for x, val in zip(xs, vals):
+            ax.text(x, y, f"{val * 100:.1f}%", color='red', fontdict={"size": 6}, ha='center', backgroundcolor='white')
+
+        plt.savefig(fname, bbox_inches='tight')
+
+
 class MilpScheduler(Scheduler):
     def __init__(self, params: Parameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
         super().__init__(params, scenario)
         self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
         self.solver = solver
+        self.i = 0
+
+        # uncomment for debugging
+        # draw_graph(self.sc, params, [self.sf.anchors()] * self.sc.N_d, self.offsets, f"graph_orig.pdf")
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         start_positions_list = list(start_positions.values())
@@ -202,14 +232,18 @@ class MilpScheduler(Scheduler):
         params.W_zero_min = cs_locks
 
         # calculate anchors in format that the model understands:
-        # - add "1" to adjust for the starting position
-        # - subtract the offset to adjust for the current progress
-        # - the "-1" represents the start position (after adding 1 it becomes zero)
         anchors = []
         for d in range(self.sc.N_d):
             anchors_d = np.array(self.sf.anchors()) - self.offsets[d]
             anchors_trimmed_d = [e for e in anchors_d if 0 <= e < sc.N_w]
+            # compensate for drones that are currently charging
+            if sc.is_at_charging_station(start_positions[d]):
+                anchors_trimmed_d = [0] + anchors_trimmed_d
             anchors.append(anchors_trimmed_d)
+
+        # uncomment for debugging
+        # draw_graph(sc, params, anchors, self.offsets, f"graph_{self.i}.pdf")
+        self.i += 1
 
         t_start = time.perf_counter()
         expected_feasible = is_feasible(sc, params, anchors)

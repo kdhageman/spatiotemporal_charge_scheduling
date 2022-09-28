@@ -136,19 +136,20 @@ def is_feasible(sc, params, anchors) -> bool:
 X_OFFSET = 1
 Y_DIST = 0.25
 
-def as_graph(sc, params, anchors, d):
+def as_graph(sc, params, anchors, d, offsets):
     g = nx.DiGraph()
-    new_node = f"w0"
+    new_node = f"w_s"
     g.add_node(new_node)
     positions = {new_node: (0, 0)}
+
+    prev_node = new_node
 
     x = 1
     for w_d in range(1, sc.N_w + 1):
         w_s = w_d - 1
 
         # new waypoint node
-        prev_node = f"w{w_s}"
-        new_node = f"w{w_d}"
+        new_node = f"w{w_d+offsets[d]}"
         positions[new_node] = (x, 0)
         g.add_node(new_node)
 
@@ -157,9 +158,9 @@ def as_graph(sc, params, anchors, d):
         path_idx = 0
         for s in range(sc.N_s):
             if w_s in anchors[d]:
-                path_layer.append((path_idx, f"w{w_s}_s{s}"))
+                path_layer.append((path_idx, f"w{w_s+offsets[d]}_s{s}"))
             path_idx += 1
-        path_layer.append((path_idx, f"w'{w_d}"))
+        path_layer.append((path_idx, f"w'{w_d+offsets[d]}"))
 
         for i, (idx, n) in enumerate(path_layer):
             g.add_node(n)
@@ -176,7 +177,6 @@ def as_graph(sc, params, anchors, d):
             positions[n] = (x - (X_OFFSET / 2), y)
 
         x += X_OFFSET
-    # TODO: add weights
-    # TODO: consider anchors
+        prev_node = new_node
 
     return g, positions
