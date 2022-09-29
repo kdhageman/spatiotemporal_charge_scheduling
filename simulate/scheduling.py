@@ -90,7 +90,7 @@ class Scheduler:
         """
         Returns the remaining number of waypoints for the given UAV
         """
-        return self.sc.N_w - self.offsets[d]
+        return self.sc.n_original_waypoints[d] - self.offsets[d]
 
     def remaining_waypoints(self, d: int):
         """
@@ -177,7 +177,7 @@ class MilpScheduler(Scheduler):
         self.i = 0
 
         # uncomment for debugging
-        # draw_graph(self.sc, params, [self.sf.anchors()] * self.sc.N_d, self.offsets, f"graph_orig.pdf")
+        draw_graph(self.sc, params, [self.sf.anchors()] * self.sc.N_d, self.offsets, f"graph_orig.pdf")
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         start_positions_list = list(start_positions.values())
@@ -242,7 +242,7 @@ class MilpScheduler(Scheduler):
             anchors.append(anchors_trimmed_d)
 
         # uncomment for debugging
-        # draw_graph(sc, params, anchors, self.offsets, f"graph_{self.i}.pdf")
+        draw_graph(sc, params, anchors, self.offsets, f"graph_{self.i}.pdf")
         self.i += 1
 
         t_start = time.perf_counter()

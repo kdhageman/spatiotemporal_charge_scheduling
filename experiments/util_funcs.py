@@ -357,18 +357,18 @@ class ChargingStrategy(Enum):
         return NotImplementedError()
 
 
-def schedule_charge(seqs: list, charging_station_positions: list, params: Parameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
+def schedule_charge(start_positions: list, waypoints: list, charging_station_positions: list, params: Parameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
     """
     Schedules the charging for a sequence of flight waypoints and number of charging station positions
     """
     if directory:
         os.makedirs(directory, exist_ok=True)
 
-    sc = Scenario(charging_station_positions, [seq.tolist() for seq in seqs])
+    sc = Scenario(start_positions, charging_station_positions, waypoints)
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # drones:               {sc.N_d}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # stations:             {sc.N_s}")
     for d in range(sc.N_d):
-        logger.debug(f" [{datetime.now().strftime('%H:%M:%S')}] # waypoints for UAV[{d}]: {len(seqs[d])}")
+        logger.debug(f" [{datetime.now().strftime('%H:%M:%S')}] # waypoints for UAV[{d}]: {sc.N_w}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] sigma:                  {params.sigma}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] W:                      {params.W}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] epsilon:                {params.epsilon}")
@@ -440,7 +440,7 @@ def load_flight_sequences(path):
                 seq_padded.append(pos_i)
         seq_padded.append(pos_j)  # add last waypoint
         flight_sequences_segmented.append(np.array(seq_padded))
-    return flight_sequences_segmented
+    return [seq.tolist() for seq in flight_sequences_segmented]
 
 
 def schedule_charge_from_conf(conf):
@@ -464,6 +464,8 @@ def schedule_charge_from_conf(conf):
 
     flight_sequence_fpath = conf['flight_sequence_fpath']
     flight_sequences = load_flight_sequences(flight_sequence_fpath)
+    start_positions = [seq[0] for seq in flight_sequences]
+    waypoints = [seq[1:] for seq in flight_sequences]
 
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] starting charge scheduling..")
     params = Parameters(
@@ -479,11 +481,12 @@ def schedule_charge_from_conf(conf):
         sigma=sigma,
         time_limit=time_limit,
         int_feas_tol=int_feas_tol,
-        rescheduling_frequency=rescheduling_frequency
+        rescheduling_frequency=rescheduling_frequency,
+        W_zero_min=None
     )
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     t_start = time.perf_counter()
-    _ = schedule_charge(flight_sequences, charging_station_positions, params, directory=output_dir, strategy=strategy)
+    _ = schedule_charge(start_positions, waypoints, charging_station_positions, params, directory=output_dir, strategy=strategy)
     elapsed = time.perf_counter() - t_start
     logger.debug(f"finished charge schedule simulation in {elapsed:.1f}s")
 
