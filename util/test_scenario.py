@@ -177,7 +177,7 @@ class TestScenarioFactory(TestCase):
         ]
         start_positions = [(-0.5, 0)]
         sc = Scenario(start_positions, positions_S, positions_w)
-        sf = ScenarioFactory(sc, W=3, sigma=3)
+        sf = ScenarioFactory(sc, W=3, sigma=2)
 
         offsets = [0]
         sc_new, _ = sf.next(start_positions, offsets)
@@ -187,13 +187,13 @@ class TestScenarioFactory(TestCase):
         self.assertTrue(np.array_equal(D_N_expected, D_N_actual))
 
         actual = sc_new.anchors[0]
-        expected = [0, 3]
+        expected = [0, 2]
         self.assertEqual(expected, actual)
 
-        offsets = [2]
+        offsets = [1]
         sc_new, _ = sf.next(start_positions, offsets)
 
-        D_N_expected = np.reshape([3.5, 3, 4], (1, 1, 3))
+        D_N_expected = np.reshape([1.5, 2, 3], (1, 1, 3))
         D_N_actual = sc_new.D_N
         self.assertTrue(np.array_equal(D_N_expected, D_N_actual))
 

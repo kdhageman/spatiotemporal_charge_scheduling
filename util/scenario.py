@@ -181,8 +181,12 @@ class Scenario:
     def collapse(self):
         D_N = []
         D_W = []
-        # calculcate distance matrices
+        # calculate distance matrices
         for d in range(self.N_d):
+            if len(self.anchors[d]) == 0:
+                D_N.append(self.D_N[d])
+                D_W.append(self.D_W[d])
+                continue
             D_N_d = []
             D_W_d = []
             # g, pos = as_graph(self, anchors, d, offsets=[0]*self.N_d)
@@ -316,6 +320,10 @@ class ScenarioFactory:
             start = offsets[d]
             end = offsets[d] + self.W
             wps = self.positions_w[d][start:end]
+            if not wps:
+                wps = [start_positions[d]]
+            while len(wps) < self.W:
+                wps.append(wps[-1])
             positions_w.append(wps)
 
         remaining_distances = []
@@ -326,10 +334,10 @@ class ScenarioFactory:
 
         anchors = []
         for d in range(self.sc.N_d):
-            anchors_d = np.array(self.anchors()) - offsets[d]
-            anchors_trimmed_d = [a for a in anchors_d if 0 <= a <= self.W]
+            anchors_d = np.array(self.anchors()) - (offsets[d] % self.sigma)
+            anchors_trimmed_d = [a for a in anchors_d if 0 <= a < self.W]
             # compensate for drones that are currently charging
-            if self.sc.is_at_charging_station(start_positions[d]):
+            if self.sc.is_at_charging_station(start_positions[d]) and 0 not in anchors_trimmed_d:
                 anchors_trimmed_d = [0] + anchors_trimmed_d
             anchors.append(anchors_trimmed_d)
 
