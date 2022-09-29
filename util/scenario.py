@@ -188,7 +188,10 @@ class Scenario:
             # g, pos = as_graph(self, anchors, d, offsets=[0]*self.N_d)
             last_anchor = 0
             for a in self.anchors[d]:
-                D_N_d.append(self.D_N[d, -1, last_anchor:a] + self.D_N[d, :, a])
+                val = self.D_N[d, :, a]
+                if last_anchor != a:
+                    val += self.D_N[d, -1, last_anchor+1:a].sum()
+                D_N_d.append(val)
                 D_W_d.append(self.D_W[d, :, a])
                 last_anchor = a
             # adjust last D_w for remaining distance after last anchor

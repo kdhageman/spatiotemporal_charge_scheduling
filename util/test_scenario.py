@@ -99,7 +99,7 @@ class TestScenario(TestCase):
         for wps in s.positions_w:
             self.assertEqual(len(wps), s.N_w)
 
-    def test_collapse(self):
+    def test_collapse_normal(self):
         wps = [
             [
                 (1, 0),
@@ -117,6 +117,35 @@ class TestScenario(TestCase):
 
         anchors = [
             [1, 3, 5]
+        ]
+        sc = Scenario(start_positions=start_positions, positions_S=charging_stations, positions_w=wps, anchors=anchors)
+
+        offsets = [0]
+        fname = os.path.join(os.getcwd(), "not_collapsed.pdf")
+        draw_graph(sc, self.params, offsets, fname)
+
+        collapsed = sc.collapse()
+        fname = os.path.join(os.getcwd(), "collapsed.pdf")
+        draw_graph(collapsed, self.params, offsets, fname)
+
+    def test_collapse_first_anchor(self):
+        wps = [
+            [
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+            ]
+        ]
+        charging_stations = [(3, 0.5)]
+
+        start_positions = [(0, 0)]
+
+        anchors = [
+            [0, 1, 3, 5]
         ]
         sc = Scenario(start_positions=start_positions, positions_S=charging_stations, positions_w=wps, anchors=anchors)
 
