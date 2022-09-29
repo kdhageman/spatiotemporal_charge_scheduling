@@ -149,13 +149,16 @@ def draw_graph(sc: Scenario, params: Parameters, anchors, offsets, fname):
     height = (sc.N_s + 1) * sc.N_d
     width = sc.N_w * 2
     _, axes = plt.subplots(nrows=sc.N_d, ncols=1, figsize=(width, height))
+    if sc.N_d == 1:
+        axes = [axes]
 
     for d in range(sc.N_d):
-        g, pos = as_graph(sc, params, anchors, d, offsets)
+        g, pos = as_graph(sc, anchors, d, offsets)
 
         ax = axes[d]
         nx.draw(g, pos, ax=ax)
-        nx.draw_networkx_labels(g, pos, font_size=6, font_color='white', ax=ax)
+        node_labels = {node: dat['label'] for node, dat in g.nodes(data=True)}
+        nx.draw_networkx_labels(g, pos, labels=node_labels, font_size=6, font_color='white', ax=ax)
         edge_labels = {(n1, n2): f"{dat['dist']:.1f}" for n1, n2, dat in g.edges(data=True)}
         nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=6, ax=ax)
 

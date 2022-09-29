@@ -203,22 +203,11 @@ class TestGraph(TestCase):
         ]
         sc = Scenario(positions_S=positions_S, positions_w=positions_w, start_positions=start_positions)
 
-        params = Parameters(
-            v=[1],
-            r_charge=[0.02],
-            r_deplete=[0.05],
-            B_start=[1],
-            B_min=[0.5],
-            B_max=[1],
-            W_zero_min=np.zeros((1, 1)),
-            W=5,
-        )
-
         anchors = [
             [1, 2]
         ]
 
-        g, pos = as_graph(sc, params, anchors, 0, [0])
+        g, pos = as_graph(sc, anchors, 0, [0])
 
         plt.subplots()
         nx.draw(g, pos)

@@ -1,12 +1,33 @@
+import os
 import tempfile
 from unittest import TestCase
 
 import yaml
 
+from simulate.parameters import Parameters
+from simulate.scheduling import draw_graph
+from simulate.util import as_graph
 from util.scenario import Scenario
 
 
 class TestScenario(TestCase):
+    def setUp(self) -> None:
+        p = dict(
+            v=[1] * 3,
+            r_charge=[0.04] * 3,
+            r_deplete=[0.3] * 3,
+            B_min=[0.1] * 3,
+            B_max=[1] * 3,
+            B_start=[1] * 3,
+            plot_delta=0.1,
+            # plot_delta=0,
+            W=3,
+            sigma=1,
+            epsilon=1e-2,
+            W_zero_min=None
+        )
+        self.params = Parameters(**p)
+
     def test_init_single(self):
         doc = {
             "charging_stations": [
@@ -107,4 +128,34 @@ class TestScenario(TestCase):
         self.assertEqual(sc_rhc.positions_S, sc.positions_S)
         for d in range(sc.N_d):
             self.assertEqual(sc_rhc.positions_w[d][0][0:2], starting_positions[d][0:2])
+
+    def test_collapse(self):
+        wps = [
+            [
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0),
+                (5, 0),
+                (6, 0),
+                (7, 0),
+            ]
+        ]
+        charging_stations = [(3, 0.5)]
+
+        start_positions = [(0, 0)]
+
+        sc = Scenario(start_positions=start_positions, positions_S=charging_stations, positions_w=wps)
+
+        anchors = [
+            [1, 3, 5]
+        ]
+        offsets = [0]
+        fname = os.path.join(os.getcwd(), "not_collapsed.pdf")
+        draw_graph(sc, self.params, anchors, offsets, fname)
+
+        collapsed = sc.collapse(anchors)
+        fname = os.path.join(os.getcwd(), "collapsed.pdf")
+        anchors = [list(range(collapsed.N_w))]
+        draw_graph(collapsed, self.params, anchors, offsets, fname)
 

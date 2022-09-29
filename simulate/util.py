@@ -136,10 +136,14 @@ def is_feasible(sc, params, anchors) -> bool:
 X_OFFSET = 1
 Y_DIST = 0.25
 
-def as_graph(sc, params, anchors, d, offsets):
+
+def as_graph(sc, anchors, d, offsets):
     g = nx.DiGraph()
+    w = 0
     new_node = f"w_s"
-    g.add_node(new_node)
+    label = r'$w_s$'
+    nodetype = "waypoint"
+    g.add_node(new_node, w=w, label=label, nodetype=nodetype)
     positions = {new_node: (0, 0)}
 
     prev_node = new_node
@@ -149,32 +153,41 @@ def as_graph(sc, params, anchors, d, offsets):
         w_s = w_d - 1
 
         # new waypoint node
-        new_node = f"w{w_d+offsets[d]}"
+        new_node = f"w{w_d + offsets[d]}"
+        label = f'$w_{w_d + offsets[d]}$'
+        nodetype = 'waypoint'
         positions[new_node] = (x, 0)
-        g.add_node(new_node)
+        g.add_node(new_node, w=w_d, label=label, nodetype=nodetype)
 
         # path layer
         path_layer = []
         path_idx = 0
         for s in range(sc.N_s):
             if w_s in anchors[d]:
-                path_layer.append((path_idx, f"w{w_s+offsets[d]}_s{s}"))
+                path_layer.append((path_idx, f"w{w_s + offsets[d]}_s{s}"))
             path_idx += 1
-        path_layer.append((path_idx, f"w'{w_d+offsets[d]}"))
+        path_layer.append((path_idx, f"w'{w_d + offsets[d]}"))
 
-        for i, (idx, n) in enumerate(path_layer):
-            g.add_node(n)
-            dist_to = sc.D_N[d, idx, w_s]
-            dist_from = sc.D_W[d, idx, w_s]
+        for i, (n, node_name) in enumerate(path_layer):
+            nodetype = "path_node"
+            if n == sc.N_s:
+                # directly to next waypoint
+                label = f"$w'_{w_s + offsets[d]}$"
+            else:
+                # via station
+                label = f"$s_{n}$"
+            g.add_node(node_name, w=w_s, n=n, nodetype=nodetype, label=label)
+            dist_to = sc.D_N[d, n, w_s]
+            dist_from = sc.D_W[d, n, w_s]
 
-            g.add_edge(prev_node, n, dist=dist_to)
-            g.add_edge(n, new_node, dist=dist_from)
+            g.add_edge(prev_node, node_name, dist=dist_to)
+            g.add_edge(node_name, new_node, dist=dist_from)
             y_total = (len(path_layer) - 1) * Y_DIST
             if not y_total:
                 y = 0
             else:
                 y = i * y_total / (len(path_layer) - 1) - (y_total / 2)
-            positions[n] = (x - (X_OFFSET / 2), y)
+            positions[node_name] = (x - (X_OFFSET / 2), y)
 
         x += X_OFFSET
         prev_node = new_node

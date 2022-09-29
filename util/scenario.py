@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from yaml import Loader
 
 from simulate.util import gen_colors, gen_linestyles
-from util import distance, constants
+from util import distance
 from util.distance import dist3
 
 
@@ -176,6 +176,41 @@ class Scenario:
             pos = pos[0], pos[1], 0
         pos = tuple(pos)
         return pos in self.positions_S
+
+    def collapse(self, anchors):
+        D_N = []
+        D_W = []
+        # calculcate distance matrices
+        for d in range(self.N_d):
+            D_N_d = []
+            D_W_d = []
+            # g, pos = as_graph(self, anchors, d, offsets=[0]*self.N_d)
+            last_anchor = 0
+            for a in anchors[d]:
+                D_N_d.append(self.D_N[d, -1, last_anchor:a] + self.D_N[d, :, a])
+                D_W_d.append(self.D_W[d, :, a])
+                last_anchor = a
+            # adjust last D_w for remaining distance after last anchor
+            D_W_d[-1] += self.D_N[d, -1, last_anchor + 1:].sum()
+
+            D_N.append(D_N_d)
+            D_W.append(D_W_d)
+        D_N = np.array(D_N).transpose(0, 2, 1)
+        D_W = np.array(D_W).transpose(0, 2, 1)
+
+        # calculate waypoint positions
+        positions_w = []
+        for d in range(self.N_d):
+            l = []
+            for a in anchors[d][:-1]:
+                l.append(self.positions_w[d][a])
+            l.append(self.positions_w[d][-1])
+            positions_w.append(l)
+
+        sc = Scenario(start_positions=self.start_positions, positions_S=self.positions_S, positions_w=positions_w)
+        sc.D_N = D_N
+        sc.D_W = D_W
+        return sc
 
     def plot(self, ax=None, draw_distances=True, greyscale=False):
         if not ax:
