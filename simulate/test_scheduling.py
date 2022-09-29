@@ -41,6 +41,3 @@ class TestMilpScheduler(TestCase):
         batteries = {d: 1 for d in range(sc.N_d)}
         cs_locks = np.zeros((sc.N_d, sc.N_s))
         _, (_, schedules) = sched.schedule(start_positions, batteries, cs_locks, uavs_to_schedule=list(range(sc.N_d)))
-
-
-

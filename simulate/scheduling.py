@@ -3,18 +3,15 @@ import time
 from datetime import datetime
 from typing import List, Dict, Tuple
 
-import networkx as nx
 import numpy as np
 import simpy
-from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
-from simulate import util
 from simulate.node import ChargingStation, Waypoint, NodeType, Node
 from simulate.parameters import Parameters
 from simulate.uav import UavStateType
-from simulate.util import is_feasible, as_graph
+from simulate.util import is_feasible, draw_graph
 from util.distance import dist3
 from util.exceptions import NotSolvableException
 from util.scenario import Scenario, ScenarioFactory
@@ -99,33 +96,6 @@ class Scheduler:
         return self.sc.positions_w[d][self.offsets[d]:]
 
 
-def draw_graph(sc: Scenario, params: Parameters, offsets, fname):
-    height = (sc.N_s + 1) * sc.N_d
-    width = sc.N_w * 2
-    _, axes = plt.subplots(nrows=sc.N_d, ncols=1, figsize=(width, height))
-    if sc.N_d == 1:
-        axes = [axes]
-
-    for d in range(sc.N_d):
-        g, pos = as_graph(sc, d, offsets)
-
-        ax = axes[d]
-        nx.draw(g, pos, ax=ax)
-        node_labels = {node: dat['label'] for node, dat in g.nodes(data=True)}
-        nx.draw_networkx_labels(g, pos, labels=node_labels, font_size=6, font_color='white', ax=ax)
-        edge_labels = {(n1, n2): f"{dat['dist']:.1f}" for n1, n2, dat in g.edges(data=True)}
-        nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=6, ax=ax)
-
-        # battery levels
-        y = -0.1
-        xs = [0, sc.N_w * util.X_OFFSET]
-        vals = [params.B_start[d], params.B_end[d]]
-        for x, val in zip(xs, vals):
-            ax.text(x, y, f"{val * 100:.1f}%", color='red', fontdict={"size": 6}, ha='center', backgroundcolor='white')
-
-        plt.savefig(fname, bbox_inches='tight')
-
-
 class MilpScheduler(Scheduler):
     def __init__(self, params: Parameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
         super().__init__(params, scenario)
@@ -142,6 +112,10 @@ class MilpScheduler(Scheduler):
         if sc.N_w == 0:
             # return empty schedules
             return 0, (True, {d: [] for d in uavs_to_schedule})
+
+        draw_graph(sc, self.params, self.offsets, f"graph_{self.i}_pre.pdf")
+        sc_collapsed = sc.collapse()
+        draw_graph(sc_collapsed, self.params, self.offsets, f"graph_{self.i}_post.pdf")
 
         for d, remaining_distance in enumerate(remaining_distances):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
@@ -180,8 +154,8 @@ class MilpScheduler(Scheduler):
         # TODO: revise this for anchors?
         # TODO: let the current battery value on apply to arrival at the FIRST node
         B_min = []
-        for d in range(self.sc.N_d):
-            _, dist_to_nearest_station = sc.nearest_station(start_positions[d])
+        for d in range(sc_collapsed.N_d):
+            _, dist_to_nearest_station = sc_collapsed.nearest_station(start_positions[d])
             depletion_to_nearest_station = dist_to_nearest_station / self.params.v[d] * self.params.r_deplete[d]
             B_min.append(min(batteries[d] - depletion_to_nearest_station, self.params.B_min[d]))
         params.B_min = np.array(B_min)
@@ -189,17 +163,17 @@ class MilpScheduler(Scheduler):
         params.W_zero_min = cs_locks
 
         # uncomment for debugging
-        draw_graph(sc, params, self.offsets, f"graph_{self.i}.pdf")
+        # draw_graph(sc, params, self.offsets, f"graph_collapsed_{self.i}.pdf")
         self.i += 1
 
         t_start = time.perf_counter()
-        expected_feasible = is_feasible(sc, params)
+        expected_feasible = is_feasible(sc_collapsed, params)
         if not expected_feasible:
             self.logger.warning(f"[{datetime.now().strftime('%H:%M:%S')}] it is NOT expected that the problem is solvable")
         else:
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] it IS expected that the problem is solvable")
 
-        model = MultiUavModel(sc=sc, params=params)
+        model = MultiUavModel(sc=sc_collapsed, params=params)
         # model.iis = Suffix(direction=Suffix.IMPORT)
         elapsed = time.perf_counter() - t_start
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] constructed MILP model in {elapsed:.2f}s")
@@ -261,8 +235,8 @@ class MilpScheduler(Scheduler):
         # extract charging windows
         charging_windows = {}
 
-        for d in range(sc.N_d):
-            for w_s in range(sc.N_w):
+        for d in range(sc_collapsed.N_d):
+            for w_s in range(sc_collapsed.N_w):
                 try:
                     station_idx = model.P_np[d, :-1, w_s].tolist().index(1)
                     t_s = model.T_s(d, w_s)()
@@ -279,16 +253,35 @@ class MilpScheduler(Scheduler):
         res = {}
         for d in uavs_to_schedule:
             nodes = []
+            # all nodes up to first anchor
+            first_anchor = sc.anchors[d][0]
+            for pos in sc.positions_w[d][:first_anchor]:
+                node = Waypoint(*pos)
+                nodes.append(node)
             for w_s in model.w_s:
                 n = model.P_np[d, :, w_s].tolist().index(1)
                 if n < model.N_s:
                     # charging
                     wt = max(model.W_np[d, w_s], 0)
                     ct = max(model.C_np[d, w_s], 0)
-                    node = ChargingStation(*sc.positions_S[n], n, wt, ct)
+                    node = ChargingStation(*sc_collapsed.positions_S[n], n, wt, ct)
                     nodes.append(node)
-                node = Waypoint(*sc.waypoints(d)[w_s + 1])
+                node = Waypoint(*sc_collapsed.waypoints(d)[w_s + 1])
                 nodes.append(node)
+
+                # all nodes after the anchor
+                cur_anchor = sc.anchors[d][w_s]
+                try:
+                    # for each anchor, follow waypoints until next anchor
+                    next_anchor = sc.anchors[d][w_s + 1]
+                    for pos in sc.positions_w[d][cur_anchor + 1:next_anchor]:
+                        node = Waypoint(*pos)
+                        nodes.append(node)
+                except IndexError:
+                    # after last anchor
+                    for pos in sc.positions_w[d][cur_anchor + 1:]:
+                        node = Waypoint(*pos)
+                        nodes.append(node)
             res[d] = nodes
         return t_solve, (optimal, res)
 

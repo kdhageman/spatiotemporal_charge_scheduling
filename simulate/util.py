@@ -2,6 +2,7 @@ import logging
 
 import networkx as nx
 import numpy as np
+from matplotlib import pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,7 @@ def is_feasible(sc, params) -> bool:
 
                 # distances between non-anchor waypoints in between
                 for w in range(a_prev + 1, a):
-                    try:
-                        dist += sc.D_N[d, -1, w]
-                    except:
-                        pass
-                        _ = 1
+                    dist += sc.D_N[d, -1, w]
                     l.append("W")
                 l.append("A")  # anchor itself
 
@@ -158,7 +155,7 @@ def as_graph(sc, d, offsets):
 
         # new waypoint node
         new_node = f"w{w_d + offsets[d]}"
-        label = f'$w_{w_d + offsets[d]}$'
+        label = f'$w_{{{w_d + offsets[d]}}}$'
         nodetype = 'waypoint'
         positions[new_node] = (x, 0)
         g.add_node(new_node, w=w_d, label=label, nodetype=nodetype)
@@ -176,10 +173,10 @@ def as_graph(sc, d, offsets):
             nodetype = "path_node"
             if n == sc.N_s:
                 # directly to next waypoint
-                label = f"$w'_{w_s + offsets[d]}$"
+                label = f"$w'_{{{w_s + offsets[d]}}}$"
             else:
                 # via station
-                label = f"$s_{n}$"
+                label = f"$s_{{{n}}}$"
             g.add_node(node_name, w=w_s, n=n, nodetype=nodetype, label=label)
             dist_to = sc.D_N[d, n, w_s]
             dist_from = sc.D_W[d, n, w_s]
@@ -197,3 +194,30 @@ def as_graph(sc, d, offsets):
         prev_node = new_node
 
     return g, positions
+
+
+def draw_graph(sc, params, offsets, fname):
+    height = (sc.N_s + 1) * sc.N_d
+    width = sc.N_w * 2
+    _, axes = plt.subplots(nrows=sc.N_d, ncols=1, figsize=(width, height))
+    if sc.N_d == 1:
+        axes = [axes]
+
+    for d in range(sc.N_d):
+        g, pos = as_graph(sc, d, offsets)
+
+        ax = axes[d]
+        nx.draw(g, pos, ax=ax)
+        node_labels = {node: dat['label'] for node, dat in g.nodes(data=True)}
+        nx.draw_networkx_labels(g, pos, labels=node_labels, font_size=6, font_color='white', ax=ax)
+        edge_labels = {(n1, n2): f"{dat['dist']:.1f}" for n1, n2, dat in g.edges(data=True)}
+        nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=6, ax=ax)
+
+        # battery levels
+        y = -0.1
+        xs = [0, sc.N_w * X_OFFSET]
+        vals = [params.B_start[d], params.B_end[d]]
+        for x, val in zip(xs, vals):
+            ax.text(x, y, f"{val * 100:.1f}%", color='red', fontdict={"size": 6}, ha='center', backgroundcolor='white')
+
+        plt.savefig(fname, bbox_inches='tight')

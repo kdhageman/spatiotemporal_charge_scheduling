@@ -41,7 +41,7 @@ class TestSimulator(TestCase):
             plot_delta=0,
             # W=4,
             W=sc.N_w,
-            sigma=1,
+            sigma=2,
             epsilon=1,
             W_zero_min=None,
         )
@@ -65,6 +65,45 @@ class TestSimulator(TestCase):
         if directory:
             with open(os.path.join(directory, "result.json"), 'w') as f:
                 json.dump(jsons.dump(result), f)
+
+    # def test_milp_collapsed_simulator_long(self):
+    #     sc = Scenario.from_file("scenarios/two_longer_path.yml")
+    #
+    #     p = dict(
+    #         v=[1, 1],
+    #         r_charge=[0.04, 0.04],
+    #         r_deplete=[0.28, 0.28],
+    #         B_min=[0.1, 0.1],
+    #         B_max=[1, 1],
+    #         B_start=[1, 1],
+    #         # plot_delta=3,
+    #         plot_delta=0,
+    #         # W=4,
+    #         W=sc.N_w,
+    #         sigma=2,
+    #         epsilon=1,
+    #         W_zero_min=None,
+    #     )
+    #     params = Parameters(**p)
+    #
+    #     directory = 'out/test/milp_collapsed_simulator_long'
+    #     os.makedirs(directory, exist_ok=True)
+    #
+    #     if directory:
+    #         _, ax = plt.subplots()
+    #         sc.plot(ax=ax, draw_distances=False)
+    #         plt.savefig(os.path.join(directory, "scenario.pdf"), bbox_inches='tight')
+    #
+    #     # strat = AfterNEventsStrategyAll(3)  # TODO: this should not affect the results
+    #     strat = AfterNEventsStrategyAll(sc.N_w + 1)  # TODO: this should not affect the results
+    #     solver = SolverFactory("gurobi_ampl", solver_io='nl')
+    #     scheduler = MilpSchedulerCollapsed(params, sc, solver=solver)
+    #     simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+    #     result = simulator.sim()
+    #
+    #     if directory:
+    #         with open(os.path.join(directory, "result.json"), 'w') as f:
+    #             json.dump(jsons.dump(result), f)
 
     def test_milp_three_drones_circling_W4(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
