@@ -49,7 +49,7 @@ def gen_linestyles(n: int):
     return res
 
 
-def is_feasible(sc, params, anchors) -> bool:
+def is_feasible(sc, params) -> bool:
     """
     Returns whether the given scenario and parameters *might* be feasible.
     This can be used as a sanity check for the given problem.
@@ -58,7 +58,7 @@ def is_feasible(sc, params, anchors) -> bool:
     :param params: parameters
     """
     for d in range(sc.N_d):
-        if len(anchors[d]) == 0:
+        if len(sc.anchors[d]) == 0:
             b_before = params.B_start[d]
             dist = sc.D_N[d, -1, :].sum()
             l = ["W"] * (sc.N_w + 1)
@@ -69,7 +69,7 @@ def is_feasible(sc, params, anchors) -> bool:
             if surplus < 0:
                 return False
             continue
-        for i, a in enumerate(anchors[d]):
+        for i, a in enumerate(sc.anchors[d]):
             dist = 0
             if i == 0:
                 # first anchor
@@ -88,7 +88,7 @@ def is_feasible(sc, params, anchors) -> bool:
             else:
                 # subsequent anchors
                 b_before = params.B_max[d]  # we assume full charge after the previous anchor
-                a_prev = anchors[d][i - 1]
+                a_prev = sc.anchors[d][i - 1]
                 l = []
 
                 # dist from nearest charging station after anchor
@@ -97,7 +97,11 @@ def is_feasible(sc, params, anchors) -> bool:
 
                 # distances between non-anchor waypoints in between
                 for w in range(a_prev + 1, a):
-                    dist += sc.D_N[d, -1, w]
+                    try:
+                        dist += sc.D_N[d, -1, w]
+                    except:
+                        pass
+                        _ = 1
                     l.append("W")
                 l.append("A")  # anchor itself
 
@@ -114,7 +118,7 @@ def is_feasible(sc, params, anchors) -> bool:
         b_before = params.B_max[d]
 
         # distance from closest charging station
-        last_anchor = anchors[d][-1]
+        last_anchor = sc.anchors[d][-1]
         dist = sc.D_W[d, :-1, last_anchor].min()
         l = ["S"]
 
@@ -137,7 +141,7 @@ X_OFFSET = 1
 Y_DIST = 0.25
 
 
-def as_graph(sc, anchors, d, offsets):
+def as_graph(sc, d, offsets):
     g = nx.DiGraph()
     w = 0
     new_node = f"w_s"
@@ -163,7 +167,7 @@ def as_graph(sc, anchors, d, offsets):
         path_layer = []
         path_idx = 0
         for s in range(sc.N_s):
-            if w_s in anchors[d]:
+            if w_s in sc.anchors[d]:
                 path_layer.append((path_idx, f"w{w_s + offsets[d]}_s{s}"))
             path_idx += 1
         path_layer.append((path_idx, f"w'{w_d + offsets[d]}"))

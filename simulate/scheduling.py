@@ -17,7 +17,7 @@ from simulate.uav import UavStateType
 from simulate.util import is_feasible, as_graph
 from util.distance import dist3
 from util.exceptions import NotSolvableException
-from util.scenario import Scenario
+from util.scenario import Scenario, ScenarioFactory
 
 
 class Scheduler:
@@ -99,53 +99,7 @@ class Scheduler:
         return self.sc.positions_w[d][self.offsets[d]:]
 
 
-class ScenarioFactory:
-    """
-    Generates scenarios on the fly based on the current progress of UAVs (self.offsets)
-    and the given strategy for sampling waypoints (W and sigma)
-    """
-
-    def __init__(self, scenario: Scenario, W: int, sigma: float):
-        self.sc = scenario
-        self.positions_S = scenario.positions_S
-        self.positions_w = [wps for wps in scenario.positions_w]
-        self.N_d = scenario.N_d
-        self.N_s = scenario.N_s
-        self.N_w = scenario.N_w
-
-        self.W = W
-        self.sigma = sigma
-
-    def anchors(self):
-        res = [0]
-
-        n = self.sigma
-        while n < self.N_w:
-            res.append(n)
-            n += self.sigma
-        return res
-
-    def next(self, start_positions: Dict[int, tuple], offsets: List[int]) -> Tuple[Scenario, List[float]]:
-        """
-        Returns the next scenario
-        """
-        positions_w = []
-        for d in range(self.N_d):
-            start = offsets[d]
-            end = offsets[d] + self.W
-            wps = self.positions_w[d][start:end]
-            positions_w.append(wps)
-
-        remaining_distances = []
-        for d in range(self.N_d):
-            remaining_distances.append(
-                self.sc.D_N[d, -1, offsets[d] + self.W:].sum()
-            )
-
-        return Scenario(start_positions, self.positions_S, positions_w), remaining_distances
-
-
-def draw_graph(sc: Scenario, params: Parameters, anchors, offsets, fname):
+def draw_graph(sc: Scenario, params: Parameters, offsets, fname):
     height = (sc.N_s + 1) * sc.N_d
     width = sc.N_w * 2
     _, axes = plt.subplots(nrows=sc.N_d, ncols=1, figsize=(width, height))
@@ -153,7 +107,7 @@ def draw_graph(sc: Scenario, params: Parameters, anchors, offsets, fname):
         axes = [axes]
 
     for d in range(sc.N_d):
-        g, pos = as_graph(sc, anchors, d, offsets)
+        g, pos = as_graph(sc, d, offsets)
 
         ax = axes[d]
         nx.draw(g, pos, ax=ax)
@@ -180,7 +134,7 @@ class MilpScheduler(Scheduler):
         self.i = 0
 
         # uncomment for debugging
-        draw_graph(self.sc, params, [self.sf.anchors()] * self.sc.N_d, self.offsets, f"graph_orig.pdf")
+        draw_graph(self.sc, params, self.offsets, f"graph_orig.pdf")
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         start_positions_list = list(start_positions.values())
@@ -234,28 +188,18 @@ class MilpScheduler(Scheduler):
 
         params.W_zero_min = cs_locks
 
-        # calculate anchors in format that the model understands:
-        anchors = []
-        for d in range(self.sc.N_d):
-            anchors_d = np.array(self.sf.anchors()) - self.offsets[d]
-            anchors_trimmed_d = [e for e in anchors_d if 0 <= e < sc.N_w]
-            # compensate for drones that are currently charging
-            if sc.is_at_charging_station(start_positions[d]):
-                anchors_trimmed_d = [0] + anchors_trimmed_d
-            anchors.append(anchors_trimmed_d)
-
         # uncomment for debugging
-        draw_graph(sc, params, anchors, self.offsets, f"graph_{self.i}.pdf")
+        draw_graph(sc, params, self.offsets, f"graph_{self.i}.pdf")
         self.i += 1
 
         t_start = time.perf_counter()
-        expected_feasible = is_feasible(sc, params, anchors)
+        expected_feasible = is_feasible(sc, params)
         if not expected_feasible:
             self.logger.warning(f"[{datetime.now().strftime('%H:%M:%S')}] it is NOT expected that the problem is solvable")
         else:
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] it IS expected that the problem is solvable")
 
-        model = MultiUavModel(sc=sc, params=params, anchors=anchors)
+        model = MultiUavModel(sc=sc, params=params)
         # model.iis = Suffix(direction=Suffix.IMPORT)
         elapsed = time.perf_counter() - t_start
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] constructed MILP model in {elapsed:.2f}s")

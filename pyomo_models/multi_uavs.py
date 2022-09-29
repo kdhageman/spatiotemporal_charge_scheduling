@@ -13,7 +13,7 @@ from util.scenario import Scenario
 
 
 class MultiUavModel(pyo.ConcreteModel):
-    def __init__(self, sc: Scenario, params: Parameters, anchors: List[List[int]]):
+    def __init__(self, sc: Scenario, params: Parameters):
         super().__init__()
         self.logger = logging.getLogger(__name__)
 
@@ -93,9 +93,9 @@ class MultiUavModel(pyo.ConcreteModel):
 
         # TODO: ensure the anchor's are calculcated ok!
         for d in self.d:
-            self.info(f"anchors for UAV [{d}]: {anchors[d]}")
+            self.info(f"anchors for UAV [{d}]: {sc.anchors[d]}")
             for w_s in self.w_s:
-                if w_s not in anchors[d]:
+                if w_s not in sc.anchors[d]:
                     for s in self.s:
                         self.P[d, s, w_s].fix(0)  # charging stations
                     self.P[d, self.N_s, w_s].fix(1)  # next waypoint

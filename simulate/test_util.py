@@ -72,8 +72,11 @@ class TestFeasibility(TestCase):
                 (6, 0),
             ]
         ]
+        anchors = [
+            [0, 2, 4]
+        ]
 
-        sc = Scenario(start_positions, positions_S, positions_w)
+        sc = Scenario(start_positions, positions_S, positions_w, anchors=anchors)
 
         params = Parameters(
             v=[1],
@@ -85,11 +88,8 @@ class TestFeasibility(TestCase):
             W_zero_min=np.zeros((1, 1)),
             W=5,
         )
-        anchors = [
-            [0, 2, 4]
-        ]
 
-        is_feasible(sc, params, anchors)
+        is_feasible(sc, params)
 
     def test_no_anchors(self):
         start_positions = [
@@ -118,11 +118,8 @@ class TestFeasibility(TestCase):
             W_zero_min=np.zeros((1, 1)),
             W=5,
         )
-        anchors = [
-            []
-        ]
 
-        is_feasible(sc, params, anchors)
+        is_feasible(sc, params)
 
     def test_just_feasible(self):
         start_positions = [
@@ -134,8 +131,10 @@ class TestFeasibility(TestCase):
                 (10, 0),
             ]
         ]
-
-        sc = Scenario(start_positions, positions_S, positions_w)
+        anchors = [
+            [0]
+        ]
+        sc = Scenario(start_positions, positions_S, positions_w, anchors=anchors)
         params = Parameters(
             v=[1],
             r_charge=[0.02],
@@ -146,12 +145,9 @@ class TestFeasibility(TestCase):
             W_zero_min=np.zeros((1, 1)),
             W=6,
         )
-        anchors = [
-            [0]
-        ]
 
         expected = True
-        actual = is_feasible(sc, params, anchors)
+        actual = is_feasible(sc, params)
         self.assertEqual(expected, actual)
 
     def test_not_feasible(self):
@@ -164,8 +160,10 @@ class TestFeasibility(TestCase):
                 (10, 0),
             ]
         ]
-
-        sc = Scenario(start_positions, positions_S, positions_w)
+        anchors = [
+            [0]
+        ]
+        sc = Scenario(start_positions, positions_S, positions_w, anchors=anchors)
         params = Parameters(
             v=[1],
             r_charge=[0.02],
@@ -176,12 +174,9 @@ class TestFeasibility(TestCase):
             W_zero_min=np.zeros((1, 1)),
             W=6,
         )
-        anchors = [
-            [0]
-        ]
 
         expected = False
-        actual = is_feasible(sc, params, anchors)
+        actual = is_feasible(sc, params)
         self.assertEqual(expected, actual)
 
 
@@ -201,13 +196,12 @@ class TestGraph(TestCase):
         start_positions = [
             (0, 0)
         ]
-        sc = Scenario(positions_S=positions_S, positions_w=positions_w, start_positions=start_positions)
-
         anchors = [
             [1, 2]
         ]
+        sc = Scenario(positions_S=positions_S, positions_w=positions_w, start_positions=start_positions, anchors=anchors)
 
-        g, pos = as_graph(sc, anchors, 0, [0])
+        g, pos = as_graph(sc, 0, [0])
 
         plt.subplots()
         nx.draw(g, pos)

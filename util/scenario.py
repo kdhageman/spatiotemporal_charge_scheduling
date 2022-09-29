@@ -1,4 +1,5 @@
 from itertools import product
+from typing import Dict, List, Tuple
 
 import jsons
 import numpy as np
@@ -12,7 +13,7 @@ from util.distance import dist3
 
 
 class Scenario:
-    def __init__(self, start_positions: list, positions_S: list, positions_w: list):
+    def __init__(self, start_positions: list, positions_S: list, positions_w: list, anchors: list = None):
         """
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
@@ -45,6 +46,13 @@ class Scenario:
         self.N_d = len(self.positions_w)
         self.N_s = len(self.positions_S)
         self.n_original_waypoints = [len(l) for l in positions_w]
+
+        # anchors
+        if not anchors:
+            anchors = []
+            for d in range(self.N_d):
+                anchors.append(list(range(self.N_w)))
+        self.anchors = anchors
 
         # calculate distance matrices
         self.D_N = self._get_D_N()
@@ -161,13 +169,6 @@ class Scenario:
 
         return min(X), max(X), min(Y), max(Y)
 
-    def receding_horizon(self, starting_positions: list, progress: list, N_w: int):
-        positions_w = []
-        for d, start_pos in enumerate(starting_positions):
-            wps = [start_pos] + self.positions_w[d][progress[d]:progress[d] + N_w]
-            positions_w.append(wps)
-        return Scenario(self.positions_S, positions_w)
-
     def is_at_charging_station(self, pos):
         """
         Returns whether the given position is a charging station
@@ -177,7 +178,7 @@ class Scenario:
         pos = tuple(pos)
         return pos in self.positions_S
 
-    def collapse(self, anchors):
+    def collapse(self):
         D_N = []
         D_W = []
         # calculcate distance matrices
@@ -186,7 +187,7 @@ class Scenario:
             D_W_d = []
             # g, pos = as_graph(self, anchors, d, offsets=[0]*self.N_d)
             last_anchor = 0
-            for a in anchors[d]:
+            for a in self.anchors[d]:
                 D_N_d.append(self.D_N[d, -1, last_anchor:a] + self.D_N[d, :, a])
                 D_W_d.append(self.D_W[d, :, a])
                 last_anchor = a
@@ -202,7 +203,7 @@ class Scenario:
         positions_w = []
         for d in range(self.N_d):
             l = []
-            for a in anchors[d][:-1]:
+            for a in self.anchors[d][:-1]:
                 l.append(self.positions_w[d][a])
             l.append(self.positions_w[d][-1])
             positions_w.append(l)
@@ -275,6 +276,61 @@ class Scenario:
                     x_text = pos_w_s[0] + alpha * (pos_w_d[0] - pos_w_s[0])
                     y_text = pos_w_s[1] + alpha * (pos_w_d[1] - pos_w_s[1]) + 0.05
                     ax.text(x_text, y_text, f"{dist:.2f}", color=colors[d])
+
+
+class ScenarioFactory:
+    """
+    Generates scenarios on the fly based on the current progress of UAVs (self.offsets)
+    and the given strategy for sampling waypoints (W and sigma)
+    """
+
+    def __init__(self, scenario: Scenario, W: int, sigma: float):
+        self.sc = scenario
+        self.positions_S = scenario.positions_S
+        self.positions_w = [wps for wps in scenario.positions_w]
+        self.N_d = scenario.N_d
+        self.N_s = scenario.N_s
+        self.N_w = scenario.N_w
+
+        self.W = W
+        self.sigma = sigma
+
+    def anchors(self):
+        res = [0]
+
+        n = self.sigma
+        while n < self.N_w:
+            res.append(n)
+            n += self.sigma
+        return res
+
+    def next(self, start_positions: Dict[int, tuple], offsets: List[int]) -> Tuple[Scenario, List[float]]:
+        """
+        Returns the next scenario
+        """
+        positions_w = []
+        for d in range(self.N_d):
+            start = offsets[d]
+            end = offsets[d] + self.W
+            wps = self.positions_w[d][start:end]
+            positions_w.append(wps)
+
+        remaining_distances = []
+        for d in range(self.N_d):
+            remaining_distances.append(
+                self.sc.D_N[d, -1, offsets[d] + self.W:].sum()
+            )
+
+        anchors = []
+        for d in range(self.sc.N_d):
+            anchors_d = np.array(self.anchors()) - offsets[d]
+            anchors_trimmed_d = [a for a in anchors_d if 0 <= a <= self.W]
+            # compensate for drones that are currently charging
+            if self.sc.is_at_charging_station(start_positions[d]):
+                anchors_trimmed_d = [0] + anchors_trimmed_d
+            anchors.append(anchors_trimmed_d)
+
+        return Scenario(start_positions, self.positions_S, positions_w, anchors), remaining_distances
 
 
 def scenario_serializer(obj: Scenario, *args, **kwargs):
