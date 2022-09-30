@@ -13,10 +13,11 @@ from util.distance import dist3
 
 
 class Scenario:
-    def __init__(self, start_positions: list, positions_S: list, positions_w: list, anchors: list = None):
+    def __init__(self, start_positions: list, positions_S: list, positions_w: list, wp_max: int=None, anchors: list = None, offsets: list = None, waypoint_ids: list = None):
         """
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
+        :param waypoint_ids: only for plotting purposes
         """
         self.start_positions = []
         for pos in start_positions:
@@ -53,6 +54,25 @@ class Scenario:
             for d in range(self.N_d):
                 anchors.append(list(range(self.N_w)))
         self.anchors = anchors
+        self.N_w_anchors = max([len(a) for a in anchors])
+
+        # offsets
+        if not offsets:
+            offsets = [0] * self.N_d
+        self.offsets = offsets
+
+        if not wp_max:
+            wp_max = self.N_w
+        self.wp_max = wp_max
+
+        # waypoint ids
+        if not waypoint_ids:
+            waypoint_ids = []
+            for d in range(self.N_d):
+                waypoint_ids.append(
+                    np.minimum(self.offsets[d] + np.arange(1, self.N_w + 1), self.wp_max).tolist()
+                )
+        self.waypoint_ids = waypoint_ids
 
         # calculate distance matrices
         self.D_N = self._get_D_N()
@@ -189,17 +209,21 @@ class Scenario:
                 continue
             D_N_d = []
             D_W_d = []
-            # g, pos = as_graph(self, anchors, d, offsets=[0]*self.N_d)
-            last_anchor = 0
+            last_anchor = -1
             for a in self.anchors[d]:
-                val = self.D_N[d, :, a]
+                val = self.D_N[d, :, a].copy()
                 if last_anchor != a:
-                    val += self.D_N[d, -1, last_anchor+1:a].sum()
+                    val += self.D_N[d, -1, last_anchor + 1:a].sum()
                 D_N_d.append(val)
-                D_W_d.append(self.D_W[d, :, a])
+                D_W_d.append(self.D_W[d, :, a].copy())
                 last_anchor = a
             # adjust last D_w for remaining distance after last anchor
             D_W_d[-1] += self.D_N[d, -1, last_anchor + 1:].sum()
+
+            # pad for cases with fewer anchors
+            if len(D_N_d) != self.N_w_anchors:
+                D_W_d.append(np.array([1] * self.N_s + [0]))
+                D_N_d.append(np.array([1] * self.N_s + [0]))
 
             D_N.append(D_N_d)
             D_W.append(D_W_d)
@@ -212,10 +236,20 @@ class Scenario:
             l = []
             for a in self.anchors[d][:-1]:
                 l.append(self.positions_w[d][a])
-            l.append(self.positions_w[d][-1])
+            while len(l) != self.N_w_anchors:
+                l.append(self.positions_w[d][-1])
             positions_w.append(l)
 
-        sc = Scenario(start_positions=self.start_positions, positions_S=self.positions_S, positions_w=positions_w)
+        # calculate the waypoint ids
+        waypoint_ids = []
+        for d in range(self.N_d):
+            l = []
+            for a in self.offsets[d] + np.array(self.anchors[d][:-1]):
+                l.append(a + 1)
+            l.append(self.wp_max)
+            waypoint_ids.append(np.minimum(l, self.wp_max))
+
+        sc = Scenario(start_positions=self.start_positions, positions_S=self.positions_S, positions_w=positions_w, waypoint_ids=waypoint_ids)
         sc.D_N = D_N
         sc.D_W = D_W
         return sc
@@ -341,7 +375,7 @@ class ScenarioFactory:
                 anchors_trimmed_d = [0] + anchors_trimmed_d
             anchors.append(anchors_trimmed_d)
 
-        return Scenario(start_positions, self.positions_S, positions_w, anchors), remaining_distances
+        return Scenario(start_positions, self.positions_S, positions_w, wp_max=self.N_w, anchors=anchors, offsets=offsets), remaining_distances
 
 
 def scenario_serializer(obj: Scenario, *args, **kwargs):

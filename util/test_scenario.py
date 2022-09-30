@@ -99,8 +99,26 @@ class TestScenario(TestCase):
         for wps in s.positions_w:
             self.assertEqual(len(wps), s.N_w)
 
-    def test_collapse_normal(self):
-        wps = [
+
+class TestCollapse(TestCase):
+    def setUp(self):
+        p = dict(
+            v=[1] * 3,
+            r_charge=[0.04] * 3,
+            r_deplete=[0.3] * 3,
+            B_min=[0.1] * 3,
+            B_max=[1] * 3,
+            B_start=[1] * 3,
+            plot_delta=0.1,
+            # plot_delta=0,
+            W=3,
+            sigma=1,
+            epsilon=1e-2,
+            W_zero_min=None
+        )
+        self.params = Parameters(**p)
+
+        self.wps = [
             [
                 (1, 0),
                 (2, 0),
@@ -111,51 +129,101 @@ class TestScenario(TestCase):
                 (7, 0),
             ]
         ]
-        charging_stations = [(3, 0.5)]
+        self.charging_stations = [(3, 0.5)]
+        self.start_positions = [(0, 0)]
 
-        start_positions = [(0, 0)]
-
+    def test_collapse_normal_draw(self):
         anchors = [
             [1, 3, 5]
         ]
-        sc = Scenario(start_positions=start_positions, positions_S=charging_stations, positions_w=wps, anchors=anchors)
+        sc = Scenario(start_positions=self.start_positions, positions_S=self.charging_stations, positions_w=self.wps, anchors=anchors)
 
-        offsets = [0]
         fname = os.path.join(os.getcwd(), "not_collapsed.pdf")
-        draw_graph(sc, self.params, offsets, fname)
+        draw_graph(sc, self.params, fname)
 
         collapsed = sc.collapse()
         fname = os.path.join(os.getcwd(), "collapsed.pdf")
-        draw_graph(collapsed, self.params, offsets, fname)
+        draw_graph(collapsed, self.params, fname)
 
-    def test_collapse_first_anchor(self):
+    def test_collapse_first_anchor_draw(self):
+        anchors = [
+            [0, 1, 3, 5]
+        ]
+        sc = Scenario(start_positions=self.start_positions, positions_S=self.charging_stations, positions_w=self.wps, anchors=anchors)
+
+        offsets = [0]
+        fname = os.path.join(os.getcwd(), "not_collapsed.pdf")
+        draw_graph(sc, self.params, fname)
+
+        collapsed = sc.collapse()
+        fname = os.path.join(os.getcwd(), "collapsed.pdf")
+        draw_graph(collapsed, self.params, fname)
+
+    def test_check_d_n(self):
+        anchors = [[2, 5]]
+        sc = Scenario(start_positions=self.start_positions, positions_S=self.charging_stations, positions_w=self.wps, anchors=anchors)
+        offsets = [0]
+        draw_graph(sc, self.params, "not_collapsed.pdf")
+        collapsed = sc.collapse()
+        draw_graph(collapsed, self.params, "collapsed.pdf")
+
+        # w_s = 0 (D_N)
+        expected = sc.D_N[0, :, 2] + 2
+        actual = collapsed.D_N[0, :, 0]
+        self.assertTrue(np.array_equal(expected, actual))
+
+        # w_s = 1 (D_N)
+        expected = sc.D_N[0, :, 5] + 2
+        actual = collapsed.D_N[0, :, 1]
+        self.assertTrue(np.array_equal(expected, actual))
+
+        # w_s = 0 (D_W)
+        expected = sc.D_W[0, :, 2]
+        actual = collapsed.D_W[0, :, 0]
+        self.assertTrue(np.array_equal(expected, actual))
+
+        # w_s = 1 (D_W)
+        expected = sc.D_W[0, :, 5] + 1
+        actual = collapsed.D_W[0, :, 1]
+        self.assertTrue(np.array_equal(expected, actual))
+
+    def test_collapse_uneven_nr_anchors(self):
         wps = [
             [
                 (1, 0),
                 (2, 0),
                 (3, 0),
                 (4, 0),
-                (5, 0),
-                (6, 0),
-                (7, 0),
+            ],
+            [
+                (1, 1),
+                (2, 1),
+                (3, 1),
+                (4, 1),
             ]
         ]
-        charging_stations = [(3, 0.5)]
-
-        start_positions = [(0, 0)]
-
-        anchors = [
-            [0, 1, 3, 5]
+        start_positions = [
+            (0, 0),
+            (0, 1)
         ]
-        sc = Scenario(start_positions=start_positions, positions_S=charging_stations, positions_w=wps, anchors=anchors)
-
-        offsets = [0]
-        fname = os.path.join(os.getcwd(), "not_collapsed.pdf")
-        draw_graph(sc, self.params, offsets, fname)
+        anchors = [
+            [0, 3],
+            [1],
+        ]
+        sc = Scenario(start_positions=start_positions, positions_S=self.charging_stations, positions_w=wps, anchors=anchors)
+        fname = os.path.join(os.getcwd(), "not_collapsed.uneven.pdf")
+        draw_graph(sc, self.params, fname)
 
         collapsed = sc.collapse()
-        fname = os.path.join(os.getcwd(), "collapsed.pdf")
-        draw_graph(collapsed, self.params, offsets, fname)
+        fname = os.path.join(os.getcwd(), "collapsed.uneven.pdf")
+        draw_graph(collapsed, self.params, fname)
+
+        positions_w_expected = [
+            [(1, 0, 0), (4, 0, 0)],
+            [(4, 1, 0), (4, 1, 0)]
+        ]
+        positions_w_actual = collapsed.positions_w
+        self.assertEqual(positions_w_expected, positions_w_actual)
 
 
 class TestScenarioFactory(TestCase):

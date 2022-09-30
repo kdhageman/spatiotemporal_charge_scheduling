@@ -138,57 +138,65 @@ X_OFFSET = 1
 Y_DIST = 0.25
 
 
-def as_graph(sc, d, offsets):
+def as_graph(sc, d):
     g = nx.DiGraph()
     w = 0
-    new_node = f"w_s"
+    node_id = 0
     label = r'$w_s$'
     nodetype = "waypoint"
-    g.add_node(new_node, w=w, label=label, nodetype=nodetype)
-    positions = {new_node: (0, 0)}
+    g.add_node(node_id, w=w, label=label, nodetype=nodetype)
+    positions = {node_id: (0, 0)}
+    prev_node = node_id
+    node_id += 1
 
-    prev_node = new_node
 
     x = 1
     for w_d in range(1, sc.N_w + 1):
         w_s = w_d - 1
 
         # new waypoint node
-        new_node = f"w{w_d + offsets[d]}"
-        label = f'$w_{{{w_d + offsets[d]}}}$'
+        if w_s < len(sc.waypoint_ids[d]):
+            waypoint_idx = sc.waypoint_ids[d][w_s]
+        else:
+            waypoint_idx = sc.waypoint_ids[d][-1]
+        label = f'$w_{{{waypoint_idx}}}$'
         nodetype = 'waypoint'
-        positions[new_node] = (x, 0)
-        g.add_node(new_node, w=w_d, label=label, nodetype=nodetype)
+        positions[node_id] = (x, 0)
+        g.add_node(node_id, w=w_d, label=label, nodetype=nodetype)
+        new_node = node_id
+        node_id += 1
 
         # path layer
         path_layer = []
         path_idx = 0
         for s in range(sc.N_s):
             if w_s in sc.anchors[d]:
-                path_layer.append((path_idx, f"w{w_s + offsets[d]}_s{s}"))
+                path_layer.append((path_idx, node_id))
+                node_id += 1
             path_idx += 1
-        path_layer.append((path_idx, f"w'{w_d + offsets[d]}"))
+        path_layer.append((path_idx, node_id))
+        node_id += 1
 
-        for i, (n, node_name) in enumerate(path_layer):
+        for i, (n, nid) in enumerate(path_layer):
             nodetype = "path_node"
             if n == sc.N_s:
                 # directly to next waypoint
-                label = f"$w'_{{{w_s + offsets[d]}}}$"
+                label = f"$w'$"
             else:
                 # via station
                 label = f"$s_{{{n}}}$"
-            g.add_node(node_name, w=w_s, n=n, nodetype=nodetype, label=label)
+            g.add_node(nid, w=w_s, n=n, nodetype=nodetype, label=label)
             dist_to = sc.D_N[d, n, w_s]
             dist_from = sc.D_W[d, n, w_s]
 
-            g.add_edge(prev_node, node_name, dist=dist_to)
-            g.add_edge(node_name, new_node, dist=dist_from)
+            g.add_edge(prev_node, nid, dist=dist_to)
+            g.add_edge(nid, new_node, dist=dist_from)
             y_total = (len(path_layer) - 1) * Y_DIST
             if not y_total:
                 y = 0
             else:
                 y = i * y_total / (len(path_layer) - 1) - (y_total / 2)
-            positions[node_name] = (x - (X_OFFSET / 2), y)
+            positions[nid] = (x - (X_OFFSET / 2), y)
 
         x += X_OFFSET
         prev_node = new_node
@@ -196,7 +204,7 @@ def as_graph(sc, d, offsets):
     return g, positions
 
 
-def draw_graph(sc, params, offsets, fname):
+def draw_graph(sc, params, fname):
     height = (sc.N_s + 1) * sc.N_d
     width = sc.N_w * 2
     _, axes = plt.subplots(nrows=sc.N_d, ncols=1, figsize=(width, height))
@@ -204,7 +212,7 @@ def draw_graph(sc, params, offsets, fname):
         axes = [axes]
 
     for d in range(sc.N_d):
-        g, pos = as_graph(sc, d, offsets)
+        g, pos = as_graph(sc, d)
 
         ax = axes[d]
         nx.draw(g, pos, ax=ax)
@@ -220,4 +228,4 @@ def draw_graph(sc, params, offsets, fname):
         for x, val in zip(xs, vals):
             ax.text(x, y, f"{val * 100:.1f}%", color='red', fontdict={"size": 6}, ha='center', backgroundcolor='white')
 
-        plt.savefig(fname, bbox_inches='tight')
+    plt.savefig(fname, bbox_inches='tight')

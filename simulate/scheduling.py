@@ -104,7 +104,7 @@ class MilpScheduler(Scheduler):
         self.i = 0
 
         # uncomment for debugging
-        draw_graph(self.sc, params, self.offsets, f"graph_orig.pdf")
+        draw_graph(self.sc, params, f"graph_orig.pdf")
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         start_positions_list = list(start_positions.values())
@@ -113,9 +113,7 @@ class MilpScheduler(Scheduler):
             # return empty schedules
             return 0, (True, {d: [] for d in uavs_to_schedule})
 
-        draw_graph(sc, self.params, self.offsets, f"graph_{self.i}_pre.pdf")
         sc_collapsed = sc.collapse()
-        draw_graph(sc_collapsed, self.params, self.offsets, f"graph_{self.i}_post.pdf")
 
         for d, remaining_distance in enumerate(remaining_distances):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
@@ -163,7 +161,8 @@ class MilpScheduler(Scheduler):
         params.W_zero_min = cs_locks
 
         # uncomment for debugging
-        # draw_graph(sc, params, self.offsets, f"graph_collapsed_{self.i}.pdf")
+        draw_graph(sc, params, f"graph_{self.i}_pre.pdf")
+        draw_graph(sc_collapsed, params, f"graph_{self.i}_post.pdf")
         self.i += 1
 
         t_start = time.perf_counter()
@@ -259,6 +258,10 @@ class MilpScheduler(Scheduler):
                 node = Waypoint(*pos)
                 nodes.append(node)
             for w_s in model.w_s:
+                if w_s >= len(sc.anchors[d]):
+                    # dummy waypoint detected, abort
+                    continue
+
                 n = model.P_np[d, :, w_s].tolist().index(1)
                 if n < model.N_s:
                     # charging
