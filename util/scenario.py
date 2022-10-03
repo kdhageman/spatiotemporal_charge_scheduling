@@ -13,7 +13,7 @@ from util.distance import dist3
 
 
 class Scenario:
-    def __init__(self, start_positions: list, positions_S: list, positions_w: list, wp_max: int=None, anchors: list = None, offsets: list = None, waypoint_ids: list = None):
+    def __init__(self, start_positions: list, positions_S: list, positions_w: list, wp_max: int=None, anchors: list = None, offsets: list = None, waypoint_ids: list = None, n_parent_anchors: list = None):
         """
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
@@ -73,6 +73,11 @@ class Scenario:
                     np.minimum(self.offsets[d] + np.arange(1, self.N_w + 1), self.wp_max).tolist()
                 )
         self.waypoint_ids = waypoint_ids
+
+        # n parent anchors
+        if not n_parent_anchors:
+            n_parent_anchors = self.anchors
+        self.n_parent_anchors = n_parent_anchors
 
         # calculate distance matrices
         self.D_N = self._get_D_N()
@@ -246,10 +251,10 @@ class Scenario:
             l = []
             for a in self.offsets[d] + np.array(self.anchors[d][:-1]):
                 l.append(a + 1)
-            l.append(self.wp_max)
+            l.append(self.offsets[d] + self.N_w + 1)
             waypoint_ids.append(np.minimum(l, self.wp_max))
 
-        sc = Scenario(start_positions=self.start_positions, positions_S=self.positions_S, positions_w=positions_w, waypoint_ids=waypoint_ids)
+        sc = Scenario(start_positions=self.start_positions, positions_S=self.positions_S, positions_w=positions_w, waypoint_ids=waypoint_ids, n_parent_anchors=[len(l) for l in self.anchors])
         sc.D_N = D_N
         sc.D_W = D_W
         return sc

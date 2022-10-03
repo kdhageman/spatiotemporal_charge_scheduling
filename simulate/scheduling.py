@@ -11,7 +11,7 @@ from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, Node
 from simulate.parameters import Parameters
 from simulate.uav import UavStateType
-from simulate.util import is_feasible, draw_graph
+from simulate.util import is_feasible, draw_graph, draw_schedule
 from util.distance import dist3
 from util.exceptions import NotSolvableException
 from util.scenario import Scenario, ScenarioFactory
@@ -104,7 +104,7 @@ class MilpScheduler(Scheduler):
         self.i = 0
 
         # uncomment for debugging
-        draw_graph(self.sc, params, f"graph_orig.pdf")
+        # draw_graph(self.sc, params, f"graph_orig.pdf")
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         start_positions_list = list(start_positions.values())
@@ -161,9 +161,8 @@ class MilpScheduler(Scheduler):
         params.W_zero_min = cs_locks
 
         # uncomment for debugging
-        draw_graph(sc, params, f"graph_{self.i}_pre.pdf")
-        draw_graph(sc_collapsed, params, f"graph_{self.i}_post.pdf")
-        self.i += 1
+        # draw_graph(sc, params, f"graph_{self.i}_pre.pdf")
+        # draw_graph(sc_collapsed, params, f"graph_{self.i}_post.pdf")
 
         t_start = time.perf_counter()
         expected_feasible = is_feasible(sc_collapsed, params)
@@ -193,6 +192,9 @@ class MilpScheduler(Scheduler):
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] solved model successfully in {t_solve:.2f}s!")
+        # draw_schedule(sc_collapsed, model, f"graph_{self.i}_scheduled.pdf")
+        self.i += 1
+
         # if self.n_scheduled == 1:
         #     raise Exception
 

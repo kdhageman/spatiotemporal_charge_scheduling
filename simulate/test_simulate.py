@@ -40,7 +40,7 @@ class TestSimulator(TestCase):
             # plot_delta=3,
             plot_delta=0,
             # W=4,
-            W=10,
+            W=5,
             sigma=2,
             epsilon=1,
             W_zero_min=None,
@@ -55,7 +55,7 @@ class TestSimulator(TestCase):
             sc.plot(ax=ax, draw_distances=False)
             plt.savefig(os.path.join(directory, "scenario.pdf"), bbox_inches='tight')
 
-        strat = AfterNEventsStrategyAll(3)
+        strat = AfterNEventsStrategyAll(1)
         # strat = AfterNEventsStrategyAll(sc.N_w + 1)
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(params, sc, solver=solver)

@@ -1,12 +1,15 @@
 import logging
+import os
 from unittest import TestCase
 
 import networkx as nx
 import numpy as np
 from matplotlib import pyplot as plt
+from pyomo.opt import SolverFactory
 
+from pyomo_models.multi_uavs import MultiUavModel
 from simulate.parameters import Parameters
-from simulate.util import maximum_schedule_delta, is_feasible, as_graph
+from simulate.util import maximum_schedule_delta, is_feasible, as_graph, draw_schedule
 from util.scenario import Scenario
 
 
@@ -209,3 +212,30 @@ class TestGraph(TestCase):
         edge_labels = {(n1, n2): f"{dat['dist']:.1f}" for n1, n2, dat in g.edges(data=True)}
         nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=6)
         plt.savefig("graph.pdf", bbox_inches='tight')
+
+
+class TestDrawSchedule(TestCase):
+    def test_normal(self):
+        sc = Scenario.from_file("scenarios/three_drones_circling.yml")
+        p = dict(
+            v=[1, 1, 1],
+            r_charge=[0.2, 0.2, 0.2],
+            r_deplete=[0.3, 0.3, 0.3],
+            B_min=[0.1, 0.1, 0.1],
+            B_max=[1, 1, 1],
+            B_start=[1, 1, 1],
+            # plot_delta=0.1,
+            plot_delta=0,
+            W=4,
+            sigma=1,
+            epsilon=5,
+            W_zero_min=np.zeros((sc.N_d, sc.N_s)),
+        )
+        params = Parameters(**p)
+
+        model = MultiUavModel(sc, params)
+        solver = SolverFactory("gurobi")
+        solver.solve(model)
+
+        fname = os.path.join(os.getcwd(), "scheduled.pdf")
+        draw_schedule(sc, model, fname)

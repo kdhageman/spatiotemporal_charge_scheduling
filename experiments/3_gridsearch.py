@@ -25,12 +25,12 @@ if __name__ == "__main__":
     rescheduling_frequencies = [3, 5, 7, 9, 11, 13, 25, 50, 75, 100, 125, 150]
     Ws = [10, 20, 50, 100, 170]
 
-    Ws = [10]
-    sigmas = [4]
-    rescheduling_frequencies = [3]
+    # Ws = [10]
+    # sigmas = [4]
+    # rescheduling_frequencies = [3]
 
     confs = [
-        # NaiveConfiguration(baseconf, basedir, 3, flight_sequence_fpath3),
+        NaiveConfiguration(baseconf, basedir, 3, flight_sequence_fpath3),
     ]
 
     for sigma in sigmas:

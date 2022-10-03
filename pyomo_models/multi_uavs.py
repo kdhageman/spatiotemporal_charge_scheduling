@@ -91,16 +91,14 @@ class MultiUavModel(pyo.ConcreteModel):
 
         self.lambda_charge_block = Block(self.d, rule=lambda_charge_block_rule)
 
-        # TODO: ensure the anchor's are calculcated ok!
-        for d in self.d:
-            self.info(f"anchors for UAV [{d}]: {sc.anchors[d]}")
-            for w_s in self.w_s:
-                if w_s not in sc.anchors[d]:
-                    for s in self.s:
-                        self.P[d, s, w_s].fix(0)  # charging stations
-                    self.P[d, self.N_s, w_s].fix(1)  # next waypoint
-                    self.C[d, w_s].fix(0)  # don't charge
-                    self.W[d, w_s].fix(0)  # don't wait
+        # fixes the path for drones with padded anchor waypoints
+        for d in range(self.N_d):
+            for w in range(sc.n_parent_anchors[d], self.N_w):
+                # for path directly to next waypoint
+                for s in range(self.N_s):
+                    self.P[d, s, w].fix(0)
+                self.P[d, self.N_s, w].fix(1)
+
         self.info("fixed control variable values")
 
         # STATE VARIABLES

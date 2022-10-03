@@ -141,41 +141,41 @@ Y_DIST = 0.25
 def as_graph(sc, d):
     g = nx.DiGraph()
     w = 0
-    node_id = 0
+    wp_counter = 0
+    node_idx = f'w{wp_counter}'
     label = r'$w_s$'
     nodetype = "waypoint"
-    g.add_node(node_id, w=w, label=label, nodetype=nodetype)
-    positions = {node_id: (0, 0)}
-    prev_node = node_id
-    node_id += 1
-
+    g.add_node(node_idx, w=w, label=label, nodetype=nodetype)
+    positions = {node_idx: (0, 0)}
+    prev_node = node_idx
+    wp_counter += 1
 
     x = 1
     for w_d in range(1, sc.N_w + 1):
         w_s = w_d - 1
 
         # new waypoint node
+        node_idx = f'w{wp_counter}'
         if w_s < len(sc.waypoint_ids[d]):
             waypoint_idx = sc.waypoint_ids[d][w_s]
         else:
             waypoint_idx = sc.waypoint_ids[d][-1]
         label = f'$w_{{{waypoint_idx}}}$'
         nodetype = 'waypoint'
-        positions[node_id] = (x, 0)
-        g.add_node(node_id, w=w_d, label=label, nodetype=nodetype)
-        new_node = node_id
-        node_id += 1
+        positions[node_idx] = (x, 0)
+        g.add_node(node_idx, w=w_d, label=label, nodetype=nodetype)
+        new_node = node_idx
 
         # path layer
         path_layer = []
         path_idx = 0
         for s in range(sc.N_s):
+            node_idx = f'w{wp_counter}p{s}'
             if w_s in sc.anchors[d]:
-                path_layer.append((path_idx, node_id))
-                node_id += 1
+                path_layer.append((path_idx, node_idx))
             path_idx += 1
-        path_layer.append((path_idx, node_id))
-        node_id += 1
+        node_idx = f'w{wp_counter}p{sc.N_s}'
+        path_layer.append((path_idx, node_idx))
 
         for i, (n, nid) in enumerate(path_layer):
             nodetype = "path_node"
@@ -198,6 +198,7 @@ def as_graph(sc, d):
                 y = i * y_total / (len(path_layer) - 1) - (y_total / 2)
             positions[nid] = (x - (X_OFFSET / 2), y)
 
+        wp_counter += 1
         x += X_OFFSET
         prev_node = new_node
 
@@ -229,3 +230,81 @@ def draw_graph(sc, params, fname):
             ax.text(x, y, f"{val * 100:.1f}%", color='red', fontdict={"size": 6}, ha='center', backgroundcolor='white')
 
     plt.savefig(fname, bbox_inches='tight')
+
+
+def draw_schedule(sc, model, fname):
+    height = (sc.N_s + 1) * sc.N_d
+    width = sc.N_w * 2
+    _, axes = plt.subplots(nrows=sc.N_d, ncols=1, figsize=(width, height), sharey=True, sharex=True)
+    if sc.N_d == 1:
+        axes = [axes]
+
+    for d in range(sc.N_d):
+        g, pos = as_graph(sc, d)
+        path = [p.tolist().index(1) for p in model.P_np[d].transpose()]
+        g_path = graph_from_path(g, path)
+
+        ax = axes[d]
+        drawn_nodes = nx.draw_networkx_nodes(g, pos, ax=ax)
+        drawn_nodes.set_linestyle(":")
+        drawn_nodes.set_linewidth(0.5)
+        drawn_nodes.set_alpha(0.3)
+        drawn_nodes.set_color("white")
+        drawn_nodes.set_edgecolor("black")
+        nx.draw_networkx_edges(g, pos, width=0.5, style=":", alpha=0.3, edge_color='black', ax=ax)
+
+        nx.draw_networkx_nodes(g_path, pos, ax=ax)  # solid
+        node_labels = {node: dat['label'] for node, dat in g.nodes(data=True)}
+        nx.draw_networkx_labels(g, pos, labels=node_labels, font_size=6, font_color='white', ax=ax)
+        nx.draw_networkx_edges(g_path, pos, edge_color='red', ax=ax)
+
+        # b_star
+        for w in model.w:
+            node_idx = f'w{w}'
+            b_star = model.b_star(d, w)
+            if type(b_star) not in [np.int64, np.float64]:
+                b_star = b_star()
+            x_node, y_node = pos[node_idx]
+            x = x_node
+            y = y_node - 0.06
+            ax.text(x, y, f"{b_star * 100:.1f}%", color='red', fontdict={"size": 6}, ha='center', backgroundcolor='white')
+
+        # b_min
+        for w_s, p in zip(model.w_s, path):
+            node_idx = f"w{w_s + 1}p{p}"
+            b_min = model.b_min(d, w_s)
+            if type(b_min) not in [np.int64, np.float64]:
+                b_min = b_min()
+            x_node, y_node = pos[node_idx]
+            x = x_node
+            y = y_node - 0.04
+            ax.text(x, y, f"{b_min * 100:.1f}%", color='red', fontdict={"size": 4}, ha='center')
+
+        # b_plus
+        for w_s, p in zip(model.w_s, path):
+            node_idx = f"w{w_s + 1}p{p}"
+            b_plus = model.b_plus(d, w_s)
+            if type(b_plus) not in [np.int64, np.float64]:
+                b_plus = b_plus()
+            x_node, y_node = pos[node_idx]
+            x = x_node
+            y = y_node + 0.04
+            ax.text(x, y, f"{b_plus * 100:.1f}%", color='green', fontdict={"size": 4}, ha='center')
+
+        ax.axis('off')
+
+    plt.savefig(fname, bbox_inches='tight')
+
+
+def graph_from_path(g, path):
+    nodes = ['w0']
+    for wp_idx, p in zip(range(1, len(path) + 1), path):
+        path_node = f'w{wp_idx}p{p}'
+        nodes.append(path_node)
+
+        wp_node = f"w{wp_idx}"
+        nodes.append(wp_node)
+
+    gsub = nx.subgraph(g, nodes)
+
+    return gsub
