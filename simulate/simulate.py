@@ -265,6 +265,8 @@ class Simulator:
                 if self.params.plot_delta:
                     sa = SimulationAnimator(self.sc, events, self.all_schedules, self.params.plot_delta)
                     sa.animate(fname)
+            else:
+                result = None
 
         return result
 
