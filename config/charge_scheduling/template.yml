@@ -1,0 +1,22 @@
+flight_sequence_fpath: <path to flight sequence pickle file>
+output_dir: <path to output directory>
+n_drones: 5
+charging_strategy: milp
+charging_optimization:
+  charging_positions:
+    - [ 20, 10, 0 ]
+    - [ 30, 36, 0 ]
+  B_min: 0.3
+  B_max: 1
+  B_start: 1
+  v: 1.5
+  r_charge: 0.00067
+  r_deplete: 0.006
+  plot_delta: 0
+  W: 6
+  sigma: 6
+  epsilon: 3
+  schedule_delta: 20
+  time_limit: 60
+  int_feas_tol: 1e-9
+  rescheduling_frequency: 3

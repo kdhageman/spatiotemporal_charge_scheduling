@@ -1,0 +1,21 @@
+pcd_path: <path to point cloud>
+mesh_path: <path to mesh of inspection object>
+output_directory: <directory in which the results are written>
+visualize: True
+do_remove_downward_normals: False
+general:
+  n_drones: 5
+  nb_count: 3
+  voxel_size: 2
+open3d:
+  camera_x_rot: 0
+  camera_y_rot: -425
+  camera_x_trans: 100
+  camera_y_trans: 0
+  width: 1000
+  height: 1000
+path_planning:
+  p_start:
+    - [ 0, 0, 0 ]
+  d_min: 0.3
+  d_max: 0.6
