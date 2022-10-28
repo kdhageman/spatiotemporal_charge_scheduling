@@ -15,7 +15,11 @@ import nxmetis
 import open3d as o3d
 import scipy
 from matplotlib import pyplot as plt
-from open3d.cpu.pybind.geometry import Geometry3D
+try:
+    from open3d.cuda.pybind.geometry import Geometry3D
+except:
+    from open3d.cpu.pybind.geometry import Geometry3D
+
 from pyomo.opt import SolverFactory
 from scipy.spatial import KDTree
 
@@ -230,12 +234,12 @@ def get_next_node(points: np.array, cur_node: int, g: nx.Graph, sn_idx: int, z_p
     return res
 
 
-def plan_path(pcd: o3d.geometry.PointCloud, g: nx.Graph, z_penalty=1):
+def plan_path(pcd: o3d.geometry.PointCloud, g: nx.Graph, z_penalty=1, start_position=[0, 0, 0]):
     """
     Plans a path for the given subgraph 'sg', using the information from pointcloud 'pcd'
     """
     points = np.asarray(pcd.points)
-    sn_idx = closest_point(points, g, [0, 0, 0])
+    sn_idx = closest_point(points, g, start_position)
 
     cur_node = sn_idx
     g.nodes[sn_idx]['visited'] = True

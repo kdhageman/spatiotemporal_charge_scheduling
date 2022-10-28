@@ -9,7 +9,7 @@ import yaml
 import open3d as o3d
 from tqdm import tqdm
 
-from experiments.util_funcs import draw_geometries, downsample, estimate_normal, remove_downward_normals, pcd_to_subgraphs, graphs_to_geometries, plan_path, paths_to_geometries, optimize_path, flight_sequences_to_geometries
+from util_funcs import draw_geometries, downsample, estimate_normal, remove_downward_normals, pcd_to_subgraphs, graphs_to_geometries, plan_path, paths_to_geometries, optimize_path, flight_sequences_to_geometries
 
 logger = logging.getLogger(__name__)
 
@@ -61,66 +61,71 @@ def main(conf):
     else:
         mesh = None
 
-    # move pointcloud to align with (0,0,0)
-    aabb = pcd.get_axis_aligned_bounding_box()
-    aabb.color = [0, 0, 0]
-    translation_offset = -aabb.min_bound
-    pcd.translate(translation_offset)
+    cf = o3d.geometry.TriangleMesh.create_coordinate_frame(size=10, origin=[0, 0, 0])
+    geos = [cf, pcd]
     if mesh:
-        mesh.translate(translation_offset)
-    logger.debug("finished translating pcd")
-
-    aabb.color = [0, 0, 0]
-    aabb = pcd.get_axis_aligned_bounding_box()
-    cf = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1, origin=[0, 0, 0])
-    fname = os.path.join(output_dir, f"{filecounter}_pcd_translation.png") if not visualize else None
-    draw_geometries([pcd], camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+        geos.append(mesh)
+    fname = os.path.join(output_dir, f"{filecounter}_pcd_pretranslation.png") if not visualize else None
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='pre translation')
     filecounter += 1
 
+    offset = conf['pcd_offset']
+    pcd.translate(offset)
     if mesh:
-        geos = [aabb, cf]
+        mesh.translate(offset)
+
+    geos = [cf, pcd]
+    if mesh:
         geos.append(mesh)
-        fname = os.path.join(output_dir, f"{filecounter}_inner_mesh.png") if not visualize else None
-        draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
-        filecounter += 1
+    fname = os.path.join(output_dir, f"{filecounter}_pcd_posttranslation.png") if not visualize else None
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='post translation')
+    filecounter += 1
+
+    # if mesh:
+    #     geos = [aabb_pcd, cf]
+    #     geos.append(mesh)
+    #     fname = os.path.join(output_dir, f"{filecounter}_inner_mesh.png") if not visualize else None
+    #     draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    #     filecounter += 1
 
     # remove any point too close to the ground
     points = np.asarray(pcd.points)
     pcd.points = o3d.utility.Vector3dVector(points[points[:, 2] > 0.3])
     logger.debug(f"finished reducing pcd to be sufficiently above ground ({len(pcd.points):,} points)")
-    geos = [pcd]
+    geos = [cf, pcd]
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_pcd_above_ground.png") if not visualize else None
-    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='pcd above ground')
     filecounter += 1
 
     t_downsample, pcd = downsample(pcd, 0.1, False)
     t_estimate_normals, pcd = estimate_normal(pcd)
     logger.debug("finished estimating normals")
-    geos = [pcd]
+    geos = [cf, pcd]
     if mesh:
+        geos.append(cf)
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_pcd.png") if not visualize else None
-    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='normal estimation')
     filecounter += 1
 
     t_subsampled, pcd = downsample(pcd, voxel_size, True)
-    geos = [pcd]
+    geos = [cf, pcd]
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_downsampled.png") if not visualize else None
-    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='down sampled')
     filecounter += 1
     logger.debug(f"finished downsampling (got {len(pcd.points):,} remaining points)")
 
     if do_remove_downward_normals:
         pcd = remove_downward_normals(pcd, threshold=-0.7)
-        geos = [pcd]
+        geos = [cf, pcd]
         if mesh:
             geos.append(mesh)
         fname = os.path.join(output_dir, f"{filecounter}_no_downward.png") if not visualize else None
-        draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+        draw_geometries(geos, camera_x_rot, camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='without downward normals')
         filecounter += 1
         logger.debug("finished downward normal removal")
     else:
@@ -130,36 +135,41 @@ def main(conf):
     logger.debug("finished graph extraction")
 
     geos = graphs_to_geometries(pcd, [G])
+    geos.append(cf)
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_graph.png") if not visualize else None
-    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='graph')
     filecounter += 1
     logger.debug("finished geometry extraction from graphs")
 
     geos = graphs_to_geometries(pcd, subgraphs)
+    geos.append(cf)
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_subgraphs.png") if not visualize else None
-    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='subgraphs')
     filecounter += 1
     logger.debug("finished geometry extraction from subgraphs")
 
     z_penalty = 10
     seqs = []
     paths = []
+    # TODO: set starting positions per drone
+    start_positions = [[0, 0, 0]] * n_drones
     for i, sg in enumerate(subgraphs):
-        seq, path = plan_path(pcd, sg, z_penalty=z_penalty)
+        seq, path = plan_path(pcd, sg, z_penalty=z_penalty, start_position=start_positions[i])
         seqs.append(seq)
         paths.append(path)
         logger.debug(f"finished path planning for subgraph [{i}]")
     logger.debug("finished path finding")
 
     geos = paths_to_geometries(pcd, paths)
+    geos.append(cf)
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_paths.png") if not visualize else None
-    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='paths')
     filecounter += 1
 
     flight_sequences = []
@@ -169,15 +179,16 @@ def main(conf):
     logger.debug("finished path optimization")
 
     geos = flight_sequences_to_geometries(flight_sequences)
+    geos.append(cf)
     if mesh:
         geos.append(mesh)
     fname = os.path.join(output_dir, f"{filecounter}_flight_paths.png") if not visualize else None
-    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height)
+    draw_geometries(geos, xrot=camera_x_rot, yrot=camera_y_rot, xtrans=camera_x_trans, ytrans=camera_y_trans, fname=fname, width=open3d_width, height=open3d_height, window_name='flight paths')
     filecounter += 1
 
     fname = os.path.join(output_dir, "flight_sequences.pkl")
     with open(fname, 'wb') as f:
-        pickle.dump(flight_sequences, f)
+        pickle.dump(flight_sequences, f, protocol=2)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

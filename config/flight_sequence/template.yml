@@ -17,5 +17,6 @@ open3d:
 path_planning:
   p_start:
     - [ 0, 0, 0 ]
-  d_min: 0.3
-  d_max: 0.6
+  d_min: 2
+  d_max: 3
+pcd_offset: [110, 20, 0]
