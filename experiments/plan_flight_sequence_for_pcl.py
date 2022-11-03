@@ -90,7 +90,7 @@ def main(conf):
 
     # remove any point too close to the ground
     points = np.asarray(pcd.points)
-    pcd.points = o3d.utility.Vector3dVector(points[points[:, 2] > 0.3])
+    pcd.points = o3d.utility.Vector3dVector(points[points[:, 2] > 2])
     logger.debug(f"finished reducing pcd to be sufficiently above ground ({len(pcd.points):,} points)")
     geos = [cf, pcd]
     if mesh:
