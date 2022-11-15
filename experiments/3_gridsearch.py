@@ -1,6 +1,5 @@
 import logging
 import os
-import pickle
 
 import yaml
 
@@ -17,11 +16,10 @@ if __name__ == "__main__":
     flight_sequences = load_flight_sequences(flight_sequence_fpath3)
     min_nr_waypoints = min(len(seq) for seq in flight_sequences)
 
-    basedir = "out/villalvernia/1_planning_horizon/increase_sigma"
-    # increase sigmas
-    sigmas = [1, 4, 7, 10, 13, 16, 19, 25, 31, 36]
-    rescheduling_frequencies = [3, 5, 7, 9, 11, 13, 25, 50, 75, 100, 125, 150]
-    Ws = [5, 10, 15]
+    basedir = "out/villalvernia/grid_search"
+    sigmas = [7, 13, 19, 31, 43]
+    rescheduling_frequencies = [9, 19, 49, 99, 149]
+    Ws = [10, 20, 50, 100, 170]
 
     confs = [
         NaiveConfiguration(baseconf, basedir, 3, flight_sequence_fpath3),
@@ -30,15 +28,14 @@ if __name__ == "__main__":
     for sigma in sigmas:
         for rescheduling_frequency in rescheduling_frequencies:
             for W in Ws:
-                # if (W == 15 and rescheduling_frequency == 3 and sigma == 10):
-                #     continue
-                conf = MilpConfiguration(baseconf, basedir, 3, sigma=sigma, W=W, flight_sequence_fpath=flight_sequence_fpath3, time_limit=10, rescheduling_frequency=rescheduling_frequency)
-                if rescheduling_frequency < conf.h < min_nr_waypoints:
-                    confs.append(conf)
-                else:
-                    logger.info(f"skipping ({sigma}, {rescheduling_frequency}, {W}) because the horizon is not relevant")
-
-    basedir = "out/villalvernia/1_planning_horizon/increase_W"
+                if rescheduling_frequency > W:
+                    # impossible
+                    continue
+                if sigma > W:
+                    # impossible
+                    continue
+                conf = MilpConfiguration(baseconf, basedir, 3, sigma=sigma, W=W, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=rescheduling_frequency)
+                confs.append(conf)
 
     for conf in confs:
         try:
@@ -52,4 +49,4 @@ if __name__ == "__main__":
             error_file = os.path.join(conf.outputdir(), "error.txt")
             with open(error_file, 'w') as f:
                 f.write(f"failed: {e}")
-            raise e
+            # raise e
