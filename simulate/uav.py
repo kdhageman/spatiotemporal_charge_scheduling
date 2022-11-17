@@ -7,6 +7,7 @@ import jsons
 import simpy.exceptions
 from simpy import PriorityResource
 
+from simulate.environment import Environment, DeterministicEnvironment
 from simulate.event import ReachedEvent, WaitedEvent, ChargedEvent, StartedEvent, ChangedCourseEvent
 from simulate.instruction import MoveInstruction, WaitInstruction, ChargeInstruction, InstructionType
 from simulate.node import AuxWaypoint, NodeType, Node
@@ -195,11 +196,12 @@ class UAV:
         self.req = None
         self.resource_id = None
 
-    def _sim(self, env: simpy.Environment):
+    def _sim(self, env: simpy.Environment, delta_t: float, flyenv: Environment = DeterministicEnvironment(), ):
         """
         Simulate the following of the internal schedule of the UAV
         :return:
         """
+        # TODO: raise exception when out of battery
         while len(self.instructions) > 0:
             cur_instruction = self.instructions[0]
             self.instructions = self.instructions[1:]
@@ -210,48 +212,56 @@ class UAV:
             if cur_instruction.type == InstructionType.move:
                 # move
                 if not self.last_known_pos.same_pos(self.dest_node):
-                    distance = self.last_known_pos.dist(self.dest_node)
-                    t_move = distance / self.v
-
                     self.debug(env, f"is moving from {self.last_known_pos} to {self.dest_node}")
                     self.state_type = UavStateType.Moving
 
-                    pre_move_battery = self.battery
-                    depletion = t_move * self.r_deplete
-                    post_move_battery = self.battery - depletion
-                    event = env.timeout(t_move, value=ReachedEvent(env.now, t_move, self.dest_node, self, battery=post_move_battery, depletion=depletion))
+                    distance_to_dest = self.last_known_pos.dist(self.dest_node)
+                    # move towards the destination node in timesteps
+                    while distance_to_dest != 0:
+                        self.t_start = env.now
+                        real_delta_t, real_distance, real_depletion, reached_destination = flyenv.move(delta_t, distance_to_dest, self.v, self.r_deplete)
+                        pre_move_battery = self.battery
+                        post_move_battery = self.battery - real_depletion
+                        new_pos = self.last_known_pos.pos + self.last_known_pos.direction(self.dest_node) * real_distance
+                        new_node = self.dest_node if reached_destination else AuxWaypoint(*new_pos)
+                        event = env.timeout(real_delta_t, value=ReachedEvent(env.now, real_delta_t, new_node, self, battery=post_move_battery, depletion=real_depletion))
 
-                    try:
-                        yield event
-
-                        self.debug(env, f"reached {self.dest_node}, B={event.value.battery:.2f} (-{t_move * self.r_deplete:.2f})")
-                        self.last_known_pos = self.dest_node
-                        self.state_type = UavStateType.Idle
-                        self.battery = event.value.battery
-                        self.time_spent['moving'] += t_move
-
-                        if self.dest_node.node_type == NodeType.Waypoint:
-                            self.waypoint_id += 1
-                            # TODO: log
-
-                        for cb in self.arrival_cbs:
-                            cb(event)
-                    except simpy.Interrupt:
-                        self.last_known_pos = self.get_state(env).node
-                        self.battery = self._get_battery(env, 0)
-                        elapsed = env.now - self.t_start
-                        self.time_spent['moving'] += elapsed
-
-                        if not self.dest_node.same_pos(self.instructions[0].node):
-                            # change direction
-                            depletion = self.battery - pre_move_battery
-                            event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, depletion=depletion, forced=True))
+                        try:
                             yield event
-                            self.debug(env, f"changed direction from {self.dest_node} to {self.instructions[0].node} at {self.last_known_pos}")
-                            self.t_start = env.now
 
-                            for cb in self.changed_course_cbs:
-                                cb(event)
+                            self.debug(env, f"reached {new_node}, B={event.value.battery:.2f} (-{event.value.depletion:.2f})")
+                            self.last_known_pos = new_node
+                            self.battery = event.value.battery
+                            self.time_spent['moving'] += real_delta_t
+                            if not reached_destination:
+                                self._events.append(event.value)
+                        except simpy.Interrupt:
+                            self.last_known_pos = self.get_state(env).node
+                            self.battery = self._get_battery(env, 0)
+                            elapsed = env.now - self.t_start
+                            self.time_spent['moving'] += elapsed
+
+                            if not self.dest_node.same_pos(self.instructions[0].node):
+                                # change direction
+                                depletion = self.battery - pre_move_battery
+                                event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, depletion=depletion, forced=True))
+                                yield event
+                                self.debug(env, f"changed direction from {self.dest_node} to {self.instructions[0].node} at {self.last_known_pos}")
+                                self.t_start = env.now
+
+                                for cb in self.changed_course_cbs:
+                                    cb(event)
+
+                                # step out of the loop for moving small time steps
+                                break
+                        distance_to_dest = self.last_known_pos.dist(self.dest_node)
+
+                    # reached the destination node
+                    if self.dest_node.node_type == NodeType.Waypoint:
+                        self.waypoint_id += 1
+
+                    for cb in self.arrival_cbs:
+                        cb(event)
 
             elif cur_instruction.type == InstructionType.wait:
                 # wait
@@ -394,12 +404,12 @@ class UAV:
     def debug(self, env: simpy.Environment, msg: str):
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [{env.now:.2f}] UAV [{self.uav_id}] {msg}")
 
-    def sim(self, env: simpy.Environment):
+    def sim(self, env: simpy.Environment, delta_t: float, flyenv: Environment = DeterministicEnvironment()):
         ev = StartedEvent(env.now, 0, self.last_known_pos, self, battery=self.battery)
         self._events.append(ev)
 
         self.debug(env, f"is starting new simpy process")
-        self.proc = env.process(self._sim(env))
+        self.proc = env.process(self._sim(env, delta_t, flyenv))
         yield self.proc
         self.state_type = UavStateType.Finished
         for cb in self.finish_cbs:

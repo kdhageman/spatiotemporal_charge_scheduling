@@ -19,6 +19,7 @@ from simulate.result import SimResult
 from simulate.scheduling import Scheduler
 from simulate.uav import UAV, UavStateType
 from simulate.util import gen_colors
+from simulate.environment import Environment, DeterministicEnvironment
 from util.scenario import Scenario
 
 
@@ -30,72 +31,8 @@ class SolveTime:
         self.n_remaining_waypoints = n_remaining_waypoints
 
 
-class Schedule:
-    def __init__(self, decisions: np.ndarray, charging_times: np.ndarray, waiting_times: np.ndarray):
-        assert (decisions.ndim == 2)
-        assert (charging_times.ndim == 1)
-        assert (waiting_times.ndim == 1)
-
-        self.decisions = decisions
-        self.charging_times = charging_times
-        self.waiting_times = waiting_times
-
-
-class Environment:
-    def distance(self, x):
-        raise NotImplementedError
-
-    def velocity(self, x):
-        raise NotImplementedError
-
-    def depletion(self, x):
-        raise NotImplementedError
-
-
-class DeterministicEnvironment(Environment):
-
-    def distance(self, x):
-        return x
-
-    def velocity(self, x):
-        return x
-
-    def depletion(self, x):
-        return x
-
-
-class TimeStepper:
-    def __init__(self, interval: float):
-        self.timestep = 0
-        self.interval = interval
-
-    def _inc(self, _):
-        self.timestep += 1
-
-    def sim(self, env, callbacks: list = [], finish_callbacks: list = []):
-        while True:
-            event = env.timeout(self.interval)
-            for cb in callbacks:
-                event.callbacks.append(cb)
-            event.callbacks.append(self._inc)
-            try:
-                yield event
-            except simpy.exceptions.Interrupt:
-                break
-        for cb in finish_callbacks:
-            cb(event)
-            self._inc(None)
-
-
-class SimulationResult:
-    def __init__(self, sc: Scenario, events, schedules):
-        self.sc = sc
-        self.events = events
-        self.schedules = schedules
-
-
 class Simulator:
-    def __init__(self, scheduler: Scheduler, strategy, params: Parameters, sc: Scenario, directory: str = None):
+    def __init__(self, scheduler: Scheduler, strategy, params: Parameters, sc: Scenario, directory: str = None, simenvs: List[Environment] = None):
         self.logger = logging.getLogger(__name__)
         self.scheduler = scheduler
         self.strategy = strategy
@@ -139,6 +76,11 @@ class Simulator:
                     del self.charging_stations_locks[resource_id]  # TODO: fix bug here!
 
             env.process(release_after_epsilon(env, epsilon, resource, resource_id))
+
+        if not simenvs:
+            simenvs = []
+            for d in range(sc.N_d):
+                simenvs.append(DeterministicEnvironment())
 
         self.uavs = []
         for d in range(self.sc.N_d):
@@ -222,7 +164,7 @@ class Simulator:
             if self.remaining == 0:
                 strat_proc.interrupt()
 
-        for uav in self.uavs:
+        for d, uav in enumerate(self.uavs):
             uav.add_arrival_cb(self.scheduler.handle_event)
             uav.add_arrival_cb(self.strategy.handle_event)
             uav.add_waited_cb(self.scheduler.handle_event)
@@ -230,7 +172,7 @@ class Simulator:
             uav.add_charged_cb(self.scheduler.handle_event)
             uav.add_charged_cb(self.strategy.handle_event)
             uav.add_finish_cb(uav_finished_cb)
-            env.process(uav.sim(env))
+            env.process(uav.sim(env, delta_t=0.1, flyenv=simenvs[d]))
 
         self.env = env
         self.strat_proc = strat_proc

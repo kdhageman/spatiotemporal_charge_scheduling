@@ -1,22 +1,17 @@
 import json
 import logging
 import os
-import pickle
-from datetime import datetime
 from itertools import product
 from unittest import TestCase
 
 import jsons
-import yaml
 from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 
-from experiments.util_funcs import ChargingStrategy
-from simulate.event import EventType
-from simulate.node import NodeType
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Parameters, Simulator
 from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
+from simulate.environment import NormalDistributedEnvironment
 from util.scenario import Scenario
 
 
@@ -175,8 +170,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
-            plot_delta=0.1,
-            # plot_delta=0,
+            # plot_delta=0.1,
+            plot_delta=0,
             W=5,
             sigma=1,
             epsilon=5,
@@ -188,7 +183,13 @@ class TestSimulator(TestCase):
         os.makedirs(directory, exist_ok=True)
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
-        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+        scale = 1
+        simenvs = [
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1)
+        ]
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory, simenvs=simenvs)
         result = simulator.sim()
 
         if directory:
