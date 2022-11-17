@@ -257,6 +257,8 @@ class UAV:
                         distance_to_dest = self.last_known_pos.dist(self.dest_node)
 
                     # reached the destination node
+                    self.state_type = UavStateType.Idle
+
                     if self.dest_node.node_type == NodeType.Waypoint:
                         self.waypoint_id += 1
 
@@ -363,40 +365,60 @@ class UAV:
 
                         continue
 
-                self.debug(env, f"is charging at {self.dest_node}")
+                remaining_charge = charging_time * self.r_charge
+                self.debug(env, f"is charging at {self.dest_node} for an estimated {charging_time:.2f}s (charging {remaining_charge*100:.2f}%)")
                 self.state_type = UavStateType.Charging
 
-                pre_move_battery = self.battery
-                t_start_charge = env.now
-                post_charge_battery = min(self.battery + charging_time * self.r_charge, 1)
-                depletion = pre_move_battery - post_charge_battery
-                event = env.timeout(charging_time, value=ChargedEvent(t_start_charge, charging_time, self.dest_node, self, battery=post_charge_battery, depletion=depletion))
+                # charge the UAV in timesteps
+                finished_charging = False
+                ct_sum = 0
+                uninterrupted_charge = True
+                while not finished_charging:
+                    pre_charge_battery = self.battery
+                    self.t_start = env.now
+                    real_delta_t, real_charge, finished_charging = flyenv.charge(delta_t, remaining_charge, self.r_charge)
+                    post_charge_battery = self.battery + real_charge
+                    event = env.timeout(real_delta_t, value=ChargedEvent(self.t_start, real_delta_t, self.dest_node, self, battery=post_charge_battery, depletion=real_charge))
 
-                try:
-                    yield event
+                    try:
+                        yield event
 
+                        remaining_charge -= real_charge
+                        ct_sum += real_delta_t
+                        self.battery = post_charge_battery
+                        self.time_spent['charging'] += real_delta_t
+
+                        if not finished_charging:
+                            self._events.append(event.value)
+
+                    except simpy.Interrupt:
+                        if not self.instructions or self.instructions[0].type != InstructionType.charge:
+                            # if we are finished or not charging afterwards, release the lock
+                            self._release_lock(env)
+                            t_charged = env.now - self.t_start
+                            ct_sum += t_charged
+                            self.battery = self.battery + self.r_charge * t_charged  # TODO: simulate this too?
+                            depletion = pre_charge_battery - self.battery
+                            event = env.timeout(0, value=ChargedEvent(self.t_start, ct_sum, self.dest_node, self, battery=self.battery, depletion=depletion))
+                            yield event
+
+                            self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {ct_sum:.2f}")
+                            self.state_type = UavStateType.Idle
+                            self.time_spent['charging'] += t_charged
+
+                            # step out of the loop for moving small time steps
+                            uninterrupted_charge = False
+
+                            for cb in self.charged_cbs:
+                                cb(event)
+
+                            break
+
+                if uninterrupted_charge:
                     self._release_lock(env)
-                    ct_str = charging_time if charging_time == 'until full' else f"for {charging_time:.2f}s"
+                    ct_str = charging_time if charging_time == 'until full' else f"for {ct_sum:.2f}s"
                     self.debug(env, f"finished charging at station {self.dest_node.identifier} {ct_str}")
-                    self.battery = post_charge_battery
                     self.state_type = UavStateType.FinishedCharging
-                    self.time_spent['charging'] += charging_time
-
-                    for cb in self.charged_cbs:
-                        cb(event)
-                except simpy.Interrupt:
-                    if not self.instructions or self.instructions[0].type != InstructionType.charge:
-                        # if we are finished or not charging afterwards, release the lock
-                        self._release_lock(env)
-                    t_charged = env.now - t_start_charge
-                    self.battery = self.battery + self.r_charge * t_charged
-                    depletion = pre_move_battery - self.battery
-                    event = env.timeout(0, value=ChargedEvent(t_start_charge, t_charged, self.dest_node, self, battery=self.battery, depletion=depletion, forced=True))
-                    yield event
-
-                    self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {t_charged:.2f}")
-                    self.state_type = UavStateType.Idle
-                    self.time_spent['charging'] += t_charged
 
                     for cb in self.charged_cbs:
                         cb(event)
