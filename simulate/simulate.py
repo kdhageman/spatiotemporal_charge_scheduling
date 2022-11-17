@@ -157,7 +157,7 @@ class Simulator:
 
         def uav_finished_cb(uav):
             self.debug(env, f"UAV [{uav.uav_id}] finished its mission")
-            if self.scheduler.n_remaining_waypoints(uav.uav_id) != 0:
+            if self.scheduler.n_remaining_waypoints(uav.uav_id) != 0 and uav.state_type != UavStateType.Crashed:
                 raise Exception(f"UAV [{uav.uav_id}] is finished, but still has waypoints to visit")
 
             self.remaining -= 1
@@ -172,7 +172,7 @@ class Simulator:
             uav.add_charged_cb(self.scheduler.handle_event)
             uav.add_charged_cb(self.strategy.handle_event)
             uav.add_finish_cb(uav_finished_cb)
-            env.process(uav.sim(env, delta_t=0.1, flyenv=simenvs[d]))
+            env.process(uav.sim(env, delta_t=params.delta_t, flyenv=simenvs[d]))
 
         self.env = env
         self.strat_proc = strat_proc
@@ -282,6 +282,8 @@ def plot_events_battery(result: SimResult, fname: str):
         Y_line = []
         X_scatter_wp = []
         Y_scatter_wp = []
+        X_crash = []
+        Y_crash = []
         for i, e in enumerate(events[d]):
             ts = e.t_end
             X_line.append(ts)
@@ -315,10 +317,14 @@ def plot_events_battery(result: SimResult, fname: str):
             elif e.type == EventType.reached and e.node.node_type == NodeType.Waypoint:
                 X_scatter_wp.append(e.t_end)
                 Y_scatter_wp.append(e.battery)
+            elif e.type == EventType.crashed:
+                X_crash.append(e.t_end)
+                Y_crash.append(e.battery)
 
         grid[d].plot(X_line, Y_line, c=uav_colors[d])
         if do_plot_scatter:
             grid[d].scatter(X_scatter_wp, Y_scatter_wp, c=[uav_colors[d]], s=10)
+        grid[d].scatter(X_crash, Y_crash, c=[uav_colors[d]], s=40, marker='x', zorder=100)
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([0, 1])
         grid[d].spines.right.set_visible(False)

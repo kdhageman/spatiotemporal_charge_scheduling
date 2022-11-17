@@ -8,7 +8,7 @@ import simpy.exceptions
 from simpy import PriorityResource
 
 from simulate.environment import Environment, DeterministicEnvironment
-from simulate.event import ReachedEvent, WaitedEvent, ChargedEvent, StartedEvent, ChangedCourseEvent
+from simulate.event import ReachedEvent, WaitedEvent, ChargedEvent, StartedEvent, ChangedCourseEvent, CrashedEvent
 from simulate.instruction import MoveInstruction, WaitInstruction, ChargeInstruction, InstructionType
 from simulate.node import AuxWaypoint, NodeType, Node
 
@@ -20,6 +20,7 @@ class UavStateType(Enum):
     Charging = "charging"
     Finished = "finished"
     FinishedCharging = "finished_charging"  # indicator that the drone cannot charge again
+    Crashed = "crashed"
 
 
 class UavState:
@@ -103,7 +104,7 @@ class UAV:
                 node=AuxWaypoint(*pos),
                 battery=battery,
             )
-        elif self.state_type in [UavStateType.Charging, UavStateType.Finished, UavStateType.Waiting, UavStateType.Idle, UavStateType.FinishedCharging]:
+        elif self.state_type in [UavStateType.Charging, UavStateType.Finished, UavStateType.Waiting, UavStateType.Idle, UavStateType.FinishedCharging, UavStateType.Crashed]:
             res = UavState(
                 state_type=self.state_type,
                 node=self.last_known_pos,
@@ -201,7 +202,6 @@ class UAV:
         Simulate the following of the internal schedule of the UAV
         :return:
         """
-        # TODO: raise exception when out of battery
         while len(self.instructions) > 0:
             cur_instruction = self.instructions[0]
             self.instructions = self.instructions[1:]
@@ -216,10 +216,11 @@ class UAV:
                     self.state_type = UavStateType.Moving
 
                     distance_to_dest = self.last_known_pos.dist(self.dest_node)
+                    reached_destination = False
                     # move towards the destination node in timesteps
-                    while distance_to_dest != 0:
+                    while not reached_destination:
                         self.t_start = env.now
-                        real_delta_t, real_distance, real_depletion, reached_destination = flyenv.move(delta_t, distance_to_dest, self.v, self.r_deplete)
+                        real_delta_t, real_distance, real_depletion, reached_destination = flyenv.move(delta_t, distance_to_dest, self.v, self.r_deplete, self.battery)
                         pre_move_battery = self.battery
                         post_move_battery = self.battery - real_depletion
                         new_pos = self.last_known_pos.pos + self.last_known_pos.direction(self.dest_node) * real_distance
@@ -233,8 +234,17 @@ class UAV:
                             self.last_known_pos = new_node
                             self.battery = event.value.battery
                             self.time_spent['moving'] += real_delta_t
+
                             if not reached_destination:
                                 self._events.append(event.value)
+
+                            if self.battery <= 0:
+                                # terminate because the UAV is crashed
+                                event = env.timeout(0, value=CrashedEvent(env.now, 0, self, self.last_known_pos, battery=0))
+                                yield event
+                                self._events.append(event.value)
+                                self.state_type = UavStateType.Crashed
+                                return
                         except simpy.Interrupt:
                             self.last_known_pos = self.get_state(env).node
                             self.battery = self._get_battery(env, 0)
@@ -376,7 +386,7 @@ class UAV:
                 while not finished_charging:
                     pre_charge_battery = self.battery
                     self.t_start = env.now
-                    real_delta_t, real_charge, finished_charging = flyenv.charge(delta_t, remaining_charge, self.r_charge)
+                    real_delta_t, real_charge, finished_charging = flyenv.charge(delta_t, remaining_charge, self.r_charge, self.battery)
                     post_charge_battery = self.battery + real_charge
                     event = env.timeout(real_delta_t, value=ChargedEvent(self.t_start, real_delta_t, self.dest_node, self, battery=post_charge_battery, depletion=real_charge))
 
@@ -433,7 +443,9 @@ class UAV:
         self.debug(env, f"is starting new simpy process")
         self.proc = env.process(self._sim(env, delta_t, flyenv))
         yield self.proc
-        self.state_type = UavStateType.Finished
+        if self.state_type != UavStateType.Crashed:
+            self.state_type = UavStateType.Finished
+
         for cb in self.finish_cbs:
             cb(self)
 

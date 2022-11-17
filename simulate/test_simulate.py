@@ -55,7 +55,13 @@ class TestSimulator(TestCase):
         # strat = AfterNEventsStrategyAll(sc.N_w + 1)
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(params, sc, solver=solver)
-        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+        scale = 0.03
+        simenvs = [
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1)
+        ]
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory, simenvs=simenvs)
         result = simulator.sim()
 
         if directory:
@@ -91,7 +97,13 @@ class TestSimulator(TestCase):
         # solver = SolverFactory("gurobi")
         # solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(params, sc, solver=solver)
-        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+        scale = 0
+        simenvs = [
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1)
+        ]
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory, simenvs=simenvs)
         result = simulator.sim()
 
         if directory:
@@ -146,6 +158,7 @@ class TestSimulator(TestCase):
             sigma=1,
             epsilon=1,
             W_zero_min=None,
+            delta_t=2,
         )
         params = Parameters(**p)
 
@@ -153,7 +166,13 @@ class TestSimulator(TestCase):
         os.makedirs(directory, exist_ok=True)
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(params, sc)
-        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+        scale = 0.2
+        simenvs = [
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1),
+            NormalDistributedEnvironment.from_seed(scale, seed=1)
+        ]
+        simulator = Simulator(scheduler, strat, params, sc, directory=directory, simenvs=simenvs)
         result = simulator.sim()
 
         if directory:
