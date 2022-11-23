@@ -9,7 +9,7 @@ from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, Node
-from simulate.parameters import Parameters
+from simulate.parameters import SchedulingParameters
 from simulate.uav import UavStateType
 from simulate.util import is_feasible, draw_graph, draw_schedule
 from util.distance import dist3
@@ -18,7 +18,7 @@ from util.scenario import Scenario, ScenarioFactory
 
 
 class Scheduler:
-    def __init__(self, params: Parameters, sc: Scenario):
+    def __init__(self, params: SchedulingParameters, sc: Scenario):
         """
         :param cb: the callback function that should be called whenever the scheduler generates a new schedule
         """
@@ -97,7 +97,7 @@ class Scheduler:
 
 
 class MilpScheduler(Scheduler):
-    def __init__(self, params: Parameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
+    def __init__(self, params: SchedulingParameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
         super().__init__(params, scenario)
         self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
         self.solver = solver

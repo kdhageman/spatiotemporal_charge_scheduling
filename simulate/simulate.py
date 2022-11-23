@@ -13,10 +13,11 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 
 from simulate.event import EventType, Event
 from simulate.node import ChargingStation, NodeType, AuxWaypoint
-from simulate.parameters import Parameters
+from simulate.parameters import SchedulingParameters, SimulationParameters
 from simulate.plot import SimulationAnimator
 from simulate.result import SimResult
 from simulate.scheduling import Scheduler
+from simulate.strategy import Strategy
 from simulate.uav import UAV, UavStateType
 from simulate.util import gen_colors
 from simulate.environment import Environment, DeterministicEnvironment
@@ -32,11 +33,19 @@ class SolveTime:
 
 
 class Simulator:
-    def __init__(self, scheduler: Scheduler, strategy, params: Parameters, sc: Scenario, directory: str = None, simenvs: List[Environment] = None):
+    def __init__(self,
+                 scheduler: Scheduler,
+                 strategy: Strategy,
+                 sched_params: SchedulingParameters,
+                 sim_params: SimulationParameters,
+                 sc: Scenario,
+                 directory: str = None,
+                 simenvs: List[Environment] = None):
         self.logger = logging.getLogger(__name__)
         self.scheduler = scheduler
         self.strategy = strategy
-        self.params = params
+        self.sched_params = sched_params
+        self.sim_params = sim_params
         self.sc = sc
         self.directory = directory
         self.remaining = sc.N_d
@@ -57,7 +66,7 @@ class Simulator:
 
         # prepare UAVs
         def release_lock_cb(env, uav_id, resource_id):
-            epsilon = self.params.epsilon
+            epsilon = self.sched_params.epsilon
             resource = self.charging_stations[resource_id]
 
             def release_after_epsilon(env, epsilon, resource, resource_id):
@@ -84,7 +93,7 @@ class Simulator:
 
         self.uavs = []
         for d in range(self.sc.N_d):
-            uav = UAV(d, self.charging_stations, self.params.v[d], self.params.r_charge[d], self.params.r_deplete[d], self.sc.start_positions[d])
+            uav = UAV(d, self.charging_stations, self.sched_params.v[d], self.sched_params.r_charge[d], self.sched_params.r_deplete[d], self.sc.start_positions[d])
             uav.add_release_lock_cb(release_lock_cb)
             self.uavs.append(uav)
         self.debug(env, f"visiting {self.sc.N_w - 1} waypoints per UAV in total")
@@ -113,7 +122,7 @@ class Simulator:
             cs_locks = np.zeros((len(self.uavs), len(self.charging_stations)))
             for cs, (ts, uav_id) in self.charging_stations_locks.items():
                 elapsed = env.now - ts
-                remaining = self.params.epsilon - elapsed
+                remaining = self.sched_params.epsilon - elapsed
                 for d in range(len(self.uavs)):
                     cs_locks[d, cs] = remaining
                     # TODO: should the original UAV NOT be blocked? (see code below)
@@ -123,7 +132,7 @@ class Simulator:
                 if uav.resource_id is not None:
                     for d in range(len(self.uavs)):
                         if d != uav.uav_id:
-                            cs_locks[d, uav.resource_id] = self.params.epsilon
+                            cs_locks[d, uav.resource_id] = self.sched_params.epsilon
 
             t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
             self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2f}s")
@@ -172,7 +181,7 @@ class Simulator:
             uav.add_charged_cb(self.scheduler.handle_event)
             uav.add_charged_cb(self.strategy.handle_event)
             uav.add_finish_cb(uav_finished_cb)
-            env.process(uav.sim(env, delta_t=params.delta_t, flyenv=simenvs[d]))
+            env.process(uav.sim(env, delta_t=sim_params.delta_t, flyenv=simenvs[d]))
 
         self.env = env
         self.strat_proc = strat_proc
@@ -189,10 +198,10 @@ class Simulator:
                 events = [u.events(self.env) for u in self.uavs]
                 time_spent = {d: uav.time_spent for d, uav in enumerate(self.uavs)}
                 for d in range(len(self.uavs)):
-                    time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum() / self.params.v[d]
+                    time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum() / self.sched_params.v[d]
                 nr_visited_waypoints = [uav.waypoint_id for uav in self.uavs]
                 occupancy = events_to_occupancy(events)
-                result = SimResult(self.params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints, occupancy, self.scheduler)
+                result = SimResult(self.sched_params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints, occupancy, self.scheduler)
 
                 # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
@@ -204,8 +213,8 @@ class Simulator:
 
                 fname = os.path.join(self.directory, "animation.html")
                 events = {d: uav.events(self.env) for d, uav in enumerate(self.uavs)}
-                if self.params.plot_delta:
-                    sa = SimulationAnimator(self.sc, events, self.all_schedules, self.params.plot_delta)
+                if self.sim_params.plot_delta:
+                    sa = SimulationAnimator(self.sc, events, self.all_schedules, self.sim_params.plot_delta)
                     sa.animate(fname)
             else:
                 result = None
@@ -244,7 +253,7 @@ def plot_events_battery(result: SimResult, fname: str):
     Plots the battery over time for the given events
     """
     events = result.events
-    r_charge = result.params.r_charge.min()
+    r_charge = result.sched_params.r_charge.min()
 
     execution_times = []
     for d in range(len(events)):
@@ -357,7 +366,7 @@ def plot_station_occupancy(result: SimResult, fname: str):
     """
     events = result.events
     nstations = result.scenario.N_s
-    r_charge = result.params.r_charge.min()
+    r_charge = result.sched_params.r_charge.min()
     total_duration = result.execution_time
 
     colors = gen_colors(nstations)

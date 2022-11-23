@@ -1,19 +1,18 @@
 import logging
 from datetime import datetime
 from functools import lru_cache
-from typing import List
 
 import numpy as np
 import pyomo.environ as pyo
 from pyomo.core import Block
 from pyomo.core.expr.numeric_expr import SumExpression
 
-from simulate.parameters import Parameters
+from simulate.parameters import SchedulingParameters
 from util.scenario import Scenario
 
 
 class MultiUavModel(pyo.ConcreteModel):
-    def __init__(self, sc: Scenario, params: Parameters):
+    def __init__(self, sc: Scenario, params: SchedulingParameters):
         super().__init__()
         self.logger = logging.getLogger(__name__)
 
