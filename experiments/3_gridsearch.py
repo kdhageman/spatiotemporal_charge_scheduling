@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     basedir = "out/villalvernia/grid_search"
     sigmas = [7, 13, 19, 31, 43]
-    rescheduling_frequencies = [9, 19, 49, 99, 149]
+    pis = [9, 19, 49, 99, 149]
     Ws = [10, 20, 50, 100, 170]
 
     confs = [
@@ -26,15 +26,15 @@ if __name__ == "__main__":
     ]
 
     for sigma in sigmas:
-        for rescheduling_frequency in rescheduling_frequencies:
-            for W in Ws:
-                if rescheduling_frequency > W:
+        for pi in pis:
+            for W_hat in Ws:
+                if pi > W_hat:
                     # impossible
                     continue
-                if sigma > W:
+                if sigma > W_hat:
                     # impossible
                     continue
-                conf = MilpConfiguration(baseconf, basedir, 3, sigma=sigma, W=W, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30, rescheduling_frequency=rescheduling_frequency)
+                conf = MilpConfiguration(baseconf, basedir, 3, sigma=sigma, W_hat=W_hat, pi=pi, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30)
                 confs.append(conf)
 
     for conf in confs:
@@ -45,7 +45,7 @@ if __name__ == "__main__":
             else:
                 logger.info(f"skipping configuration because it already exists ({conf.outputdir()})")
         except Exception as e:
-            logger.error(f"failed to run configuration: {e}")
+            logger.exception(f"failed to run configuration")
             error_file = os.path.join(conf.outputdir(), "error.txt")
             with open(error_file, 'w') as f:
                 f.write(f"failed: {e}")

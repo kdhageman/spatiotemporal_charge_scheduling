@@ -15,6 +15,9 @@ import nxmetis
 import open3d as o3d
 import scipy
 from matplotlib import pyplot as plt
+
+from simulate.parameters import SchedulingParameters, SimulationParameters
+
 try:
     from open3d.cuda.pybind.geometry import Geometry3D
 except:
@@ -24,7 +27,6 @@ from pyomo.opt import SolverFactory
 from scipy.spatial import KDTree
 
 from simulate.event import EventType
-from simulate.parameters import Parameters
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import gen_colors, Simulator
 from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
@@ -357,7 +359,7 @@ class ChargingStrategy(Enum):
         return NotImplementedError()
 
 
-def schedule_charge(start_positions: list, waypoints: list, charging_station_positions: list, params: Parameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
+def schedule_charge(start_positions: list, waypoints: list, charging_station_positions: list, sched_params: SchedulingParameters, sim_params: SimulationParameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
     """
     Schedules the charging for a sequence of flight waypoints and number of charging station positions
     """
@@ -369,31 +371,31 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # stations:             {sc.N_s}")
     for d in range(sc.N_d):
         logger.debug(f" [{datetime.now().strftime('%H:%M:%S')}] # waypoints for UAV[{d}]: {sc.N_w}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] sigma:                  {params.sigma}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] W:                      {params.W}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] epsilon:                {params.epsilon}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] v:                      {params.v}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] r_charge:               {params.r_charge}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] r_deplete:              {params.r_deplete}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] B_start:                {params.B_start}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] B_min:                  {params.B_min}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] Time limit :            {params.time_limit}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] IntFeasTol :            {params.int_feas_tol}")
-    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] Rescheduling freq.:     {params.rescheduling_frequency}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] sigma:                  {sched_params.sigma}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] W_hat:                  {sched_params.W_hat}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] epsilon:                {sched_params.epsilon}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] v:                      {sched_params.v}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] r_charge:               {sched_params.r_charge}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] r_deplete:              {sched_params.r_deplete}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] B_start:                {sched_params.B_start}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] B_min:                  {sched_params.B_min}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] Time limit :            {sched_params.time_limit}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] IntFeasTol :            {sched_params.int_feas_tol}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] pi:                     {sched_params.pi}")
 
     if strategy == ChargingStrategy.Milp:
-        strat = AfterNEventsStrategyAll(params.rescheduling_frequency)
+        strat = AfterNEventsStrategyAll(sched_params.pi)
         solver = SolverFactory("gurobi")
-        solver.options['IntFeasTol'] = params.int_feas_tol
-        solver.options['TimeLimit'] = params.time_limit
+        solver.options['IntFeasTol'] = sched_params.int_feas_tol
+        solver.options['TimeLimit'] = sched_params.time_limit
         # solver.options['MIPGap'] = 25
-        scheduler = MilpScheduler(params, sc, solver=solver)
-        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+        scheduler = MilpScheduler(sched_params, sc, solver=solver)
+        simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
         logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] prepared MILP simulator")
     elif strategy == ChargingStrategy.Naive:
         strat = OnEventStrategySingle()
-        scheduler = NaiveScheduler(params, sc)
-        simulator = Simulator(scheduler, strat, params, sc, directory=directory)
+        scheduler = NaiveScheduler(sched_params, sc)
+        simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
         logger.debug("[{datetime.now().strftime('%H:%M:%S')}] prepared naive simulator")
     result = simulator.sim()
 
@@ -454,12 +456,12 @@ def schedule_charge_from_conf(conf):
     r_deplete = [co["r_deplete"]] * n_drones
     epsilon = co.get("epsilon", None)
     plot_delta = co['plot_delta']
-    W = co.get('W', None)
+    W_hat = co.get('W_hat', None)
     sigma = co.get('sigma', None)
     charging_station_positions = co['charging_positions']
     time_limit = co['time_limit']
     int_feas_tol = co['int_feas_tol']
-    rescheduling_frequency = co['rescheduling_frequency']
+    pi = co['pi']
     output_dir = conf['output_directory']
 
     flight_sequence_fpath = conf['flight_sequence_fpath']
@@ -468,7 +470,7 @@ def schedule_charge_from_conf(conf):
     waypoints = [seq[1:] for seq in flight_sequences]
 
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] starting charge scheduling..")
-    params = Parameters(
+    sched_params = SchedulingParameters.from_raw(
         v=v,
         r_charge=r_charge,
         r_deplete=r_deplete,
@@ -476,17 +478,16 @@ def schedule_charge_from_conf(conf):
         B_min=B_min,
         B_max=B_max,
         epsilon=epsilon,
-        plot_delta=plot_delta,
-        W=W,
+        W_hat=W_hat,
+        pi=pi,
         sigma=sigma,
         time_limit=time_limit,
         int_feas_tol=int_feas_tol,
-        rescheduling_frequency=rescheduling_frequency,
-        W_zero_min=None
     )
+    sim_params = SimulationParameters(plot_delta=plot_delta, delta_t=1)
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     t_start = time.perf_counter()
-    _ = schedule_charge(start_positions, waypoints, charging_station_positions, params, directory=output_dir, strategy=strategy)
+    _ = schedule_charge(start_positions, waypoints, charging_station_positions, sched_params, sim_params, directory=output_dir, strategy=strategy)
     elapsed = time.perf_counter() - t_start
     logger.debug(f"finished charge schedule simulation in {elapsed:.1f}s")
 

@@ -96,7 +96,7 @@ class Scheduler:
 
 
 class MilpScheduler(Scheduler):
-    def __init__(self, params: SimulationParameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
+    def __init__(self, params: SchedulingParameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
         super().__init__(params, scenario)
         self.sf = ScenarioFactory(self.sc, params.W_hat, params.sigma)
         self.solver = solver

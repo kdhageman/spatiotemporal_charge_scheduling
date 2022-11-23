@@ -28,6 +28,7 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
+            delta_t=1,
         )
         p_sched = dict(
             v=[1, 1],
@@ -56,7 +57,7 @@ class TestSimulator(TestCase):
         strat = AfterNEventsStrategyAll(sched_params.pi)
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(sched_params, sc, solver=solver)
-        scale = 0
+        scale = 0.1
         simenvs = [
             NormalDistributedEnvironment.from_seed(scale, seed=1),
             NormalDistributedEnvironment.from_seed(scale, seed=1),
@@ -153,6 +154,7 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
+            delta_t=1,
         )
         p_sched = dict(
             v=[1, 1],
@@ -161,9 +163,10 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
-            W_hat=5,
+            W_hat=10,
             sigma=2,
             epsilon=1,
+            pi=9,
         )
 
         sim_params = SimulationParameters(**p_sim)
@@ -173,7 +176,7 @@ class TestSimulator(TestCase):
         os.makedirs(directory, exist_ok=True)
         strat = OnEventStrategySingle()
         scheduler = NaiveScheduler(sched_params, sc)
-        scale = 0.2
+        scale = 0.1
         simenvs = [
             NormalDistributedEnvironment.from_seed(scale, seed=1),
             NormalDistributedEnvironment.from_seed(scale, seed=1),
