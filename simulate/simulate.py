@@ -96,7 +96,7 @@ class Simulator:
             uav = UAV(d, self.charging_stations, self.sched_params.v[d], self.sched_params.r_charge[d], self.sched_params.r_deplete[d], self.sc.start_positions[d])
             uav.add_release_lock_cb(release_lock_cb)
             self.uavs.append(uav)
-        self.debug(env, f"visiting {self.sc.N_w - 1} waypoints per UAV in total")
+        self.debug(env, f"visiting {self.sc.N_w} waypoints per UAV in total")
 
         # get initial schedule
         def reschedule_cb(uavs_to_schedule):

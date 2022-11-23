@@ -17,6 +17,12 @@ class SchedulingParameters:
     epsilon: distance between time charging windows
     omega: minimum time after charging is allowed at a station
     rho: remaining distance after the current scheduling task
+    W_hat: waypoint horizon size
+    sigma: anchor interval
+    pi: rescheduling interval
+    epsilon: separation in seconds of two subsequent charging windows
+    int_feas_tol: feasibility tolerance for integer problems to solve in Gurobi
+    time_limit: time limit for Gurobi to solve a given problem
     """
     v: np.ndarray
     r_charge: np.ndarray
@@ -24,9 +30,15 @@ class SchedulingParameters:
     B_start: np.ndarray
     B_min: np.ndarray
     B_max: np.ndarray
-    epsilon: float
     omega: np.ndarray
     rho: np.ndarray
+    W_hat: int
+    sigma: int
+    pi: int = 1
+    int_feas_tol: float = 1e-9
+    time_limit: float = 60
+    epsilon: float = 1
+    remaining_distances: list = None
 
     @classmethod
     def from_raw(cls,
@@ -36,10 +48,18 @@ class SchedulingParameters:
                  B_start: List[float],
                  B_min: List[float],
                  B_max: List[float],
-                 epsilon: float,
                  omega: List[List[float]] = None,
-                 rho: List[float] = None
+                 rho: List[float] = None,
+                 W_hat: int = 1,
+                 sigma: int = 1,
+                 pi: int = 1,
+                 int_feas_tol: float = 1e-9,
+                 time_limit: float = 60,
+                 epsilon: float = 1,
+                 remaining_distances: list = None,
                  ):
+        if remaining_distances is None:
+            remaining_distances = []
         return SchedulingParameters(
             np.array(v),
             np.array(r_charge),
@@ -47,10 +67,20 @@ class SchedulingParameters:
             np.array(B_start),
             np.array(B_min),
             np.array(B_max),
-            epsilon,
             np.array(omega),
             np.array(rho),
+            W_hat,
+            sigma,
+            pi,
+            int_feas_tol,
+            time_limit,
+            epsilon,
+            remaining_distances,
         )
+
+    def with_remaining_distances(self, remaining_distances):
+        self.remaining_distances = remaining_distances
+        return self
 
 
 @dataclass
@@ -70,23 +100,11 @@ class ScenarioParams:
 @dataclass
 class SimulationParameters:
     """
-    W_hat: waypoint horizon size
-    sigma: anchor interval
-    pi: rescheduling interval
     plot_delta: granularity of simulation time to visualise data as
-    int_feas_tol: feasibility tolerance for integer problems to solve in Gurobi
-    time_limit: time limit for Gurobi to solve a given problem
     delta_t: time interval for simulation
-    epsilon:
     """
-    W_hat: int
-    sigma: int
-    pi: int = 1
     plot_delta: float = 0
-    int_feas_tol: float = 1e-9
-    time_limit: float = 60
     delta_t: float = 0.1
-    epsilon: float = 1
 
 
 def sched_parameters_serializer(obj: SchedulingParameters, *args, **kwargs):

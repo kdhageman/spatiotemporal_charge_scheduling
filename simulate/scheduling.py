@@ -1,17 +1,16 @@
 import logging
 import time
+from copy import deepcopy
 from datetime import datetime
 from typing import List, Dict, Tuple
-
 import numpy as np
 import simpy
 from pyomo.opt import SolverFactory
-
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, Node
-from simulate.parameters import SchedulingParameters
+from simulate.parameters import SchedulingParameters, SimulationParameters
 from simulate.uav import UavStateType
-from simulate.util import is_feasible, draw_graph, draw_schedule
+from simulate.util import is_feasible
 from util.distance import dist3
 from util.exceptions import NotSolvableException
 from util.scenario import Scenario, ScenarioFactory
@@ -97,9 +96,9 @@ class Scheduler:
 
 
 class MilpScheduler(Scheduler):
-    def __init__(self, params: SchedulingParameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
+    def __init__(self, params: SimulationParameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
         super().__init__(params, scenario)
-        self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
+        self.sf = ScenarioFactory(self.sc, params.W_hat, params.sigma)
         self.solver = solver
         self.i = 0
 
@@ -119,14 +118,13 @@ class MilpScheduler(Scheduler):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
 
         # correct original parameters
-        params = self.params.copy()
-        params.remaining_distances = remaining_distances
+        params = deepcopy(self.params).with_remaining_distances(remaining_distances)
         params.B_start = np.array(list(batteries.values()))
 
         # prepare B_end
         B_end = []
         for d in range(self.sc.N_d):
-            idx_last_scheduled_wp = self.offsets[d] + params.W
+            idx_last_scheduled_wp = self.offsets[d] + params.W_hat
             if idx_last_scheduled_wp >= self.sf.N_w:
                 self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is scheduled until the end, so ends with B_end of {params.B_min[d]:.2f}")
                 B_end.append(params.B_min[d])

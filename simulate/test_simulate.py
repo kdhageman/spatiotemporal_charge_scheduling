@@ -28,9 +28,6 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
-            W_hat=5,
-            sigma=2,
-            epsilon=1,
         )
         p_sched = dict(
             v=[1, 1],
@@ -39,7 +36,10 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
+            W_hat=10,
+            sigma=2,
             epsilon=1,
+            pi=9,
         )
 
         sim_params = SimulationParameters(**p_sim)
@@ -53,11 +53,10 @@ class TestSimulator(TestCase):
             sc.plot(ax=ax, draw_distances=False)
             plt.savefig(os.path.join(directory, "scenario.pdf"), bbox_inches='tight')
 
-        strat = AfterNEventsStrategyAll(1)
-        # strat = AfterNEventsStrategyAll(sc.N_w + 1)
+        strat = AfterNEventsStrategyAll(sched_params.pi)
         solver = SolverFactory("gurobi_ampl", solver_io='nl')
         scheduler = MilpScheduler(sched_params, sc, solver=solver)
-        scale = 0.03
+        scale = 0
         simenvs = [
             NormalDistributedEnvironment.from_seed(scale, seed=1),
             NormalDistributedEnvironment.from_seed(scale, seed=1),
@@ -75,9 +74,6 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
-            W_hat=4,
-            sigma=1,
-            epsilon=5,
         )
         p_sched = dict(
             v=[1, 1, 1],
@@ -86,6 +82,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            W_hat=4,
+            sigma=1,
             epsilon=5,
         )
 
@@ -120,9 +118,6 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
-            W_hat=5,
-            sigma=1,
-            epsilon=5,
         )
         p_sched = dict(
             v=[1, 1, 1],
@@ -131,6 +126,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            W_hat=5,
+            sigma=1,
             epsilon=5,
         )
 
@@ -156,9 +153,6 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
-            W_hat=5,
-            sigma=2,
-            epsilon=1,
         )
         p_sched = dict(
             v=[1, 1],
@@ -167,6 +161,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
+            W_hat=5,
+            sigma=2,
             epsilon=1,
         )
 
@@ -197,9 +193,6 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
-            W_hat=5,
-            sigma=1,
-            epsilon=5,
         )
         p_sched = dict(
             v=[1, 1, 1],
@@ -208,6 +201,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            W_hat=5,
+            sigma=1,
             epsilon=5,
         )
 
