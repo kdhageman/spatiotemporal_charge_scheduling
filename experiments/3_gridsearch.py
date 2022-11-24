@@ -16,7 +16,7 @@ if __name__ == "__main__":
     flight_sequences = load_flight_sequences(flight_sequence_fpath3)
     min_nr_waypoints = min(len(seq) for seq in flight_sequences)
 
-    basedir = "out/villalvernia/grid_search"
+    basedir = "out/villalvernia/grid_search.test"
     sigmas = [7, 13, 19, 31, 43]
     pis = [9, 19, 49, 99, 149]
     Ws = [10, 20, 50, 100, 170]

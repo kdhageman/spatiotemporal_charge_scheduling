@@ -29,8 +29,8 @@ class MultiUavModel(pyo.ConcreteModel):
         self.r_charge = params.r_charge
         self.r_deplete = params.r_deplete
         self.v = params.v
-        self.W_zero_min = params.W_zero_min
-        self.remaining_distances = params.remaining_distances
+        self.omega = params.omega
+        self.rho = params.rho
 
         self.positions_S = sc.positions_S
         self.positions_w = sc.positions_w
@@ -133,7 +133,7 @@ class MultiUavModel(pyo.ConcreteModel):
 
         self.W_llim = pyo.Constraint(
             self.d,
-            rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
+            rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.omega[d, s] for s in m.s)
         )
         self.info(f"finished initializing 'W_llim' ({len(self.W_llim):,})")
 
@@ -286,13 +286,13 @@ class MultiUavModel(pyo.ConcreteModel):
         return sum(self.t(d, w_s) for w_s in self.w_s)
 
     def remaining_move_time(self, d):
-        return self.remaining_distances[d] / self.v[d]
+        return self.rho[d] / self.v[d]
 
     def remaining_depletion(self, d):
         return self.remaining_move_time(d) * self.r_deplete[d]
 
     def lambda_move(self, d):
-        return self.remaining_distances[d] / self.v[d]
+        return self.rho[d] / self.v[d]
 
     def lambda_charge(self, d):
         # return (self.erd(d) - self.oc(d)) / self.r_charge[d]

@@ -151,7 +151,11 @@ class Simulator:
             for d, nodes in schedules.items():
                 self.uavs[d].set_schedule(env, nodes)
                 existing_schedules = self.all_schedules.get(d, [])
-                self.all_schedules[d] = existing_schedules + [(env.now, nodes)]
+                new_schedule = {
+                    "timestamp": env.now,
+                    "nodes": nodes
+                }
+                self.all_schedules[d] = existing_schedules + [new_schedule]
 
             for i, cs in enumerate(self.charging_stations):
                 if cs.count == cs.capacity:

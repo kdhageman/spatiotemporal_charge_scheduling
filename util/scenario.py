@@ -365,11 +365,11 @@ class ScenarioFactory:
                 wps.append(wps[-1])
             positions_w.append(wps)
 
-        remaining_distances = []
+        # calculate remaining distances
+        rhos = []
         for d in range(self.N_d):
-            remaining_distances.append(
-                self.sc.D_N[d, -1, offsets[d] + self.W_hat:].sum()
-            )
+            rho = self.sc.D_N[d, -1, offsets[d] + self.W_hat:].sum()
+            rhos.append(rho)
 
         anchors = []
         for d in range(self.sc.N_d):
@@ -380,7 +380,7 @@ class ScenarioFactory:
                 anchors_trimmed_d = [0] + anchors_trimmed_d
             anchors.append(anchors_trimmed_d)
 
-        return Scenario(start_positions, self.positions_S, positions_w, wp_max=self.N_w, anchors=anchors, offsets=offsets), remaining_distances
+        return Scenario(start_positions, self.positions_S, positions_w, wp_max=self.N_w, anchors=anchors, offsets=offsets), rhos
 
 
 def scenario_serializer(obj: Scenario, *args, **kwargs):

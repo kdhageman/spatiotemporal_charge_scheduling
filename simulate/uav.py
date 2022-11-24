@@ -384,13 +384,13 @@ class UAV:
                 # charge the UAV in timesteps
                 finished_charging = False
                 ct_sum = 0
-                uninterrupted_charge = True
+                charge_interrupted = False
                 while not finished_charging:
                     pre_charge_battery = self.battery
                     self.t_start = env.now
                     real_delta_t, real_charge, finished_charging = flyenv.charge(delta_t, remaining_charge, self.r_charge, self.battery)
                     post_charge_battery = self.battery + real_charge
-                    event = env.timeout(real_delta_t, value=ChargedEvent(self.t_start, real_delta_t, self.dest_node, self, battery=post_charge_battery, depletion=real_charge))
+                    event = env.timeout(real_delta_t, value=ChargedEvent(self.t_start, real_delta_t, self.dest_node, self, battery=post_charge_battery, depletion=-real_charge))
 
                     try:
                         yield event
@@ -419,14 +419,14 @@ class UAV:
                             self.time_spent['charging'] += t_charged
 
                             # step out of the loop for moving small time steps
-                            uninterrupted_charge = False
+                            charge_interrupted = True
 
                             for cb in self.charged_cbs:
                                 cb(event)
 
                             break
 
-                if uninterrupted_charge:
+                if not charge_interrupted:
                     self._release_lock(env)
                     ct_str = charging_time if charging_time == 'until full' else f"for {ct_sum:.2f}s"
                     self.debug(env, f"finished charging at station {self.dest_node.identifier} {ct_str}")

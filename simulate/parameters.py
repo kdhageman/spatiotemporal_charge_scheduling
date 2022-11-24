@@ -38,7 +38,6 @@ class SchedulingParameters:
     int_feas_tol: float = 1e-9
     time_limit: float = 60
     epsilon: float = 1
-    remaining_distances: list = None
 
     @classmethod
     def from_raw(cls,
@@ -56,10 +55,9 @@ class SchedulingParameters:
                  int_feas_tol: float = 1e-9,
                  time_limit: float = 60,
                  epsilon: float = 1,
-                 remaining_distances: list = None,
                  ):
-        if remaining_distances is None:
-            remaining_distances = []
+        if rho is None:
+            rho = [0] * len(v)
         return SchedulingParameters(
             np.array(v),
             np.array(r_charge),
@@ -75,11 +73,26 @@ class SchedulingParameters:
             int_feas_tol,
             time_limit,
             epsilon,
-            remaining_distances,
         )
 
-    def with_remaining_distances(self, remaining_distances):
-        self.remaining_distances = remaining_distances
+    def with_remaining_distances(self, rho):
+        self.rho = rho
+        return self
+
+    def with_start_battery(self, B_start):
+        self.B_start = B_start
+        return self
+
+    def with_min_battery(self, B_min):
+        self.B_min = B_min
+        return self
+
+    def with_end_battery(self, B_end):
+        self.B_end = B_end
+        return self
+
+    def with_omega(self, omega):
+        self.omega = omega
         return self
 
 

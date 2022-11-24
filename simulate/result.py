@@ -9,7 +9,6 @@ from simulate.parameters import SchedulingParameters
 from simulate.scheduling import Scheduler
 from util.scenario import Scenario
 
-
 @dataclass
 class SimResult:
     """
