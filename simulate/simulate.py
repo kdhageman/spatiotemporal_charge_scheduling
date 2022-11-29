@@ -341,8 +341,8 @@ def plot_events_battery(result: SimResult, fname: str):
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([0, 1])
         grid[d].spines.right.set_visible(False)
-        for ts, _ in result.schedules[d]:
-            grid[d].axvline(ts, color='black', linestyle=":", alpha=0.5, zorder=1)
+        for schedule in result.schedules[d]:
+            grid[d].axvline(schedule['timestamp'], color='black', linestyle=":", alpha=0.5, zorder=1)
 
     # add vertical lines
     for d in range(len(events)):

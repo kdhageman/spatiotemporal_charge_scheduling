@@ -87,10 +87,6 @@ class SchedulingParameters:
         self.B_min = B_min
         return self
 
-    def with_end_battery(self, B_end):
-        self.B_end = B_end
-        return self
-
     def with_omega(self, omega):
         self.omega = omega
         return self

@@ -166,17 +166,27 @@ class Scenario:
 
         return Scenario(start_positions, positions_S, positions_w)
 
-    def nearest_station(self, pos):
+    def nearest_station(self, pos) -> Tuple[int, float]:
         """
         Returns the distance and index of the nearest charging station for the given position
-        :param pos:
-        :return:
+        :param pos: three-dimensional position
+        :return: index, distance
         """
         distances = []
         for pos_s in self.positions_S:
             distances += [dist3(pos, pos_s)]
         idx = np.argmin(distances)
         return idx, distances[idx]
+
+    def nearest_station_to_start(self, d) -> Tuple[int, float]:
+        """
+        Returns the distance and index of the nearest charging stations for the start position of the given drone 'd'
+        :param d:
+        :return: index, distance
+        """
+        idx = self.D_N[d, :-1, 0].argmin()
+        dist = self.D_N[d, idx, 0]
+        return idx, dist
 
     def bounding_box(self):
         """

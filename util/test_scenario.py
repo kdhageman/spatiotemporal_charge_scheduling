@@ -5,29 +5,12 @@ from unittest import TestCase
 import numpy as np
 import yaml
 
-from simulate.parameters import Parameters
-from simulate.scheduling import draw_graph
+from simulate.parameters import SchedulingParameters
+from simulate.util import draw_graph
 from util.scenario import Scenario, ScenarioFactory
 
 
 class TestScenario(TestCase):
-    def setUp(self) -> None:
-        p = dict(
-            v=[1] * 3,
-            r_charge=[0.04] * 3,
-            r_deplete=[0.3] * 3,
-            B_min=[0.1] * 3,
-            B_max=[1] * 3,
-            B_start=[1] * 3,
-            plot_delta=0.1,
-            # plot_delta=0,
-            W=3,
-            sigma=1,
-            epsilon=1e-2,
-            W_zero_min=None
-        )
-        self.params = Parameters(**p)
-
     def test_init_single(self):
         doc = {
             "charging_stations": [
@@ -102,21 +85,18 @@ class TestScenario(TestCase):
 
 class TestCollapse(TestCase):
     def setUp(self):
-        p = dict(
+        self.sched_params = SchedulingParameters.from_raw(
             v=[1] * 3,
             r_charge=[0.04] * 3,
             r_deplete=[0.3] * 3,
-            B_min=[0.1] * 3,
-            B_max=[1] * 3,
             B_start=[1] * 3,
-            plot_delta=0.1,
-            # plot_delta=0,
-            W=3,
+            B_min=0.1 * np.ones((3, 3)),
+            B_max=[1] * 3,
+            W_hat=3,
             sigma=1,
             epsilon=1e-2,
-            W_zero_min=None
+            pi=1,
         )
-        self.params = Parameters(**p)
 
         self.wps = [
             [
@@ -139,11 +119,11 @@ class TestCollapse(TestCase):
         sc = Scenario(start_positions=self.start_positions, positions_S=self.charging_stations, positions_w=self.wps, anchors=anchors)
 
         fname = os.path.join(os.getcwd(), "not_collapsed.pdf")
-        draw_graph(sc, self.params, fname)
+        draw_graph(sc, self.sched_params, fname)
 
         collapsed = sc.collapse()
         fname = os.path.join(os.getcwd(), "collapsed.pdf")
-        draw_graph(collapsed, self.params, fname)
+        draw_graph(collapsed, self.sched_params, fname)
 
     def test_collapse_first_anchor_draw(self):
         anchors = [
@@ -153,19 +133,19 @@ class TestCollapse(TestCase):
 
         offsets = [0]
         fname = os.path.join(os.getcwd(), "not_collapsed.pdf")
-        draw_graph(sc, self.params, fname)
+        draw_graph(sc, self.sched_params, fname)
 
         collapsed = sc.collapse()
         fname = os.path.join(os.getcwd(), "collapsed.pdf")
-        draw_graph(collapsed, self.params, fname)
+        draw_graph(collapsed, self.sched_params, fname)
 
     def test_check_d_n(self):
         anchors = [[2, 5]]
         sc = Scenario(start_positions=self.start_positions, positions_S=self.charging_stations, positions_w=self.wps, anchors=anchors)
         offsets = [0]
-        draw_graph(sc, self.params, "not_collapsed.pdf")
+        draw_graph(sc, self.sched_params, "not_collapsed.pdf")
         collapsed = sc.collapse()
-        draw_graph(collapsed, self.params, "collapsed.pdf")
+        draw_graph(collapsed, self.sched_params, "collapsed.pdf")
 
         # w_s = 0 (D_N)
         expected = sc.D_N[0, :, 2] + 2
@@ -212,11 +192,11 @@ class TestCollapse(TestCase):
         ]
         sc = Scenario(start_positions=start_positions, positions_S=self.charging_stations, positions_w=wps, anchors=anchors)
         fname = os.path.join(os.getcwd(), "not_collapsed.uneven.pdf")
-        draw_graph(sc, self.params, fname)
+        draw_graph(sc, self.sched_params, fname)
 
         collapsed = sc.collapse()
         fname = os.path.join(os.getcwd(), "collapsed.uneven.pdf")
-        draw_graph(collapsed, self.params, fname)
+        draw_graph(collapsed, self.sched_params, fname)
 
         positions_w_expected = [
             [(1, 0, 0), (4, 0, 0)],

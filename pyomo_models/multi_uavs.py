@@ -24,7 +24,6 @@ class MultiUavModel(pyo.ConcreteModel):
         self.epsilon = params.epsilon
         self.B_start = params.B_start
         self.B_min = params.B_min
-        self.B_end = params.B_end
         self.B_max = params.B_max
         self.r_charge = params.r_charge
         self.r_deplete = params.r_deplete
@@ -36,7 +35,7 @@ class MultiUavModel(pyo.ConcreteModel):
         self.positions_w = sc.positions_w
         self.D_N = sc.D_N
         self.D_W = sc.D_W
-        self.C_max = (self.B_max - self.B_min) / self.r_charge
+        self.C_max = (self.B_max - self.B_min.min(axis=1)) / self.r_charge  # TODO: index per waypoint too?
 
         self.W_max = []
         for d in range(self.N_d):
@@ -138,11 +137,7 @@ class MultiUavModel(pyo.ConcreteModel):
         self.info(f"finished initializing 'W_llim' ({len(self.W_llim):,})")
 
         def b_star_llim_rule(m, d, w_d):
-            if w_d == m.N_w:
-                lim = m.B_end[d]
-            else:
-                lim = m.B_min[d]
-            return m.b_star(d, w_d) >= lim
+            return m.b_star(d, w_d) >= m.B_min[d, w_d]
 
         self.b_star_llim = pyo.Constraint(self.d, self.w_d, rule=b_star_llim_rule)
         self.info(f"finished initializing 'b_star_llim' ({len(self.b_star_llim):,})")
@@ -151,7 +146,7 @@ class MultiUavModel(pyo.ConcreteModel):
             b_min = m.b_min(d, w_s)
             if type(b_min) != SumExpression:
                 return pyo.Constraint.Skip
-            return b_min >= m.B_min[d]
+            return b_min >= m.B_min[d, w_s]
 
         self.b_min_llim = pyo.Constraint(self.d, self.w_s, rule=b_min_llim_rule)
         self.info(f"finished initializing 'b_min_llim' ({len(self.b_min_llim):,})")
@@ -305,7 +300,7 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         Return the overcharge for drone 'd'
         """
-        return self.b_star(d, self.N_w) - self.B_end[d]
+        return self.b_star(d, self.N_w) - self.B_min[d, -1]
 
     def erd(self, d):
         """

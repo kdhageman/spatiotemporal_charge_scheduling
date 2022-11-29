@@ -8,7 +8,7 @@ import simpy
 from pyomo.opt import SolverFactory
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, Node
-from simulate.parameters import SchedulingParameters, SimulationParameters
+from simulate.parameters import SchedulingParameters
 from simulate.uav import UavStateType
 from simulate.util import is_feasible
 from util.distance import dist3
@@ -117,17 +117,17 @@ class MilpScheduler(Scheduler):
             self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {rho:.1f}")
 
         # prepare B_end
-        B_end = []
+        B_min = np.repeat(self.params.B_min[:, np.newaxis], sc_collapsed.N_w + 1, axis=1)
         for d in range(self.sc.N_d):
             idx_last_scheduled_wp = self.offsets[d] + self.params.W_hat
             if idx_last_scheduled_wp >= self.sf.N_w:
                 self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is scheduled until the end, so ends with B_end of {self.params.B_min[d]:.2f}")
-                B_end.append(self.params.B_min[d])
+                B_min[d, -1] = self.params.B_min[d]  # TODO: this should be redundant
             else:
                 remaining_anchors = [a for a in self.sf.anchors() if a >= idx_last_scheduled_wp]
                 if not remaining_anchors:
                     self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has no anchor before the end, so ends with B_end of {self.params.B_min[d]:.2f}")
-                    B_end.append(self.params.B_min[d])
+                    B_min[d, -1] = self.params.B_min[d]  # TODO: this should be redundant
                 else:
                     total_dist_to_cs = 0
                     next_anchor = remaining_anchors[0]
@@ -139,23 +139,21 @@ class MilpScheduler(Scheduler):
 
                     b = self.params.B_min[d] + additional_depletion
                     self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] must end with an additional {additional_depletion * 100:.2f}% battery, so ends up with B_end of {b * 100:.2f}%")
-                    B_end.append(b)
+                    B_min[d, -1] = b
 
         # TODO: revise this for anchors?
         # TODO: let the current battery value on apply to arrival at the FIRST node
         # calculate B_min
-        B_min = []
         for d in range(sc_collapsed.N_d):
-            _, dist_to_nearest_station = sc_collapsed.nearest_station(start_positions[d])
+            _, dist_to_nearest_station = sc_collapsed.nearest_station_to_start(d)
             depletion_to_nearest_station = dist_to_nearest_station / self.params.v[d] * self.params.r_deplete[d]
-            B_min.append(min(batteries[d] - depletion_to_nearest_station, self.params.B_min[d]))
+            B_min[d, 0] = min(batteries[d] - depletion_to_nearest_station, self.params.B_min[d])
 
         # correct original parameters
         params = deepcopy(self.params). \
             with_remaining_distances(rhos). \
             with_start_battery(np.array(list(batteries.values()))). \
-            with_min_battery(np.array(B_min)). \
-            with_end_battery(np.array(B_end)). \
+            with_min_battery(B_min). \
             with_omega(cs_locks)
 
         # uncomment for debugging

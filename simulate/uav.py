@@ -407,24 +407,24 @@ class UAV:
                         if not self.instructions or self.instructions[0].type != InstructionType.charge:
                             # if we are finished or not charging afterwards, release the lock
                             self._release_lock(env)
-                            t_charged = env.now - self.t_start
-                            ct_sum += t_charged
-                            self.battery = self.battery + self.r_charge * t_charged  # TODO: simulate this too?
-                            depletion = pre_charge_battery - self.battery
-                            event = env.timeout(0, value=ChargedEvent(self.t_start, ct_sum, self.dest_node, self, battery=self.battery, depletion=depletion))
-                            yield event
+                        t_charged = env.now - self.t_start
+                        ct_sum += t_charged
+                        self.battery = self.battery + self.r_charge * t_charged  # TODO: simulate this too?
+                        depletion = pre_charge_battery - self.battery
+                        event = env.timeout(0, value=ChargedEvent(self.t_start, t_charged, self.dest_node, self, battery=self.battery, depletion=depletion))
+                        yield event
 
-                            self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {ct_sum:.2f}")
-                            self.state_type = UavStateType.Idle
-                            self.time_spent['charging'] += t_charged
+                        self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {ct_sum:.2f}s")
+                        self.state_type = UavStateType.Idle
+                        self.time_spent['charging'] += t_charged
 
-                            # step out of the loop for moving small time steps
-                            charge_interrupted = True
+                        # step out of the loop for moving small time steps
+                        charge_interrupted = True
 
-                            for cb in self.charged_cbs:
-                                cb(event)
+                        for cb in self.charged_cbs:
+                            cb(event)
 
-                            break
+                        break
 
                 if not charge_interrupted:
                     self._release_lock(env)
