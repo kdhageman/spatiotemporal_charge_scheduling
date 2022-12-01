@@ -174,6 +174,13 @@ def flight_sequences_to_geometries(flight_sequences: np.array):
 
     geos = []
     for i, seq in enumerate(flight_sequences):
+        # waypoints as orbs
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(seq)
+        pcd.colors = o3d.utility.Vector3dVector([colors[i]] * len(seq))
+        geos.append(pcd)
+
+        # path between all waypoints
         ls = o3d.geometry.LineSet()
         ls.points = o3d.utility.Vector3dVector(seq)
         flight_path = [(i, i + 1) for i in range(len(seq) - 1)]
