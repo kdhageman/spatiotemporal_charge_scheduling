@@ -15,6 +15,8 @@ import nxmetis
 import open3d as o3d
 import scipy
 from matplotlib import pyplot as plt
+from open3d.cpu.pybind.camera import PinholeCameraParameters
+from open3d.cpu.pybind.visualization import ViewControl
 
 from simulate.parameters import SchedulingParameters, SimulationParameters
 
@@ -66,15 +68,23 @@ def estimate_normal(pcd: o3d.geometry.PointCloud):
     return pcd
 
 
-def draw_geometries(geometries: List[Geometry3D], xrot: float, yrot: float, xtrans: float = 0, ytrans: float = 0, fname: str = None, **kwargs):
+def draw_geometries(viewpoint_geo: Geometry3D, geometries: List[Geometry3D], viewpoint: PinholeCameraParameters = None, fname: str = None, **kwargs):
     vis = o3d.visualization.Visualizer()
 
     vis.create_window(**kwargs)
+
+    # add a geometry just for having an initial viewpoint
+    vis.add_geometry(viewpoint_geo)
+    vis.remove_geometry(viewpoint_geo, reset_bounding_box=False)
+
     for g in geometries:
-        vis.add_geometry(g)
-    ctr = vis.get_view_control()
-    ctr.translate(xtrans, ytrans)
-    ctr.rotate(xrot, yrot)
+        vis.add_geometry(g, reset_bounding_box=False)
+
+    # set viewpoint from pinhole parameter file
+    if viewpoint:
+        ctr = vis.get_view_control()
+        ctr.convert_from_pinhole_camera_parameters(viewpoint)
+
     if fname:
         dat = np.asarray(vis.capture_screen_float_buffer(True))
         dat = np.minimum(dat, 1)
@@ -338,7 +348,7 @@ def optimize_path(seq: list, pcd: o3d.geometry.PointCloud, p_start, voxel_size, 
     prob = cvxpy.Problem(cvxpy.Minimize(sum_norm2 + sum_diff_norm2 + sum_vert_diff_norm2),
                          constrains_first + constrains_seq + constrains_3 + constrains_4 + constrains_5)
     # set solver option: https://www.cvxpy.org/tutorial/advanced/index.html
-    prob.solve(solver="ECOS", verbose=verbose)
+    prob.solve(solver=cvxpy.ECOS, verbose=verbose, max_iters=1000)
     return g.value
 
 
@@ -388,6 +398,7 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
         solver = SolverFactory("gurobi")
         solver.options['IntFeasTol'] = sched_params.int_feas_tol
         solver.options['TimeLimit'] = sched_params.time_limit
+        # solver.options['Method'] = 3  # faster method without reproducibility (concurrent) https://www.gurobi.com/documentation/9.1/refman/method.html#parameter:Method
         # solver.options['MIPGap'] = 25
         scheduler = MilpScheduler(sched_params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
@@ -409,7 +420,7 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
 
 def load_flight_sequences(path):
     with open(path, 'rb') as f:
-        flight_sequences = pickle.load(f)
+        flight_sequences = np.array(pickle.load(f))
 
     # add intermediate positions
     dist_cuttoffs = []

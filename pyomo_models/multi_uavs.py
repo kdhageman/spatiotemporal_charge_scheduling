@@ -238,14 +238,20 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         Calculate the battery of drone 'd' when arriving at the next path node after waypoint 'w_s'
         """
-        return self.b_star(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
+        try:
+            return self.b_star(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
+        except RecursionError as e:
+            raise e
 
     @lru_cache(maxsize=None)
     def b_plus(self, d, w_s):
         """
         Calculate the battery of drone 'd' after charging after waypoint 'w_s'
         """
-        return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
+        try:
+            return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
+        except RecursionError as e:
+            raise e
 
     @lru_cache(maxsize=None)
     def T_s(self, d, w_s):
