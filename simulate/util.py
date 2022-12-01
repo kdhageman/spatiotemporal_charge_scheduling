@@ -107,7 +107,7 @@ def is_feasible(sc, params) -> bool:
                 l.append("S")
             depletion = dist / params.v[d] * params.r_deplete[d]
             b_end = b_before - depletion
-            surplus = b_end - params.B_min[d]
+            surplus = b_end - params.B_min[d, a]
             logger.debug(f"for UAV [{d}] at anchor '{a}', traversing {dist:.2f}m, depleting {depletion * 100:.2f}% battery (or a {surplus * 100:.2f}% surplus) ({' - '.join(l)})")
             if surplus < 0:
                 return False
@@ -127,7 +127,7 @@ def is_feasible(sc, params) -> bool:
 
         depletion = dist / params.v[d] * params.r_deplete[d]
         b_end = b_before - depletion
-        surplus = b_end - params.B_end[d]
+        surplus = b_end - params.B_min[d, -1]
         logger.debug(f"for UAV [{d}] after anchor '{a}', traversing {dist:.2f}m, depleting {depletion * 100:.2f}% battery (or a {surplus * 100:.2f}% surplus) ({' - '.join(l)})")
         if surplus < 0:
             return False
@@ -225,7 +225,7 @@ def draw_graph(sc, params, fname):
         # battery levels
         y = -0.1
         xs = [0, sc.N_w * X_OFFSET]
-        vals = [params.B_start[d], params.B_end[d]]
+        vals = [params.B_start[d], params.B_min[d, -1]]
         for x, val in zip(xs, vals):
             ax.text(x, y, f"{val * 100:.1f}%", color='red', fontdict={"size": 6}, ha='center', backgroundcolor='white')
 

@@ -7,6 +7,7 @@ class EventType(Enum):
     charged = 'charged'
     started = 'started'
     changed_course = 'changed_course'
+    crashed = 'crashed'
 
 
 class Event:
@@ -55,3 +56,8 @@ class StartedEvent(Event):
 class ChangedCourseEvent(Event):
     def __init__(self, ts_start, duration, node, uav=None, battery=1, depletion=0, forced=False):
         super().__init__(ts_start, duration, EventType.changed_course, node, uav=uav, battery=battery, depletion=depletion, forced=forced)
+
+
+class CrashedEvent(Event):
+    def __init__(self, ts_start, duration, node, uav=None, battery=1, depletion=0, forced=False):
+        super().__init__(ts_start, duration, EventType.crashed, node, uav=uav, battery=battery, depletion=depletion, forced=forced)

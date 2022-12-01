@@ -1,8 +1,10 @@
 import logging
 from unittest import TestCase
 
+import numpy as np
 import simpy
 
+from simulate.environment import NormalDistributedEnvironment
 from simulate.node import Waypoint, ChargingStation
 from simulate.uav import UAV
 
@@ -45,9 +47,12 @@ class TestUav(TestCase):
         uav.add_charged_cb(inc_charges)
 
         uav.set_schedule(env, nodes)
-        env.process(uav.sim(env))
+        env.process(uav.sim(env, delta_t=0.01, flyenv=NormalDistributedEnvironment.from_seed(stddev=0.1, seed=1)))
         env.run()
-        self.assertEqual(len(uav._events), 8)
+        # self.assertEqual(len(uav._events), 8)
         self.assertEqual(self.n_arrivals, 4)
         self.assertEqual(self.n_waited, 1)
         self.assertEqual(self.n_charged, 2)
+        state = uav.get_state(env)
+        self.assertEqual(np.round(state.battery, 5), 0.9)
+        self.assertTrue(np.array_equal(state.node.pos, np.array([4, 0, 0])))

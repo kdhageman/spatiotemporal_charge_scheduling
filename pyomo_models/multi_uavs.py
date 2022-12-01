@@ -1,19 +1,18 @@
 import logging
 from datetime import datetime
 from functools import lru_cache
-from typing import List
 
 import numpy as np
 import pyomo.environ as pyo
 from pyomo.core import Block
 from pyomo.core.expr.numeric_expr import SumExpression
 
-from simulate.parameters import Parameters
+from simulate.parameters import SchedulingParameters
 from util.scenario import Scenario
 
 
 class MultiUavModel(pyo.ConcreteModel):
-    def __init__(self, sc: Scenario, params: Parameters):
+    def __init__(self, sc: Scenario, params: SchedulingParameters):
         super().__init__()
         self.logger = logging.getLogger(__name__)
 
@@ -25,19 +24,18 @@ class MultiUavModel(pyo.ConcreteModel):
         self.epsilon = params.epsilon
         self.B_start = params.B_start
         self.B_min = params.B_min
-        self.B_end = params.B_end
         self.B_max = params.B_max
         self.r_charge = params.r_charge
         self.r_deplete = params.r_deplete
         self.v = params.v
-        self.W_zero_min = params.W_zero_min
-        self.remaining_distances = params.remaining_distances
+        self.omega = params.omega
+        self.rho = params.rho
 
         self.positions_S = sc.positions_S
         self.positions_w = sc.positions_w
         self.D_N = sc.D_N
         self.D_W = sc.D_W
-        self.C_max = (self.B_max - self.B_min) / self.r_charge
+        self.C_max = (self.B_max - self.B_min.min(axis=1)) / self.r_charge  # TODO: index per waypoint too?
 
         self.W_max = []
         for d in range(self.N_d):
@@ -134,16 +132,12 @@ class MultiUavModel(pyo.ConcreteModel):
 
         self.W_llim = pyo.Constraint(
             self.d,
-            rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.W_zero_min[d, s] for s in m.s)
+            rule=lambda m, d: m.W[d, 0] + sum(m.P[d, s, 0] * m.D_N[d, s, 0] for s in m.s) / m.v[d] >= sum(m.P[d, s, 0] * m.omega[d, s] for s in m.s)
         )
         self.info(f"finished initializing 'W_llim' ({len(self.W_llim):,})")
 
         def b_star_llim_rule(m, d, w_d):
-            if w_d == m.N_w:
-                lim = m.B_end[d]
-            else:
-                lim = m.B_min[d]
-            return m.b_star(d, w_d) >= lim
+            return m.b_star(d, w_d) >= m.B_min[d, w_d]
 
         self.b_star_llim = pyo.Constraint(self.d, self.w_d, rule=b_star_llim_rule)
         self.info(f"finished initializing 'b_star_llim' ({len(self.b_star_llim):,})")
@@ -152,7 +146,7 @@ class MultiUavModel(pyo.ConcreteModel):
             b_min = m.b_min(d, w_s)
             if type(b_min) != SumExpression:
                 return pyo.Constraint.Skip
-            return b_min >= m.B_min[d]
+            return b_min >= m.B_min[d, w_s]
 
         self.b_min_llim = pyo.Constraint(self.d, self.w_s, rule=b_min_llim_rule)
         self.info(f"finished initializing 'b_min_llim' ({len(self.b_min_llim):,})")
@@ -244,14 +238,20 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         Calculate the battery of drone 'd' when arriving at the next path node after waypoint 'w_s'
         """
-        return self.b_star(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
+        try:
+            return self.b_star(d, w_s) - self.r_deplete[d] / self.v[d] * sum(self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n)
+        except RecursionError as e:
+            raise e
 
     @lru_cache(maxsize=None)
     def b_plus(self, d, w_s):
         """
         Calculate the battery of drone 'd' after charging after waypoint 'w_s'
         """
-        return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
+        try:
+            return self.b_min(d, w_s) + self.r_charge[d] * self.C[d, w_s]
+        except RecursionError as e:
+            raise e
 
     @lru_cache(maxsize=None)
     def T_s(self, d, w_s):
@@ -287,13 +287,13 @@ class MultiUavModel(pyo.ConcreteModel):
         return sum(self.t(d, w_s) for w_s in self.w_s)
 
     def remaining_move_time(self, d):
-        return self.remaining_distances[d] / self.v[d]
+        return self.rho[d] / self.v[d]
 
     def remaining_depletion(self, d):
         return self.remaining_move_time(d) * self.r_deplete[d]
 
     def lambda_move(self, d):
-        return self.remaining_distances[d] / self.v[d]
+        return self.rho[d] / self.v[d]
 
     def lambda_charge(self, d):
         # return (self.erd(d) - self.oc(d)) / self.r_charge[d]
@@ -306,7 +306,7 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         Return the overcharge for drone 'd'
         """
-        return self.b_star(d, self.N_w) - self.B_end[d]
+        return self.b_star(d, self.N_w) - self.B_min[d, -1]
 
     def erd(self, d):
         """

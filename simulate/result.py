@@ -1,25 +1,49 @@
-from typing import List, Tuple
+from dataclasses import dataclass, asdict
+from typing import List, Tuple, Dict, Type
+
+import jsons
+
 from simulate.event import Event
 from simulate.node import Node
-from simulate.parameters import Parameters
+from simulate.parameters import SchedulingParameters
 from simulate.scheduling import Scheduler
 from util.scenario import Scenario
 
-
+@dataclass
 class SimResult:
     """
     Stores the status of the simulation result
     """
+    sched_params: SchedulingParameters
+    scenario: Scenario
+    events: List[Event]
+    solve_times: List[float]
+    execution_time: float
+    time_spent: dict
+    schedules: List[Tuple[int, List[Node]]]
+    nr_visited_waypoints: List[int]
+    occupancy: Dict[int, List[Dict[str, float]]]
+    scheduler_cls: Type[Scheduler]
 
-    def __init__(self, params: Parameters, scenario: Scenario, events: List[Event], solve_times: List[float], execution_time: float, time_spent: dict, schedules: List[Tuple[int, List[Node]]], nr_visited_waypoints: List[int], occupancy,
-                 scheduler: Scheduler):
-        self.params = params
-        self.events = events
-        self.solve_times = solve_times
-        self.execution_time = execution_time
-        self.time_spent = time_spent
-        self.schedules = schedules
-        self.nr_visited_waypoints = nr_visited_waypoints,
-        self.scenario = scenario
-        self.occupancy = occupancy
-        self.scheduler = scheduler.__class__.__name__.lower()
+    @property
+    def scheduler(self):
+        return self.scheduler_cls.__class__.__name__.lower()
+
+
+def simresult_serializer(obj: SimResult, *args, **kwargs):
+    res = dict(
+        sched_params=jsons.dump(obj.sched_params),
+        scenario=jsons.dump(obj.scenario),
+        event=jsons.dump(obj.events),
+        solve_times=jsons.dump(obj.solve_times),
+        execution_time=jsons.dump(obj.execution_time),
+        time_spend=jsons.dump(obj.time_spent),
+        schedules=jsons.dump(obj.schedules),
+        nr_visited_waypoints=jsons.dump(obj.nr_visited_waypoints),
+        occupancy=jsons.dump(obj.occupancy),
+        scheduler=jsons.dump(obj.scheduler),
+    )
+    return res
+
+
+jsons.set_serializer(simresult_serializer, SimResult)

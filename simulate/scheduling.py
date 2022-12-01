@@ -1,24 +1,23 @@
 import logging
 import time
+from copy import deepcopy
 from datetime import datetime
 from typing import List, Dict, Tuple
-
 import numpy as np
 import simpy
 from pyomo.opt import SolverFactory
-
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, Node
-from simulate.parameters import Parameters
+from simulate.parameters import SchedulingParameters
 from simulate.uav import UavStateType
-from simulate.util import is_feasible, draw_graph, draw_schedule
+from simulate.util import is_feasible
 from util.distance import dist3
 from util.exceptions import NotSolvableException
 from util.scenario import Scenario, ScenarioFactory
 
 
 class Scheduler:
-    def __init__(self, params: Parameters, sc: Scenario):
+    def __init__(self, params: SchedulingParameters, sc: Scenario):
         """
         :param cb: the callback function that should be called whenever the scheduler generates a new schedule
         """
@@ -97,9 +96,9 @@ class Scheduler:
 
 
 class MilpScheduler(Scheduler):
-    def __init__(self, params: Parameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
+    def __init__(self, params: SchedulingParameters, scenario: Scenario, solver=SolverFactory("gurobi_ampl", solver_io='nl')):
         super().__init__(params, scenario)
-        self.sf = ScenarioFactory(self.sc, params.W, params.sigma)
+        self.sf = ScenarioFactory(self.sc, params.W_hat, params.sigma)
         self.solver = solver
         self.i = 0
 
@@ -108,33 +107,27 @@ class MilpScheduler(Scheduler):
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
         start_positions_list = list(start_positions.values())
-        sc, remaining_distances = self.sf.next(start_positions_list, self.offsets)
+        sc, rhos = self.sf.next(start_positions_list, self.offsets)
         if sc.N_w == 0:
             # return empty schedules
             return 0, (True, {d: [] for d in uavs_to_schedule})
 
         sc_collapsed = sc.collapse()
-
-        for d, remaining_distance in enumerate(remaining_distances):
-            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {remaining_distance:.1f}")
-
-        # correct original parameters
-        params = self.params.copy()
-        params.remaining_distances = remaining_distances
-        params.B_start = np.array(list(batteries.values()))
+        for d, rho in enumerate(rhos):
+            self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] determined remaining distance for UAV [{d}] to be {rho:.1f}")
 
         # prepare B_end
-        B_end = []
+        B_min = np.repeat(self.params.B_min[:, np.newaxis], sc_collapsed.N_w + 1, axis=1)
         for d in range(self.sc.N_d):
-            idx_last_scheduled_wp = self.offsets[d] + params.W
+            idx_last_scheduled_wp = self.offsets[d] + self.params.W_hat
             if idx_last_scheduled_wp >= self.sf.N_w:
-                self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is scheduled until the end, so ends with B_end of {params.B_min[d]:.2f}")
-                B_end.append(params.B_min[d])
+                self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] is scheduled until the end, so ends with B_end of {self.params.B_min[d]:.2f}")
+                B_min[d, -1] = self.params.B_min[d]  # TODO: this should be redundant
             else:
                 remaining_anchors = [a for a in self.sf.anchors() if a >= idx_last_scheduled_wp]
                 if not remaining_anchors:
-                    self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has no anchor before the end, so ends with B_end of {params.B_min[d]:.2f}")
-                    B_end.append(params.B_min[d])
+                    self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] has no anchor before the end, so ends with B_end of {self.params.B_min[d]:.2f}")
+                    B_min[d, -1] = self.params.B_min[d]  # TODO: this should be redundant
                 else:
                     total_dist_to_cs = 0
                     next_anchor = remaining_anchors[0]
@@ -144,21 +137,24 @@ class MilpScheduler(Scheduler):
                     total_dist_to_cs += self.sc.D_N[d, :-1, next_anchor].min()
                     additional_depletion = total_dist_to_cs / self.params.v[d] * self.params.r_deplete[d]
 
-                    b = params.B_min[d] + additional_depletion
+                    b = self.params.B_min[d] + additional_depletion
                     self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] UAV [{d}] must end with an additional {additional_depletion * 100:.2f}% battery, so ends up with B_end of {b * 100:.2f}%")
-                    B_end.append(b)
-        params.B_end = np.array(B_end)
+                    B_min[d, -1] = b
 
         # TODO: revise this for anchors?
         # TODO: let the current battery value on apply to arrival at the FIRST node
-        B_min = []
+        # calculate B_min
         for d in range(sc_collapsed.N_d):
-            _, dist_to_nearest_station = sc_collapsed.nearest_station(start_positions[d])
+            _, dist_to_nearest_station = sc_collapsed.nearest_station_to_start(d)
             depletion_to_nearest_station = dist_to_nearest_station / self.params.v[d] * self.params.r_deplete[d]
-            B_min.append(min(batteries[d] - depletion_to_nearest_station, self.params.B_min[d]))
-        params.B_min = np.array(B_min)
+            B_min[d, 0] = min(batteries[d] - depletion_to_nearest_station, self.params.B_min[d])
 
-        params.W_zero_min = cs_locks
+        # correct original parameters
+        params = deepcopy(self.params). \
+            with_remaining_distances(rhos). \
+            with_start_battery(np.array(list(batteries.values()))). \
+            with_min_battery(B_min). \
+            with_omega(cs_locks)
 
         # uncomment for debugging
         # draw_graph(sc, params, f"graph_{self.i}_pre.pdf")

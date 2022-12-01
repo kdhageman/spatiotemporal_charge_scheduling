@@ -13,10 +13,10 @@ charging_optimization:
   r_charge: 0.00067
   r_deplete: 0.006
   plot_delta: 0
-  W: 6
+  W_hat:6
   sigma: 6
   epsilon: 3
   schedule_delta: 20
   time_limit: 60
   int_feas_tol: 1e-9
-  rescheduling_frequency: 3
+  pi: 3

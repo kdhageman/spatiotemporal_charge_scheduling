@@ -166,17 +166,27 @@ class Scenario:
 
         return Scenario(start_positions, positions_S, positions_w)
 
-    def nearest_station(self, pos):
+    def nearest_station(self, pos) -> Tuple[int, float]:
         """
         Returns the distance and index of the nearest charging station for the given position
-        :param pos:
-        :return:
+        :param pos: three-dimensional position
+        :return: index, distance
         """
         distances = []
         for pos_s in self.positions_S:
             distances += [dist3(pos, pos_s)]
         idx = np.argmin(distances)
         return idx, distances[idx]
+
+    def nearest_station_to_start(self, d) -> Tuple[int, float]:
+        """
+        Returns the distance and index of the nearest charging stations for the start position of the given drone 'd'
+        :param d:
+        :return: index, distance
+        """
+        idx = self.D_N[d, :-1, 0].argmin()
+        dist = self.D_N[d, idx, 0]
+        return idx, dist
 
     def bounding_box(self):
         """
@@ -330,7 +340,7 @@ class ScenarioFactory:
     and the given strategy for sampling waypoints (W and sigma)
     """
 
-    def __init__(self, scenario: Scenario, W: int, sigma: float):
+    def __init__(self, scenario: Scenario, W_hat: int, sigma: float):
         self.sc = scenario
         self.positions_S = scenario.positions_S
         self.positions_w = [wps for wps in scenario.positions_w]
@@ -338,7 +348,7 @@ class ScenarioFactory:
         self.N_s = scenario.N_s
         self.N_w = scenario.N_w
 
-        self.W = W
+        self.W_hat = W_hat
         self.sigma = sigma
 
     def anchors(self):
@@ -357,30 +367,30 @@ class ScenarioFactory:
         positions_w = []
         for d in range(self.N_d):
             start = offsets[d]
-            end = offsets[d] + self.W
+            end = offsets[d] + self.W_hat
             wps = self.positions_w[d][start:end]
             if not wps:
                 wps = [start_positions[d]]
-            while len(wps) < self.W:
+            while len(wps) < self.W_hat:
                 wps.append(wps[-1])
             positions_w.append(wps)
 
-        remaining_distances = []
+        # calculate remaining distances
+        rhos = []
         for d in range(self.N_d):
-            remaining_distances.append(
-                self.sc.D_N[d, -1, offsets[d] + self.W:].sum()
-            )
+            rho = self.sc.D_N[d, -1, offsets[d] + self.W_hat:].sum()
+            rhos.append(rho)
 
         anchors = []
         for d in range(self.sc.N_d):
             anchors_d = np.array(self.anchors()) - (offsets[d] % self.sigma)
-            anchors_trimmed_d = [a for a in anchors_d if 0 <= a < self.W]
+            anchors_trimmed_d = [a for a in anchors_d if 0 <= a < self.W_hat]
             # compensate for drones that are currently charging
             if self.sc.is_at_charging_station(start_positions[d]) and 0 not in anchors_trimmed_d:
                 anchors_trimmed_d = [0] + anchors_trimmed_d
             anchors.append(anchors_trimmed_d)
 
-        return Scenario(start_positions, self.positions_S, positions_w, wp_max=self.N_w, anchors=anchors, offsets=offsets), remaining_distances
+        return Scenario(start_positions, self.positions_S, positions_w, wp_max=self.N_w, anchors=anchors, offsets=offsets), rhos
 
 
 def scenario_serializer(obj: Scenario, *args, **kwargs):
