@@ -41,7 +41,9 @@ def main(conf):
     # options to change
     visualize = conf['visualize']
     do_remove_downward_normals = conf['do_remove_downward_normals']
-    charging_stations_positions = conf['charging_stations']
+    charging_stations_positions = conf.get('charging_stations', [])
+    if not charging_stations_positions:
+        charging_stations_positions = []
 
     # prepare output directory
     output_dir = conf['output_directory']

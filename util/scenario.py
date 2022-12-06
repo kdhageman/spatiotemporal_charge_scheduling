@@ -13,7 +13,7 @@ from util.distance import dist3
 
 
 class Scenario:
-    def __init__(self, start_positions: list, positions_S: list, positions_w: list, wp_max: int=None, anchors: list = None, offsets: list = None, waypoint_ids: list = None, n_parent_anchors: list = None):
+    def __init__(self, start_positions: list, positions_S: list, positions_w: list, wp_max: int=None, anchors: list = None, offsets: list = None, waypoint_ids: list = None, n_parent_anchors: list = None, source_file=None):
         """
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
@@ -82,6 +82,8 @@ class Scenario:
         # calculate distance matrices
         self.D_N = self._get_D_N()
         self.D_W = self._get_D_W()
+
+        self.source_file = source_file
 
     def waypoints(self, d):
         return [self.start_positions[d]] + self.positions_w[d]
@@ -400,6 +402,7 @@ def scenario_serializer(obj: Scenario, *args, **kwargs):
         nr_drones=obj.N_d,
         nr_charging_stations=obj.N_s,
         nr_waypoints=obj.N_w,
+        source_file=obj.source_file,
     )
 
 

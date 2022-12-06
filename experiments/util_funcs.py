@@ -244,7 +244,6 @@ def get_next_node(points: np.array, cur_node: int, g: nx.Graph, sn_idx: int, z_p
 
     if res is None:
         # find node from different connected component
-        _ = 1
         for n, dat in g.nodes(data=True):
             if not dat.get('visited', False):
                 res = n
@@ -376,14 +375,14 @@ class ChargingStrategy(Enum):
         return NotImplementedError()
 
 
-def schedule_charge(start_positions: list, waypoints: list, charging_station_positions: list, sched_params: SchedulingParameters, sim_params: SimulationParameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp):
+def schedule_charge(start_positions: list, waypoints: list, charging_station_positions: list, sched_params: SchedulingParameters, sim_params: SimulationParameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp, source_file : str = None):
     """
     Schedules the charging for a sequence of flight waypoints and number of charging station positions
     """
     if directory:
         os.makedirs(directory, exist_ok=True)
 
-    sc = Scenario(start_positions, charging_station_positions, waypoints)
+    sc = Scenario(start_positions, charging_station_positions, waypoints, source_file=source_file)
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # drones:               {sc.N_d}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # stations:             {sc.N_s}")
     for d in range(sc.N_d):
@@ -399,6 +398,7 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] Time limit :            {sched_params.time_limit}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] IntFeasTol :            {sched_params.int_feas_tol}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] pi:                     {sched_params.pi}")
+    logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] source file:            {source_file}")
 
     if strategy == ChargingStrategy.Milp:
         strat = AfterNEventsStrategyAll(sched_params.pi)
@@ -505,7 +505,7 @@ def schedule_charge_from_conf(conf):
     sim_params = SimulationParameters(plot_delta=plot_delta, delta_t=1)
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     t_start = time.perf_counter()
-    _ = schedule_charge(start_positions, waypoints, charging_station_positions, sched_params, sim_params, directory=output_dir, strategy=strategy)
+    _ = schedule_charge(start_positions, waypoints, charging_station_positions, sched_params, sim_params, directory=output_dir, strategy=strategy, source_file=flight_sequence_fpath)
     elapsed = time.perf_counter() - t_start
     logger.debug(f"finished charge schedule simulation in {elapsed:.1f}s")
 

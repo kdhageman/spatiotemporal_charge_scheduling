@@ -3,9 +3,11 @@ import time
 from copy import deepcopy
 from datetime import datetime
 from typing import List, Dict, Tuple
+
 import numpy as np
 import simpy
 from pyomo.opt import SolverFactory
+
 from pyomo_models.multi_uavs import MultiUavModel
 from simulate.node import ChargingStation, Waypoint, NodeType, Node
 from simulate.parameters import SchedulingParameters
@@ -93,6 +95,63 @@ class Scheduler:
         Returns the list of remaining waypoints for the given UAV that need to be visited
         """
         return self.sc.positions_w[d][self.offsets[d]:]
+
+
+class NodeGenerator:
+    """
+    Class for generating nodes given a scenario and a solved model
+    """
+
+    def __init__(self, start_positions: List[List[float]], scenario: Scenario, model: MultiUavModel):
+        self.start_positions = start_positions
+        self.sc = scenario
+        self.model = model
+
+    def generate(self, d) -> List[Node]:
+        """
+        Generates the node list for a given UAV, excludes the start position if encountered
+        :param d: UAV whose node list to generate
+        :return:
+        """
+        nodes = []
+
+        # add all non-startposition waypoints *before* the first anchor
+        first_anchor = self.sc.anchors[d][0]
+        for pos in self.sc.waypoints(d)[1:first_anchor]:
+            node = Waypoint(*pos)
+            nodes.append(node)
+
+        for anchor_idx in self.model.w_s:
+            anchor = self.sc.anchors[d][anchor_idx]
+
+            # add anchor itself
+            if anchor != 0:
+                node = Waypoint(*self.sc.waypoints(d)[anchor])
+                nodes.append(node)
+
+            # add charging station if relevant
+            n = self.model.P_np[d, :, anchor_idx].tolist().index(1)
+            if n < self.model.N_s:
+                # charging
+                wt = max(self.model.W_np[d, anchor_idx], 0)
+                ct = max(self.model.C_np[d, anchor_idx], 0)
+                node = ChargingStation(*self.sc.positions_S[n], n, wt, ct)
+                nodes.append(node)
+
+            try:
+                # add all nodes until the next anchor
+                next_anchor = self.sc.anchors[d][anchor_idx + 1]
+
+                for pos in self.sc.waypoints(d)[anchor + 1: next_anchor]:
+                    node = Waypoint(*pos)
+                    nodes.append(node)
+            except IndexError:
+                # there is no next anchor, add waypoints until the end
+                for pos in self.sc.waypoints(d)[anchor + 1:]:
+                    node = Waypoint(*pos)
+                    nodes.append(node)
+
+        return nodes
 
 
 class MilpScheduler(Scheduler):
@@ -247,42 +306,10 @@ class MilpScheduler(Scheduler):
                     # drone is NOT charging now
                     pass
 
+        ng = NodeGenerator(start_positions, sc, model)
         res = {}
         for d in uavs_to_schedule:
-            nodes = []
-            # all nodes up to first anchor
-            first_anchor = sc.anchors[d][0]
-            for pos in sc.positions_w[d][:first_anchor]:
-                node = Waypoint(*pos)
-                nodes.append(node)
-            for w_s in model.w_s:
-                if w_s >= len(sc.anchors[d]):
-                    # dummy waypoint detected, abort
-                    continue
-
-                n = model.P_np[d, :, w_s].tolist().index(1)
-                if n < model.N_s:
-                    # charging
-                    wt = max(model.W_np[d, w_s], 0)
-                    ct = max(model.C_np[d, w_s], 0)
-                    node = ChargingStation(*sc_collapsed.positions_S[n], n, wt, ct)
-                    nodes.append(node)
-                node = Waypoint(*sc_collapsed.waypoints(d)[w_s + 1])
-                nodes.append(node)
-
-                # all nodes after the anchor
-                cur_anchor = sc.anchors[d][w_s]
-                try:
-                    # for each anchor, follow waypoints until next anchor
-                    next_anchor = sc.anchors[d][w_s + 1]
-                    for pos in sc.positions_w[d][cur_anchor + 1:next_anchor]:
-                        node = Waypoint(*pos)
-                        nodes.append(node)
-                except IndexError:
-                    # after last anchor
-                    for pos in sc.positions_w[d][cur_anchor + 1:]:
-                        node = Waypoint(*pos)
-                        nodes.append(node)
+            nodes = ng.generate(d)
             res[d] = nodes
         return t_solve, (optimal, res)
 
