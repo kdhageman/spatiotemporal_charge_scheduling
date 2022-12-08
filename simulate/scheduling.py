@@ -244,6 +244,7 @@ class MilpScheduler(Scheduler):
             # print("IIS Results")
             # for component, value in model.iis.items():
             #     print(f"{component.name} {component.ctype.__name__} {value}")
+            # log_infeasible_constraints(model)
             raise NotSolvableException(f"failed to solve model: {str(solution['Solver'][0])}")
 
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] solved model successfully in {t_solve:.2f}s!")

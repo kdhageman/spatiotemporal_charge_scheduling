@@ -29,6 +29,7 @@ def main():
         "villalvernia_3.vs_60",
         "villalvernia_3.vs_55",
         "villalvernia_3.vs_50",
+        "villalvernia_3.vs_49",
         ]
 
     # optimal

@@ -229,7 +229,8 @@ class UAV:
                     try:
                         yield event
 
-                        self.debug(env, f"reached {new_node}, B={event.value.battery:.2f} (-{event.value.depletion:.2f})")
+                        if new_node.node_type != NodeType.AuxWaypoint:
+                            self.debug(env, f"reached {new_node}, B={event.value.battery:.2f} (-{event.value.depletion:.2f})")
                         self.last_known_pos = new_node
                         self.battery = event.value.battery
                         self.time_spent['moving'] += real_delta_t

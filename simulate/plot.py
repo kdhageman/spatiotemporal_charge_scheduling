@@ -136,8 +136,7 @@ class SimulationAnimator:
 
                     if cur_events[d].type == EventType.reached:
                         # reached SOMETHING, so the schedule is updated
-                        t_sched, sched = cur_schedules[d]
-                        cur_schedules[d] = (t_sched, sched[1:])
+                        cur_schedules[d]['nodes'] = cur_schedules[d]['nodes'][1:]
 
                     if remaining_events[d]:
                         cur_events[d] = remaining_events[d][0]
@@ -168,12 +167,12 @@ class SimulationAnimator:
 
             # clean up schedule
             for d in range(self.sc.N_d):
-                t_sched, sched = cur_schedules[d]
-                visited_nodes_in_sched = [n for n in sched if n in visited_waypoints[d]]
-                if visited_nodes_in_sched:
-                    last_node_visited_in_sched = visited_nodes_in_sched[-1]
+                sched = cur_schedules[d]['nodes']
+                visited_nodes = list(filter(lambda x: x in visited_waypoints[d], sched))
+                if visited_nodes:
+                    last_node_visited_in_sched = last_node_visited_in_sched[-1]
                     sched_new = sched[sched.index(last_node_visited_in_sched) + 1:]
-                    cur_schedules[d] = t_sched, sched_new
+                    cur_schedules[d]['nodes'] = sched_new
 
             # plot current position
             for d in range(self.sc.N_d):
@@ -196,19 +195,19 @@ class SimulationAnimator:
             # plot schedule
             for d in range(self.sc.N_d):
                 # paths
-                X = [interpolated_pos[d][0]] + [node.pos[0] for node in cur_schedules[d][1]]
-                Y = [interpolated_pos[d][1]] + [node.pos[1] for node in cur_schedules[d][1]]
+                X = [interpolated_pos[d][0]] + [node.pos[0] for node in cur_schedules[d]['nodes']]
+                Y = [interpolated_pos[d][1]] + [node.pos[1] for node in cur_schedules[d]['nodes']]
                 schedule_paths[d].set_data(X, Y)
 
                 # waypoints
-                offsets = [(node.pos[0], node.pos[1]) for node in cur_schedules[d][1] if node.node_type == NodeType.Waypoint]
+                offsets = [(node.pos[0], node.pos[1]) for node in cur_schedules[d]['nodes'] if node.node_type == NodeType.Waypoint]
                 if offsets:
                     schedule_waypoint_scatters[d].set_offsets(offsets)
                 else:
                     schedule_waypoint_scatters[d].set_paths([])
 
                 # charging stations
-                offsets = [(node.pos[0], node.pos[1]) for node in cur_schedules[d][1] if node.node_type == NodeType.ChargingStation]
+                offsets = [(node.pos[0], node.pos[1]) for node in cur_schedules[d]['nodes'] if node.node_type == NodeType.ChargingStation]
                 if offsets:
                     schedule_charging_scatters[d].set_offsets(offsets)
                 else:

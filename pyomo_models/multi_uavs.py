@@ -68,6 +68,9 @@ class MultiUavModel(pyo.ConcreteModel):
 
         # BLOCKS
         def lambda_charge_block_rule(block, d):
+            """
+            Block definition for taking the maximum of zero and (erd_d - oc_d)
+            """
             m = self.erd(d)
             vars = [0, self.erd(d) - self.oc(d)]
 
@@ -100,7 +103,7 @@ class MultiUavModel(pyo.ConcreteModel):
         self.info("fixed control variable values")
 
         # STATE VARIABLES
-        self.theta = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)  # used for linearazing the Theta state variable
+        self.theta = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)  # used for linearizing the Theta state variable
         self.alpha = pyo.Var()  # used for linearizing the minmax objective
         self.info("created state variables")
 
@@ -122,10 +125,7 @@ class MultiUavModel(pyo.ConcreteModel):
         self.info(f"finished initializing 'C_ulim' ({len(self.C_ulim):,})")
 
         def W_ulim_rule(m, d, w_s):
-            try:
-                return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * sum([self.W_max[d_prime] for d_prime in m.d if d_prime != d])
-            except Exception as e:
-                raise e
+            return m.W[d, w_s] <= (1 - m.P[d, m.N_s, w_s]) * sum([self.W_max[d_prime] for d_prime in m.d if d_prime != d])
 
         self.W_ulim = pyo.Constraint(self.d, self.w_s, rule=W_ulim_rule)
         self.info(f"finished initializing 'W_ulim' ({len(self.W_ulim):,})")
@@ -143,10 +143,10 @@ class MultiUavModel(pyo.ConcreteModel):
         self.info(f"finished initializing 'b_star_llim' ({len(self.b_star_llim):,})")
 
         def b_min_llim_rule(m, d, w_s):
-            b_min = m.b_min(d, w_s)
-            if type(b_min) != SumExpression:
-                return pyo.Constraint.Skip
-            return b_min >= m.B_min[d, w_s]
+            # b_min = m.b_min(d, w_s)
+            # if type(b_min) != SumExpression:
+            #     return pyo.Constraint.Skip
+            return m.b_min(d, w_s) >= m.B_min[d, w_s]
 
         self.b_min_llim = pyo.Constraint(self.d, self.w_s, rule=b_min_llim_rule)
         self.info(f"finished initializing 'b_min_llim' ({len(self.b_min_llim):,})")
@@ -259,7 +259,6 @@ class MultiUavModel(pyo.ConcreteModel):
             self.C[d, w_p] + self.W[d, w_p] + self.t(d, w_p) for w_p in range(w_s)) + sum(
             self.P[d, n, w_s] * self.D_N[d, n, w_s] for n in self.n) / self.v[d] + self.W[d, w_s]
 
-    @lru_cache(maxsize=None)
     def Theta(self, d, d_prime, w_s, w_s_prime):
         return sum(self.theta[d, d_prime, w_s, w_s_prime, s] for s in self.s)
 
@@ -267,7 +266,6 @@ class MultiUavModel(pyo.ConcreteModel):
     def T_e(self, d, w_s):
         return self.T_s(d, w_s) + self.C[d, w_s]
 
-    @lru_cache(maxsize=None)
     def E(self, d):
         return sum(self.C[d, w_s] + self.W[d, w_s] + self.t(d, w_s) for w_s in self.w_s) + self.lambda_move(d) + self.lambda_charge(d)
 

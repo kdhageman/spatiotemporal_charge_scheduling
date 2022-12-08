@@ -398,6 +398,7 @@ class ScenarioFactory:
 def scenario_serializer(obj: Scenario, *args, **kwargs):
     return dict(
         waypoints=obj.positions_w,
+        start_positions=obj.start_positions,
         charging_stations=obj.positions_S,
         nr_drones=obj.N_d,
         nr_charging_stations=obj.N_s,
