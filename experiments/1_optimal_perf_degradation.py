@@ -28,9 +28,12 @@ def main():
         "villalvernia_3.vs_65",
         "villalvernia_3.vs_60",
         "villalvernia_3.vs_55",
+        "villalvernia_3.vs_52",
+        "villalvernia_3.vs_51",
         "villalvernia_3.vs_50",
         "villalvernia_3.vs_49",
         ]
+    n_trials = 5
 
     # optimal
     for flight_seq_dir in flight_seq_dirs:
@@ -38,7 +41,6 @@ def main():
         flight_sequences = load_flight_sequences(flight_seq_fpath)
         basedir = "out/villalvernia/optimal_perf"
 
-        n_trials = 1
         for trial in range(1, 1 + n_trials):
             basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = max([len(x) for x in flight_sequences]) - 1
@@ -55,7 +57,9 @@ def main():
                 flight_sequence_fpath=flight_seq_fpath,
                 time_limit=time_limit,
                 r_charge=0.0005025,
+                # r_charge=0.0002777777778,
                 r_deplete=0.0045,
+                # r_deplete=0.001666666667,
             )
             confs.append(conf)
 
@@ -65,7 +69,6 @@ def main():
         flight_sequences = load_flight_sequences(flight_seq_fpath)
         basedir = "out/villalvernia/optimal_perf"
 
-        n_trials = 1
         for trial in range(1, 1 + n_trials):
             basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = max([len(x) for x in flight_sequences]) - 1
@@ -92,7 +95,6 @@ def main():
         flight_sequences = load_flight_sequences(flight_seq_fpath)
         basedir = "out/villalvernia/optimal_perf"
 
-        n_trials = 1
         for trial in range(1, 1 + n_trials):
             basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = max([len(x) for x in flight_sequences]) - 1
@@ -118,7 +120,6 @@ def main():
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
         basedir = "out/villalvernia/optimal_perf"
 
-        n_trials = 1
         for trial in range(1, 1 + n_trials):
             basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = 10
@@ -144,7 +145,6 @@ def main():
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
         basedir = "out/villalvernia/optimal_perf"
 
-        n_trials = 1
         for trial in range(1, 1 + n_trials):
             basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = 15
@@ -170,7 +170,6 @@ def main():
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
         basedir = "out/villalvernia/optimal_perf"
 
-        n_trials = 1
         for trial in range(1, 1 + n_trials):
             basedir_trial = os.path.join(basedir, f"{trial}")
             conf = NaiveConfiguration(

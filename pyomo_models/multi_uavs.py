@@ -70,21 +70,22 @@ class MultiUavModel(pyo.ConcreteModel):
         def lambda_charge_block_rule(block, d):
             """
             Block definition for taking the maximum of zero and (erd_d - oc_d)
+            Linearization technique and notation from Section 2.4 from "Transformation and Linearization Techniques in Optimization: A State-of-the-Art Survey"
             """
-            m = self.erd(d)
-            vars = [0, self.erd(d) - self.oc(d)]
+            m = self.erd(d) + 1  # this value is *always* larger than any of the vars below
+            x = [0, self.erd(d) - self.oc(d)]
 
-            n = len(vars)
+            n = len(x)
             block.n = pyo.RangeSet(0, n - 1)
             block.z = pyo.Var(domain=pyo.NonNegativeReals)
             block.y = pyo.Var(block.n, domain=pyo.Binary)
             block.lower = pyo.Constraint(
                 block.n,
-                rule=lambda b, i: b.z >= vars[i]
+                rule=lambda b, i: b.z >= x[i]
             )
             block.upper = pyo.Constraint(
                 block.n,
-                rule=lambda b, i: b.z <= vars[i] + m * b.y[i]
+                rule=lambda b, i: b.z <= x[i] + m * b.y[i]
             )
             block.binding = pyo.Constraint(
                 rule=lambda b: sum([b.y[i] for i in b.n]) <= n - 1
@@ -306,28 +307,28 @@ class MultiUavModel(pyo.ConcreteModel):
         """
         return self.b_star(d, self.N_w) - self.B_min[d, -1]
 
-    def erd(self, d):
+    def erd(self, d) -> float:
         """
         Return the expected remaining depletion for drone 'd'
         """
         return self.remaining_move_time(d) * self.r_deplete[d]
 
     @property
-    def P_np(self):
+    def P_np(self) -> np.ndarray:
         """
         Returns the chosen path decision variable (P) as a numpy array
         """
         return np.reshape(self.P[:, :, :](), (self.N_d, self.N_s + 1, self.N_w)).round()
 
     @property
-    def C_np(self):
+    def C_np(self) -> np.ndarray:
         """
         Return the charging time decision variable (C) as a numpy array
         """
         return np.reshape(self.C[:, :](), (self.N_d, self.N_w))
 
     @property
-    def W_np(self):
+    def W_np(self) -> np.ndarray:
         """
         Return the waiting time decision variable (W) as a numpy array
         """
