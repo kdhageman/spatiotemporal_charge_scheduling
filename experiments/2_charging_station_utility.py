@@ -6,7 +6,8 @@ from itertools import product
 
 import yaml
 from tqdm import tqdm
-
+import sys
+sys.path.append(".")
 from experiments.configuration import MilpConfiguration, NaiveConfiguration
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
 
