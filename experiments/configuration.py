@@ -24,6 +24,10 @@ class Configuration:
     def outputdir(self):
         return os.path.join(self.basedir, f"{self.ts}")
 
+    @property
+    def N_s(self):
+        return len(self.baseconf['charging_optimization']['charging_positions'])
+
     def experiment_already_exists(self):
         """
         Returns whether an existing experiment in the given directory with the same parameters as this configuration already exists.
@@ -52,9 +56,10 @@ class Configuration:
             int_feas_tol = parsed['sched_params']['int_feas_tol']
             pi = parsed['sched_params']['pi']
             B_min = parsed['sched_params']['B_min'][0]
+            N_s = parsed['scenario']['nr_charging_stations']
 
             if self.charging_strategy + "scheduler" == charging_strategy and self.n_drones == n_drones and self.W_hat == W_hat and self.sigma == sigma and self.flight_sequence_fpath == flight_sequence_fpath and self.v == v \
-                    and self.r_charge == r_charge and self.r_deplete == r_deplete and self.time_limit == time_limit and self.int_feas_tol == int_feas_tol and self.pi == pi and self.B_min == B_min:
+                    and self.r_charge == r_charge and self.r_deplete == r_deplete and self.time_limit == time_limit and self.int_feas_tol == int_feas_tol and self.pi == pi and self.B_min == B_min and self.N_s == N_s:
                 return subdir
         return None
 

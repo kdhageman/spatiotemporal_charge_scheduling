@@ -287,8 +287,8 @@ def plot_events_battery(result: SimResult, fname: str):
         # make grey
         station_colors[station_ids[0]] = [0.5] * 3
     else:
-        for i, color in zip(station_ids, gen_colors(len(station_ids))):
-            station_colors[station_ids[i]] = color
+        for station_id, color in zip(station_ids, gen_colors(len(station_ids))):
+            station_colors[station_id] = color
 
     for d in range(len(events)):
         X_line = []
