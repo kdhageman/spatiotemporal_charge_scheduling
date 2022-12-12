@@ -67,6 +67,8 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
             confs.append(conf)
 
+    return confs
+
 
 def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials):
     """
