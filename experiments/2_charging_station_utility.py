@@ -7,6 +7,7 @@ from itertools import product
 import yaml
 from tqdm import tqdm
 import sys
+
 sys.path.append(".")
 from experiments.configuration import MilpConfiguration, NaiveConfiguration
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
@@ -65,63 +66,6 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
             conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
             confs.append(conf)
-
-
-def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials):
-    """
-    Returns the configuration for the simulation of the coarse (i.e., voxel size=5.1) experiment
-    """
-    flight_seq_fpath = "out/flight_sequences/villalvernia_3.vs_51/flight_sequences.pkl"
-    flight_sequences = load_flight_sequences(flight_seq_fpath)
-
-    with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
-        baseconf = yaml.load(f, Loader=yaml.Loader)
-
-    sigma = 1
-    pi = math.inf
-    W_hat = max([len(x) for x in flight_sequences]) - 1
-    time_limit = 600
-    basedir = "out/villalvernia/charging_station_utility"
-
-    charging_stations = [
-        [-10, 10, 0],
-        [-10, 10, 0],
-        [-10, 10, 0]
-    ]
-
-    confs = []
-    for N_s, r_charge in product(number_of_charging_stations, r_charges):
-        for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
-            conf = MilpConfiguration(
-                copy.deepcopy(baseconf),
-                basedir_trial,
-                3,
-                sigma=sigma,
-                pi=pi,
-                W_hat=W_hat,
-                flight_sequence_fpath=flight_seq_fpath,
-                time_limit=time_limit,
-                r_deplete=r_deplete,
-                r_charge=r_charge,
-            )
-            conf.B_min = B_min
-            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
-            confs.append(conf)
-
-            conf = NaiveConfiguration(
-                copy.deepcopy(baseconf),
-                basedir_trial,
-                3,
-                flight_sequence_fpath=flight_seq_fpath,
-                r_deplete=r_deplete,
-                r_charge=r_charge,
-            )
-            conf.B_min = B_min
-            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
-            confs.append(conf)
-
-    return confs
 
 
 def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials):
