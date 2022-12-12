@@ -1,15 +1,14 @@
 name: d4x
 channels:
-  - http://conda.anaconda.org/gurobi
   - defaults
 dependencies:
-  - python=3.8
-  - cvxpy
-  - jupyterlab
   - ipywidgets
-  - scikit-learn
-  - pandas
-  - xeus-python
-  - notebook
   - nodejs
-prefix: /Users/au13241/miniconda3/envs/d4x
+  - scikit-learn
+  - notebook
+  - jupyterlab
+  - python=3.8
+  - pandas
+  - pyomo
+  - gurobi
+prefix: /home/kh/anaconda3/envs/d4x
