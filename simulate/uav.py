@@ -189,7 +189,7 @@ class UAV:
     def _release_lock(self, env: simpy.Environment) -> None:
         if self.resource and self.req:
             self.resource.release(self.req)
-            self.debug(env, f"released lock ({self.resource_id})")
+            self.debug(env, f"released lock for charging station [{self.resource_id}]")
             for cb in self.release_lock_cbs:
                 cb(env, self.uav_id, self.resource_id)
         self.resource = None
@@ -327,7 +327,7 @@ class UAV:
                     self.resource_id = self.dest_node.identifier
                     self.resource = self.charging_stations[self.resource_id]
                     if self.resource.count == self.resource.capacity:
-                        self.debug(env, f"must wait to get lock for charging station {self.resource_id}")
+                        self.debug(env, f"must wait to get lock for charging station [{self.resource_id}]")
                     self.req = self.resource.request(priority=1)
                     try:
                         yield self.req
@@ -405,8 +405,8 @@ class UAV:
                             self._events.append(event.value)
 
                     except simpy.Interrupt:
-                        if not self.instructions or self.instructions[0].type != InstructionType.charge:
-                            # if we are finished or not charging afterwards, release the lock
+                        if not self.instructions or not (self.instructions[0].type == InstructionType.charge and event.value.node.identifier == self.instructions[0].node.identifier):
+                            # if the UAV is finished or does not keep charging afterwards at the same charging station, release the lock
                             self._release_lock(env)
                         t_charged = env.now - self.t_start
                         ct_sum += t_charged
@@ -415,7 +415,7 @@ class UAV:
                         event = env.timeout(0, value=ChargedEvent(self.t_start, t_charged, self.dest_node, self, battery=self.battery, depletion=depletion))
                         yield event
 
-                        self.debug(env, f"forcefully finished charging at station {self.dest_node.identifier} for {ct_sum:.2f}s")
+                        self.debug(env, f"forcefully finished charging at station [{self.dest_node.identifier}] for {ct_sum:.2f}s")
                         self.state_type = UavStateType.Idle
                         self.time_spent['charging'] += t_charged
 
