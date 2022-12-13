@@ -5,6 +5,7 @@ import sys
 
 import yaml
 
+sys.path.append(".")
 from experiments.configuration import MilpConfiguration, NaiveConfiguration
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
 
@@ -16,6 +17,8 @@ def main():
 
     with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
         baseconf = yaml.load(f, Loader=yaml.Loader)
+    r_charge = 1 / 3600
+    r_deplete = 1 / 600
 
     confs = []
 
@@ -32,7 +35,7 @@ def main():
         "villalvernia_3.vs_51",
         "villalvernia_3.vs_50",
         "villalvernia_3.vs_49",
-        ]
+    ]
     n_trials = 5
 
     # optimal
@@ -56,9 +59,9 @@ def main():
                 pi=pi,
                 flight_sequence_fpath=flight_seq_fpath,
                 time_limit=time_limit,
-                r_charge=0.0005025,
+                r_charge=r_charge,
                 # r_charge=0.0002777777778,
-                r_deplete=0.0045,
+                r_deplete=r_deplete,
                 # r_deplete=0.001666666667,
             )
             confs.append(conf)
@@ -84,8 +87,8 @@ def main():
                 pi=pi,
                 flight_sequence_fpath=flight_seq_fpath,
                 time_limit=time_limit,
-                r_charge=0.0005025,
-                r_deplete=0.0045,
+                r_charge=r_charge,
+                r_deplete=r_deplete,
             )
             confs.append(conf)
 
@@ -110,8 +113,8 @@ def main():
                 pi=pi,
                 flight_sequence_fpath=flight_seq_fpath,
                 time_limit=time_limit,
-                r_charge=0.0005025,
-                r_deplete=0.0045,
+                r_charge=r_charge,
+                r_deplete=r_deplete,
             )
             confs.append(conf)
 
@@ -135,8 +138,8 @@ def main():
                 pi=pi,
                 flight_sequence_fpath=flight_seq_fpath,
                 time_limit=time_limit,
-                r_charge=0.0005025,
-                r_deplete=0.0045,
+                r_charge=r_charge,
+                r_deplete=r_deplete,
             )
             confs.append(conf)
 
@@ -160,8 +163,8 @@ def main():
                 pi=pi,
                 flight_sequence_fpath=flight_seq_fpath,
                 time_limit=time_limit,
-                r_charge=0.0005025,
-                r_deplete=0.0045,
+                r_charge=r_charge,
+                r_deplete=r_deplete,
             )
             confs.append(conf)
 
@@ -177,8 +180,8 @@ def main():
                 basedir_trial,
                 n_drones=3,
                 flight_sequence_fpath=flight_seq_fpath,
-                r_charge=0.0005025,
-                r_deplete=0.0045,
+                r_charge=r_charge,
+                r_deplete=r_deplete,
             )
             confs.append(conf)
 
