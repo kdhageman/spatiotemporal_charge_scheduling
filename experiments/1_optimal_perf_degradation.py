@@ -6,7 +6,7 @@ import sys
 import yaml
 
 sys.path.append(".")
-from experiments.configuration import MilpConfiguration, NaiveConfiguration
+from experiments.configuration import MilpConfiguration, NaiveConfiguration, ConfigurationManager
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
 
 sys.setrecursionlimit(100000)
@@ -19,6 +19,7 @@ def main():
         baseconf = yaml.load(f, Loader=yaml.Loader)
         baseconf['charging_optimization']['charging_positions'] = baseconf['charging_optimization']['charging_positions'][:2]
 
+    basedir = "out/villalvernia/optimal_perf"
     r_charge = 1 / 3600
     r_deplete = 1 / 600
     time_limit = 300
@@ -45,16 +46,15 @@ def main():
     for flight_seq_dir in flight_seq_dirs:
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
         flight_sequences = load_flight_sequences(flight_seq_fpath)
-        basedir = "out/villalvernia/optimal_perf"
 
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = max([len(x) for x in flight_sequences]) - 1
             sigma = 1
             pi = math.inf
             conf = MilpConfiguration(
                 baseconf,
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 sigma=sigma,
                 W_hat=W_hat,
@@ -62,9 +62,7 @@ def main():
                 flight_sequence_fpath=flight_seq_fpath,
                 time_limit=time_limit,
                 r_charge=r_charge,
-                # r_charge=0.0002777777778,
                 r_deplete=r_deplete,
-                # r_deplete=0.001666666667,
             )
             confs.append(conf)
 
@@ -72,16 +70,15 @@ def main():
     for flight_seq_dir in flight_seq_dirs:
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
         flight_sequences = load_flight_sequences(flight_seq_fpath)
-        basedir = "out/villalvernia/optimal_perf"
 
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = max([len(x) for x in flight_sequences]) - 1
             sigma = 2
             pi = math.inf
             conf = MilpConfiguration(
                 baseconf,
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 sigma=sigma,
                 W_hat=W_hat,
@@ -97,16 +94,15 @@ def main():
     for flight_seq_dir in flight_seq_dirs:
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
         flight_sequences = load_flight_sequences(flight_seq_fpath)
-        basedir = "out/villalvernia/optimal_perf"
 
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = max([len(x) for x in flight_sequences]) - 1
             sigma = 3
             pi = math.inf
             conf = MilpConfiguration(
                 baseconf,
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 sigma=sigma,
                 W_hat=W_hat,
@@ -121,16 +117,15 @@ def main():
     # suboptimal(W_hat=10, sigma=1, pi=8)
     for flight_seq_dir in flight_seq_dirs:
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
-        basedir = "out/villalvernia/optimal_perf"
 
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = 10
             sigma = 1
             pi = 8
             conf = MilpConfiguration(
                 baseconf,
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 sigma=sigma,
                 W_hat=W_hat,
@@ -145,16 +140,15 @@ def main():
     # suboptimal(W_hat=15, sigma=1, pi=13)
     for flight_seq_dir in flight_seq_dirs:
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
-        basedir = "out/villalvernia/optimal_perf"
 
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             W_hat = 15
             sigma = 1
             pi = 13
             conf = MilpConfiguration(
                 baseconf,
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 sigma=sigma,
                 W_hat=W_hat,
@@ -169,13 +163,12 @@ def main():
     # Naive
     for flight_seq_dir in flight_seq_dirs:
         flight_seq_fpath = os.path.join("out/flight_sequences", flight_seq_dir, "flight_sequences.pkl")
-        basedir = "out/villalvernia/optimal_perf"
 
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             conf = NaiveConfiguration(
                 baseconf,
-                basedir_trial,
+                basedir,
+                trial,
                 n_drones=3,
                 flight_sequence_fpath=flight_seq_fpath,
                 r_charge=r_charge,
@@ -183,15 +176,16 @@ def main():
             )
             confs.append(conf)
 
+    conf_manager = ConfigurationManager(basedir)
     for conf in confs:
         try:
-            existing_experiment_dir = conf.experiment_already_exists()
+            existing_experiment_dir = conf_manager.seen(conf)
             if not existing_experiment_dir:
                 schedule_charge_from_conf(conf.as_dict())
             else:
                 logger.info(f"skipping configuration because it already exists ({existing_experiment_dir})")
         except Exception as e:
-            raise e
+            # raise e
             logger.exception(f"failed to run configuration")
             error_file = os.path.join(conf.outputdir(), "error.txt")
             os.makedirs(conf.outputdir(), exist_ok=True)

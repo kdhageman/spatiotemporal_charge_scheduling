@@ -1,12 +1,62 @@
 import json
+import logging
 import os
 from datetime import datetime
 
 
+class ConfigurationManager:
+    """
+    Class for caching prior results related to the management of different configurations
+    """
+    def __init__(self, rootdir):
+        self.logger = logging.getLogger(__name__)
+
+        self.fingerprints = {}
+
+        for trialdir in os.listdir(rootdir):
+            for ts_dir in os.listdir(os.path.join(rootdir, trialdir)):
+                result_fpath = os.path.join(rootdir, trialdir, ts_dir, "result.json")
+                try:
+                    with open(result_fpath, 'r') as f:
+                        parsed = json.load(f)
+                except FileNotFoundError:
+                    continue
+                charging_strategy = parsed['scheduler']
+                n_drones = parsed['scenario']['nr_drones']
+                W_hat = parsed['sched_params']['W_hat']
+                sigma = parsed['sched_params']['sigma']
+                flight_sequence_fpath = parsed['scenario']['source_file']
+                v = parsed['sched_params']['v'][0]
+                r_charge = parsed['sched_params']['r_charge'][0]
+                r_deplete = parsed['sched_params']['r_deplete'][0]
+                time_limit = parsed['sched_params']['time_limit']
+                int_feas_tol = parsed['sched_params']['int_feas_tol']
+                pi = parsed['sched_params']['pi']
+                B_min = parsed['sched_params']['B_min'][0]
+                N_s = parsed['scenario']['nr_charging_stations']
+
+                fp = (charging_strategy, n_drones, W_hat, sigma, flight_sequence_fpath, v, r_charge, r_deplete, time_limit, int_feas_tol, pi, B_min, N_s, trialdir)
+                self.fingerprints[fp] = os.path.join(trialdir, ts_dir)
+        self.logger.info(f"extracted {len(self.fingerprints)} fingerprints from the directory")
+
+    def seen(self, conf):
+        fp = self.fingerprint(conf)
+        return self.fingerprints.get(fp)
+
+    def fingerprint(self, conf):
+        """
+        Return the unique fingerprint for a given configuration.
+        Can be used to compare configurations against each other
+        """
+        charging_strategy = conf.charging_strategy + "scheduler"
+        return charging_strategy, conf.n_drones, conf.W_hat, conf.sigma, conf.flight_sequence_fpath, conf.v, conf.r_charge, conf.r_deplete, conf.time_limit, conf.int_feas_tol, conf.pi, conf.B_min, conf.N_s, f"{conf.trial}"
+
+
 class Configuration:
-    def __init__(self, baseconf: dict, basedir, charging_strategy, n_drones, W_hat, sigma, pi, flight_sequence_fpath, v=None, r_charge=None, r_deplete=None, time_limit=None, int_feas_tol=None, B_min=None):
+    def __init__(self, baseconf: dict, basedir, trial, charging_strategy, n_drones, W_hat, sigma, pi, flight_sequence_fpath, v=None, r_charge=None, r_deplete=None, time_limit=None, int_feas_tol=None, B_min=None):
         self.baseconf = baseconf
         self.basedir = basedir
+        self.trial = trial
         self.charging_strategy = charging_strategy
         self.n_drones = n_drones
         self.W_hat = W_hat
@@ -22,46 +72,11 @@ class Configuration:
         self.ts = datetime.now()
 
     def outputdir(self):
-        return os.path.join(self.basedir, f"{self.ts}")
+        return os.path.join(self.basedir, f"{self.trial}", f"{self.ts}")
 
     @property
     def N_s(self):
         return len(self.baseconf['charging_optimization']['charging_positions'])
-
-    def experiment_already_exists(self):
-        """
-        Returns whether an existing experiment in the given directory with the same parameters as this configuration already exists.
-        :param directory:
-        :return:
-        """
-        if not os.path.exists(self.basedir):
-            return None
-
-        for subdir in os.listdir(self.basedir):
-            result_fpath = os.path.join(self.basedir, subdir, "result.json")
-            try:
-                with open(result_fpath, 'r') as f:
-                    parsed = json.load(f)
-            except FileNotFoundError:
-                continue
-            charging_strategy = parsed['scheduler']
-            n_drones = parsed['scenario']['nr_drones']
-            W_hat = parsed['sched_params']['W_hat']
-            sigma = parsed['sched_params']['sigma']
-            flight_sequence_fpath = parsed['scenario']['source_file']
-            v = parsed['sched_params']['v'][0]
-            r_charge = parsed['sched_params']['r_charge'][0]
-            r_deplete = parsed['sched_params']['r_deplete'][0]
-            time_limit = parsed['sched_params']['time_limit']
-            int_feas_tol = parsed['sched_params']['int_feas_tol']
-            pi = parsed['sched_params']['pi']
-            B_min = parsed['sched_params']['B_min'][0]
-            N_s = parsed['scenario']['nr_charging_stations']
-
-            if self.charging_strategy + "scheduler" == charging_strategy and self.n_drones == n_drones and self.W_hat == W_hat and self.sigma == sigma and self.flight_sequence_fpath == flight_sequence_fpath and self.v == v \
-                    and self.r_charge == r_charge and self.r_deplete == r_deplete and self.time_limit == time_limit and self.int_feas_tol == int_feas_tol and self.pi == pi and self.B_min == B_min and self.N_s == N_s:
-                return subdir
-        return None
 
     def as_dict(self):
         """
@@ -86,10 +101,10 @@ class Configuration:
 
 
 class NaiveConfiguration(Configuration):
-    def __init__(self, baseconf, basedir, n_drones, flight_sequence_fpath, r_charge=None, r_deplete=None, B_min=None):
-        super().__init__(baseconf, basedir, "naive", n_drones, 0, 0, 1, flight_sequence_fpath, r_charge=r_charge, r_deplete=r_deplete, B_min=B_min)
+    def __init__(self, baseconf, basedir, trial, n_drones, flight_sequence_fpath, r_charge=None, r_deplete=None, B_min=None):
+        super().__init__(baseconf, basedir, trial, "naive", n_drones, 0, 0, 1, flight_sequence_fpath, r_charge=r_charge, r_deplete=r_deplete, B_min=B_min)
 
 
 class MilpConfiguration(Configuration):
-    def __init__(self, baseconf: dict, basedir, n_drones, W_hat, sigma, pi, flight_sequence_fpath, time_limit=None, int_feas_tol=None, r_charge=None, r_deplete=None, B_min=None):
-        super().__init__(baseconf, basedir, "milp", n_drones, W_hat, sigma, pi, flight_sequence_fpath, time_limit=time_limit, int_feas_tol=int_feas_tol, r_charge=r_charge, r_deplete=r_deplete, B_min=B_min)
+    def __init__(self, baseconf: dict, basedir, trial, n_drones, W_hat, sigma, pi, flight_sequence_fpath, time_limit=None, int_feas_tol=None, r_charge=None, r_deplete=None, B_min=None):
+        super().__init__(baseconf, basedir, trial, "milp", n_drones, W_hat, sigma, pi, flight_sequence_fpath, time_limit=time_limit, int_feas_tol=int_feas_tol, r_charge=r_charge, r_deplete=r_deplete, B_min=B_min)

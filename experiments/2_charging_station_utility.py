@@ -10,7 +10,7 @@ from tqdm import tqdm
 import sys
 
 sys.path.append(".")
-from experiments.configuration import MilpConfiguration, NaiveConfiguration
+from experiments.configuration import MilpConfiguration, NaiveConfiguration, ConfigurationManager
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
 
 time_limit = 300
@@ -48,10 +48,10 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
     confs = []
     for N_s, r_charge in product(number_of_charging_stations, r_charges):
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             conf = MilpConfiguration(
                 copy.deepcopy(baseconf),
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 sigma=sigma,
                 pi=pi,
@@ -67,7 +67,8 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
 
             conf = NaiveConfiguration(
                 copy.deepcopy(baseconf),
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 flight_sequence_fpath=flight_seq_fpath,
                 r_deplete=r_deplete,
@@ -89,17 +90,17 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
     with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
         baseconf = yaml.load(f, Loader=yaml.Loader)
 
-    sigma = 5
+    sigma = 8
     pi = np.inf
     W_hat = 75
 
     confs = []
     for N_s, r_charge in product(number_of_charging_stations, r_charges):
         for trial in range(1, 1 + n_trials):
-            basedir_trial = os.path.join(basedir, f"{trial}")
             conf = MilpConfiguration(
                 copy.deepcopy(baseconf),
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 sigma=sigma,
                 pi=pi,
@@ -115,7 +116,8 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
 
             conf = NaiveConfiguration(
                 copy.deepcopy(baseconf),
-                basedir_trial,
+                basedir,
+                trial,
                 3,
                 flight_sequence_fpath=flight_seq_fpath,
                 r_deplete=r_deplete,
@@ -141,9 +143,10 @@ def main():
     confs += coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
     confs += fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
 
+    conf_manager = ConfigurationManager(basedir)
     for i, conf in enumerate(tqdm(confs)):
         try:
-            existing_experiment_dir = conf.experiment_already_exists()
+            existing_experiment_dir = conf_manager.seen(conf)
             if not existing_experiment_dir:
                 schedule_charge_from_conf(conf.as_dict())
             else:
