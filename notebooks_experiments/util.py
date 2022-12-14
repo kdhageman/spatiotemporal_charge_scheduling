@@ -4,6 +4,7 @@ import numpy as np
 import re
 import pandas as pd
 
+
 def load_results_from_dir(rootdir):
     data = []
     for trial_subdir in os.listdir(rootdir):
@@ -38,8 +39,14 @@ def load_results_from_dir(rootdir):
                     B_start = parsed['sched_params']['B_start'][0]
                     trial = trial_subdir
 
-                    data.append([os.path.join(rootdir, trial_subdir, subdir), scheduler, execution_time, t_solve_total, t_solve_mean, n_solves, voxel_size, N_w, N_d, N_s, n_waypoints, W_hat, pi, sigma, epsilon, int_feas_tol, v, r_charge, r_deplete, B_min, B_max, B_start, trial])
-    df = pd.DataFrame(data=data, columns=['directory', 'scheduler', 'execution_time', 't_solve_total', 't_solve_mean', 'n_solves', 'voxel_size', 'N_w', 'N_d', 'N_s', 'n_waypoints', 'W_hat', 'pi', 'sigma', 'epsilon', 'int_feas_tol', 'v', 'r_charge', 'r_deplete', 'B_min', 'B_max', 'B_start', 'trial'])
+                    utilization, frac_charged, frac_waited = get_charging_station_utilization(parsed)
+
+                    data.append(
+                        [os.path.join(rootdir, trial_subdir, subdir), scheduler, execution_time, t_solve_total, t_solve_mean, n_solves, voxel_size, N_w, N_d, N_s, n_waypoints, W_hat, pi, sigma, epsilon, int_feas_tol, v, r_charge, r_deplete, B_min,
+                         B_max, B_start, utilization, frac_charged, frac_waited, trial])
+    df = pd.DataFrame(data=data,
+                      columns=['directory', 'scheduler', 'execution_time', 't_solve_total', 't_solve_mean', 'n_solves', 'voxel_size', 'N_w', 'N_d', 'N_s', 'n_waypoints', 'W_hat', 'pi', 'sigma', 'epsilon', 'int_feas_tol', 'v', 'r_charge', 'r_deplete',
+                               'B_min', 'B_max', 'B_start', 'utilization', 'frac_charged', 'frac_waited', 'trial'])
     df['voxel_size'] = df.voxel_size.astype(float) / 10
     df['trial'] = df.trial.astype(int)
     df['rescheduled'] = df.pi != np.inf
@@ -62,6 +69,45 @@ def load_results_from_dir(rootdir):
         if x.sigma == 2:
             return 'sigma2'
         return 'optimal'
+
     df['experiment_type'] = df.apply(experiment_type, axis=1)
-        
+
     return df
+
+
+def get_charging_station_utilization(parsed):
+    """
+    Return the utilization for each of the charging station in the parsed results
+    The utilization is expressed as:
+      U = (total time charged at station + total time waited at station) / execution_time
+      
+    @return: the utilization, the time charged and the time waited for each station
+    """
+    execution_time = parsed['execution_time']
+
+    time_charged_all = {
+        i: 0 for i in range(parsed['scenario']['nr_charging_stations'])
+    }
+    time_waited_all = {
+        i: 0 for i in range(parsed['scenario']['nr_charging_stations'])
+    }
+
+    for event_list in parsed['event']:
+        for ev in event_list:
+            if ev['type'] == 'charged':
+                station_idx = ev['node']['id']
+                t_start = ev['t_start']
+                t_end = ev['t_end']
+                time_charged_all[station_idx] += t_end - t_start
+            elif ev['type'] == 'waited':
+                station_idx = ev['node']['id']
+                t_start = ev['t_start']
+                t_end = ev['t_end']
+                time_waited_all[station_idx] += t_end - t_start
+    time_charged_all = list([v / execution_time for v in time_charged_all.values()])
+    time_waited_all = list([v / execution_time for v in time_waited_all.values()])
+
+    utilization = []
+    for time_charged, time_waited in zip(time_charged_all, time_waited_all):
+        utilization.append(time_charged + time_waited)
+    return utilization, time_charged_all, time_waited_all
