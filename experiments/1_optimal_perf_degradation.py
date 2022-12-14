@@ -21,14 +21,15 @@ def main():
 
     r_charge = 1 / 3600
     r_deplete = 1 / 600
+    time_limit = 300
 
     confs = []
 
     flight_seq_dirs = [
-        "villalvernia_3.vs_100",
-        "villalvernia_3.vs_90",
-        "villalvernia_3.vs_80",
-        "villalvernia_3.vs_75",
+        # "villalvernia_3.vs_100",
+        # "villalvernia_3.vs_90",
+        # "villalvernia_3.vs_80",
+        # "villalvernia_3.vs_75",
         "villalvernia_3.vs_70",
         "villalvernia_3.vs_65",
         "villalvernia_3.vs_60",
@@ -38,7 +39,7 @@ def main():
         "villalvernia_3.vs_50",
         "villalvernia_3.vs_49",
     ]
-    n_trials = 5
+    n_trials = 1
 
     # optimal
     for flight_seq_dir in flight_seq_dirs:
@@ -51,7 +52,6 @@ def main():
             W_hat = max([len(x) for x in flight_sequences]) - 1
             sigma = 1
             pi = math.inf
-            time_limit = 600
             conf = MilpConfiguration(
                 baseconf,
                 basedir_trial,
@@ -79,7 +79,6 @@ def main():
             W_hat = max([len(x) for x in flight_sequences]) - 1
             sigma = 2
             pi = math.inf
-            time_limit = 600
             conf = MilpConfiguration(
                 baseconf,
                 basedir_trial,
@@ -105,7 +104,6 @@ def main():
             W_hat = max([len(x) for x in flight_sequences]) - 1
             sigma = 3
             pi = math.inf
-            time_limit = 600
             conf = MilpConfiguration(
                 baseconf,
                 basedir_trial,
@@ -130,7 +128,6 @@ def main():
             W_hat = 10
             sigma = 1
             pi = 8
-            time_limit = 600
             conf = MilpConfiguration(
                 baseconf,
                 basedir_trial,
@@ -155,7 +152,6 @@ def main():
             W_hat = 15
             sigma = 1
             pi = 13
-            time_limit = 600
             conf = MilpConfiguration(
                 baseconf,
                 basedir_trial,

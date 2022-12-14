@@ -12,6 +12,23 @@ sys.path.append(".")
 from experiments.configuration import MilpConfiguration, NaiveConfiguration
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
 
+time_limit = 300
+charging_stations_compositions = {
+    1: [
+        [-5.89549398, 13.3062412, 0]
+    ],
+    2: [
+        [-9.2918538, 18.04343851, 0],
+        [-2.49913417, 8.56904388, 0],
+    ],
+    3: [
+        [-9.2918538, 18.04343851, 0],
+        [-5.89549398, 13.3062412, 0]
+        [-2.49913417, 8.56904388, 0],
+    ]
+}
+basedir = "out/villalvernia/charging_station_utility"
+
 
 def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials):
     """
@@ -26,14 +43,6 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
     sigma = 1
     pi = math.inf
     W_hat = max([len(x) for x in flight_sequences]) - 1
-    time_limit = 600
-    basedir = "out/villalvernia/charging_station_utility"
-
-    charging_stations = [
-        [-10, 10, 0],
-        [-10, 10, 0],
-        [-10, 10, 0]
-    ]
 
     confs = []
     for N_s, r_charge in product(number_of_charging_stations, r_charges):
@@ -52,7 +61,7 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
                 r_charge=r_charge,
             )
             conf.B_min = B_min
-            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
+            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
             confs.append(conf)
 
             conf = NaiveConfiguration(
@@ -64,7 +73,7 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
                 r_charge=r_charge,
             )
             conf.B_min = B_min
-            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
+            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
             confs.append(conf)
 
     return confs
@@ -82,23 +91,6 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
     sigma = 4
     pi = 36
     W_hat = 40
-    time_limit = 600
-    basedir = "out/villalvernia/charging_station_utility"
-
-    charging_stations_compositions = {
-        1: [
-            [-5.89549398, 13.3062412, 0]
-        ],
-        2: [
-            [-9.2918538, 18.04343851, 0],
-            [-2.49913417, 8.56904388, 0],
-        ],
-        3: [
-            [-9.2918538, 18.04343851, 0],
-            [-5.89549398, 13.3062412, 0]
-            [-2.49913417, 8.56904388, 0],
-        ]
-    }
 
     confs = []
     for N_s, r_charge in product(number_of_charging_stations, r_charges):
