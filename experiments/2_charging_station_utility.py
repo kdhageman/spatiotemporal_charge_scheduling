@@ -83,7 +83,7 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
     """
     Returns the configuration for the simulation of the fine-grained (i.e., voxel size=2) experiment
     """
-    flight_seq_fpath = "out/flight_sequences/villalvernia_3.vs_20/flight_sequences.pkl"
+    flight_seq_fpath = "out/flight_sequences/villalvernia_3.vs_30/flight_sequences.pkl"
 
     with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
         baseconf = yaml.load(f, Loader=yaml.Loader)
