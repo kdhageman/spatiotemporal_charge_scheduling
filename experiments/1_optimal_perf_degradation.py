@@ -17,6 +17,8 @@ def main():
 
     with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
         baseconf = yaml.load(f, Loader=yaml.Loader)
+        baseconf['charging_optimization']['charging_positions'] = baseconf['charging_optimization']['charging_positions'][:2]
+
     r_charge = 1 / 3600
     r_deplete = 1 / 600
 

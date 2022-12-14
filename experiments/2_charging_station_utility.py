@@ -85,11 +85,20 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
     time_limit = 600
     basedir = "out/villalvernia/charging_station_utility"
 
-    charging_stations = [
-        [-10, 10, 0],
-        [-10, 10, 0],
-        [-10, 10, 0]
-    ]
+    charging_stations_compositions = {
+        1: [
+            [-5.89549398, 13.3062412, 0]
+        ],
+        2: [
+            [-9.2918538, 18.04343851, 0],
+            [-2.49913417, 8.56904388, 0],
+        ],
+        3: [
+            [-9.2918538, 18.04343851, 0],
+            [-5.89549398, 13.3062412, 0]
+            [-2.49913417, 8.56904388, 0],
+        ]
+    }
 
     confs = []
     for N_s, r_charge in product(number_of_charging_stations, r_charges):
@@ -108,7 +117,7 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
                 r_charge=r_charge,
             )
             conf.B_min = B_min
-            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
+            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
             confs.append(conf)
 
             conf = NaiveConfiguration(
@@ -120,7 +129,7 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
                 r_charge=r_charge,
             )
             conf.B_min = B_min
-            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations[:N_s]
+            conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
             confs.append(conf)
 
     return confs
