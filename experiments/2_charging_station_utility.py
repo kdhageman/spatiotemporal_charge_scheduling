@@ -4,6 +4,7 @@ import math
 import os
 from itertools import product
 
+import numpy as np
 import yaml
 from tqdm import tqdm
 import sys
@@ -88,9 +89,9 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
     with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
         baseconf = yaml.load(f, Loader=yaml.Loader)
 
-    sigma = 4
-    pi = 36
-    W_hat = 40
+    sigma = 5
+    pi = np.inf
+    W_hat = 75
 
     confs = []
     for N_s, r_charge in product(number_of_charging_stations, r_charges):
@@ -148,7 +149,7 @@ def main():
             else:
                 logger.info(f"skipping configuration because it already exists ({existing_experiment_dir})")
         except Exception as e:
-            raise e
+            # raise e
             logger.exception(f"failed to run configuration")
             error_file = os.path.join(conf.outputdir(), "error.txt")
             os.makedirs(conf.outputdir(), exist_ok=True)
