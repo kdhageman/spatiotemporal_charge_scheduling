@@ -257,7 +257,7 @@ def plot_events_battery(result: SimResult, fname: str):
     Plots the battery over time for the given events
     """
     events = result.events
-    r_charge = result.sched_params.r_charge.min()
+    aspect = 0.8 / min([result.sched_params.r_deplete.min(), result.sched_params.r_charge.min()])
 
     execution_times = []
     for d in range(len(events)):
@@ -289,6 +289,12 @@ def plot_events_battery(result: SimResult, fname: str):
     else:
         for station_id, color in zip(station_ids, gen_colors(len(station_ids))):
             station_colors[station_id] = color
+
+    Y_min = 1
+    Y_max = 0
+    for evlist in events:
+        Y_min = min(Y_min, min([e.battery for e in evlist]))
+        Y_max = max(Y_max, max([e.battery for e in evlist]))
 
     for d in range(len(events)):
         X_line = []
@@ -339,7 +345,7 @@ def plot_events_battery(result: SimResult, fname: str):
             grid[d].scatter(X_scatter_wp, Y_scatter_wp, c=[uav_colors[d]], s=10)
         grid[d].scatter(X_crash, Y_crash, c=[uav_colors[d]], s=40, marker='x', zorder=100)
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
-        grid[d].set_ylim([0, 1])
+        grid[d].set_ylim([Y_min, Y_max])
         grid[d].spines.right.set_visible(False)
         for schedule in result.schedules[d]:
             grid[d].axvline(schedule['timestamp'], color='black', linestyle=":", alpha=0.5, zorder=1)
@@ -351,7 +357,6 @@ def plot_events_battery(result: SimResult, fname: str):
                                           backgroundcolor='white', fontsize='xx-small', ha='left', zorder=-9)
 
     N_d = len(events)
-    aspect = 0.8 / r_charge
     for d in range(N_d):
         grid[d].set_aspect(aspect)
     grid[N_d - 1].set_xlabel("Time (s)")
