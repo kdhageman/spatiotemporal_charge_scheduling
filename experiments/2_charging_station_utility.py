@@ -130,7 +130,7 @@ def main():
     logger = logging.getLogger(__name__)
 
     number_of_charging_stations = [1, 2, 3]
-    r_charges = [1 / 3600, 1 / 3000, 1 / 2400, 1 / 1800, 1 / 1200, 1 / 600]
+    r_charges = [1 / 5400, 1 / 3600, 1 / 3000, 1 / 2400, 1 / 1800, 1 / 1200, 1 / 600, 1 / 300]
     r_deplete = 1 / 600
     B_min = 0.73
     n_trials = 1
