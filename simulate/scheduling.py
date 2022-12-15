@@ -102,8 +102,7 @@ class NodeGenerator:
     Class for generating nodes given a scenario and a solved model
     """
 
-    def __init__(self, start_positions: List[List[float]], scenario: Scenario, model: MultiUavModel):
-        self.start_positions = start_positions
+    def __init__(self, scenario: Scenario, model: MultiUavModel):
         self.sc = scenario
         self.model = model
 
@@ -122,6 +121,10 @@ class NodeGenerator:
             nodes.append(node)
 
         for anchor_idx in self.model.w_s:
+            if anchor_idx >= len(self.sc.anchors[d]):
+                # drone 'd' has fewer anchors than the model has calculated, so terminate the loop
+                break
+
             anchor = self.sc.anchors[d][anchor_idx]
 
             # add anchor itself
@@ -131,7 +134,7 @@ class NodeGenerator:
 
             # add charging station if relevant
             n = self.model.P_np[d, :, anchor_idx].tolist().index(1)
-            if n < self.model.N_s:
+            if n < self.sc.N_s:
                 # charging
                 wt = max(self.model.W_np[d, anchor_idx], 0)
                 ct = max(self.model.C_np[d, anchor_idx], 0)
@@ -146,10 +149,12 @@ class NodeGenerator:
                     node = Waypoint(*pos)
                     nodes.append(node)
             except IndexError:
-                # there is no next anchor, add waypoints until the end
-                for pos in self.sc.waypoints(d)[anchor + 1:]:
-                    node = Waypoint(*pos)
-                    nodes.append(node)
+                # there is no next anchor, so terminate from loop
+                break
+        # add waypoints until the end
+        for pos in self.sc.waypoints(d)[anchor + 1:]:
+            node = Waypoint(*pos)
+            nodes.append(node)
 
         return nodes
 
@@ -307,7 +312,7 @@ class MilpScheduler(Scheduler):
                     # drone is NOT charging now
                     pass
 
-        ng = NodeGenerator(start_positions, sc, model)
+        ng = NodeGenerator(sc, model)
         res = {}
         for d in uavs_to_schedule:
             nodes = ng.generate(d)

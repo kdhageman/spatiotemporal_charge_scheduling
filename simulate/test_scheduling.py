@@ -5,7 +5,7 @@ import numpy as np
 from pyomo.opt import SolverFactory
 
 from simulate.parameters import SchedulingParameters
-from simulate.scheduling import MilpScheduler
+from simulate.scheduling import MilpScheduler, NodeGenerator
 from util.scenario import Scenario
 
 
@@ -129,3 +129,50 @@ class TestMilpScheduler(TestCase):
         start_positions_dict = {i: v for i, v in enumerate(start_positions)}
         batteries = {d: 1 for d in range(sc.N_d)}
         t_solve, (optimal, schedules) = scheduler.schedule(start_positions_dict, batteries=batteries, cs_locks=cs_locks, uavs_to_schedule=[0, 1, 2])
+
+
+class MockModel:
+    def __init__(self, w_s, P_np, W_np, C_np):
+        self.w_s = w_s
+        self.P_np = P_np
+        self.W_np = W_np
+        self.C_np = C_np
+
+
+class TestNodeGenerator(TestCase):
+    def test_generate(self):
+        start_positions = [
+            (0, 0),
+            (0, 1),
+        ]
+        positions_S = [(3, 0.5)]
+        positions_w = [
+            [(0, i) for i in range(1, 10)],
+            [(1, i) for i in range(1, 10)],
+
+        ]
+        anchors = [
+            [0, 1, 2, 3],
+            [0, 1, 2],
+        ]
+        sc = Scenario(start_positions, positions_S, positions_w, anchors=anchors)
+
+        anchor_count = 4
+        w_s = range(anchor_count)
+        P_np = np.zeros((2, 2, anchor_count))
+        P_np[:, 0, :] = 1
+        W_np = np.ones((2, anchor_count))
+        C_np = np.ones((2, anchor_count))
+        model = MockModel(w_s, P_np, W_np, C_np)
+
+        ng = NodeGenerator(sc, model)
+        expected_len = 13
+        actual = ng.generate(0)
+        actual_len = len(actual)
+        self.assertEqual(expected_len, actual_len)
+
+        expected_len = 12
+        actual = ng.generate(1)
+        actual_len = len(actual)
+        self.assertEqual(expected_len, actual_len)
+
