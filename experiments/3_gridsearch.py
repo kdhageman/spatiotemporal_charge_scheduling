@@ -1,14 +1,16 @@
 import logging
 import math
 import os
+import sys
 from itertools import product
 
 import numpy as np
 import yaml
 from tqdm import tqdm
 
+sys.path.append(".")
 from experiments.configuration import NaiveConfiguration, MilpConfiguration, ConfigurationManager
-from experiments.util_funcs import schedule_charge_from_conf, load_flight_sequences
+from experiments.util_funcs import schedule_charge_from_conf
 
 
 def main():
