@@ -34,10 +34,11 @@ def main():
     confs = []
     for W_hat, pi, sigma in tqdm(product(W_hats, pis, sigmas)):
         anchorcount = 1 + math.floor(W_hat / sigma)
-        if (pi > W_hat) and W_hat != 75:
+        if (pi > W_hat) and W_hat < 75:
             # cannot run simulation where rescheduling frequency is larger than horizon
+            # whenever the horizon is infinite and W_hat = N_w, there is no rescheduling involved, and the simulation can proceed
             continue
-        elif anchorcount >= 25:
+        elif anchorcount > 30:
             # this might become infeasible, so don't run
             continue
         for trial in range(1, 1 + n_trials):
@@ -56,16 +57,16 @@ def main():
             )
             confs.append(conf)
 
-        conf = NaiveConfiguration(
-            baseconf,
-            basedir,
-            1,
-            3,
-            flight_sequence_fpath=flight_seq_fpath,
-            r_charge=r_charge,
-            r_deplete=r_deplete,
-        )
-        confs.append(conf)
+    conf = NaiveConfiguration(
+        baseconf,
+        basedir,
+        1,
+        3,
+        flight_sequence_fpath=flight_seq_fpath,
+        r_charge=r_charge,
+        r_deplete=r_deplete,
+    )
+    confs.append(conf)
 
     conf_manager = ConfigurationManager(basedir)
     for i, conf in enumerate(tqdm(confs)):
