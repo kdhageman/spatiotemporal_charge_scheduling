@@ -1,52 +1,86 @@
 import logging
+import math
 import os
+from itertools import product
 
+import numpy as np
 import yaml
+from tqdm import tqdm
 
-from experiments.configuration import NaiveConfiguration, MilpConfiguration
+from experiments.configuration import NaiveConfiguration, MilpConfiguration, ConfigurationManager
 from experiments.util_funcs import schedule_charge_from_conf, load_flight_sequences
 
-if __name__ == "__main__":
+
+def main():
     logger = logging.getLogger(__name__)
 
-    with open("config/charge_scheduling/base.yml", 'r') as f:
+    basedir = "out/villalvernia/grid_search"
+
+    with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
         baseconf = yaml.load(f, Loader=yaml.Loader)
 
-    flight_sequence_fpath3 = "out/flight_sequences/villalvernia_3/flight_sequences.pkl"  # ~160 waypoints per UAV
-    flight_sequences = load_flight_sequences(flight_sequence_fpath3)
-    min_nr_waypoints = min(len(seq) for seq in flight_sequences)
+    flight_seq_fpath = "out/flight_sequences/villalvernia_3.vs_30/flight_sequences.pkl"
 
-    basedir = "out/villalvernia/grid_search.test"
-    sigmas = [7, 13, 19, 31, 43]
-    pis = [9, 19, 49, 99, 149]
-    Ws = [10, 20, 50, 100, 170]
+    W_hats = [75, 60, 45, 30, 15]
+    pis = [np.inf, 74, 59, 45, 30, 14]
+    sigmas = [1, 2, 3, 4, 5, 6, 7, 8]
+    time_limit = 300
+    r_charge = 1 / 3600
+    r_deplete = 1 / 600
+    n_trials = 1
 
-    confs = [
-        NaiveConfiguration(baseconf, basedir, 3, flight_sequence_fpath3),
-    ]
+    confs = []
+    for W_hat, pi, sigma in tqdm(product(W_hats, pis, sigmas)):
+        anchorcount = 1 + math.floor(W_hat / sigma)
+        if (pi > W_hat) and W_hat != 75:
+            # cannot run simulation where rescheduling frequency is larger than horizon
+            continue
+        elif anchorcount >= 25:
+            # this might become infeasible, so don't run
+            continue
+        for trial in range(1, 1 + n_trials):
+            conf = MilpConfiguration(
+                baseconf,
+                basedir,
+                trial,
+                3,
+                sigma=sigma,
+                W_hat=W_hat,
+                pi=pi,
+                flight_sequence_fpath=flight_seq_fpath,
+                time_limit=time_limit,
+                r_charge=r_charge,
+                r_deplete=r_deplete,
+            )
+            confs.append(conf)
 
-    for sigma in sigmas:
-        for pi in pis:
-            for W_hat in Ws:
-                if pi > W_hat:
-                    # impossible
-                    continue
-                if sigma > W_hat:
-                    # impossible
-                    continue
-                conf = MilpConfiguration(baseconf, basedir, 3, sigma=sigma, W_hat=W_hat, pi=pi, flight_sequence_fpath=flight_sequence_fpath3, time_limit=30)
-                confs.append(conf)
+        conf = NaiveConfiguration(
+            baseconf,
+            basedir,
+            1,
+            3,
+            flight_sequence_fpath=flight_seq_fpath,
+            r_charge=r_charge,
+            r_deplete=r_deplete,
+        )
+        confs.append(conf)
 
-    for conf in confs:
+    conf_manager = ConfigurationManager(basedir)
+    for i, conf in enumerate(tqdm(confs)):
         try:
-            # schedule_charge_from_conf(conf.as_dict())
-            if not os.path.exists(conf.outputdir()):
+            existing_experiment_dir = conf_manager.seen(conf)
+            if not existing_experiment_dir:
                 schedule_charge_from_conf(conf.as_dict())
             else:
-                logger.info(f"skipping configuration because it already exists ({conf.outputdir()})")
+                logger.info(f"skipping configuration because it already exists ({existing_experiment_dir})")
         except Exception as e:
+            # raise e
             logger.exception(f"failed to run configuration")
             error_file = os.path.join(conf.outputdir(), "error.txt")
+            os.makedirs(conf.outputdir(), exist_ok=True)
             with open(error_file, 'w') as f:
                 f.write(f"failed: {e}")
-            # raise e
+
+
+if __name__ == "__main__":
+    main()
