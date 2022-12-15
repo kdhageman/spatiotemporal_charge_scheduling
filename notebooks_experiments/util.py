@@ -39,7 +39,7 @@ def load_results_from_dir(rootdir):
                     B_start = parsed['sched_params']['B_start'][0]
                     trial = trial_subdir
 
-                    utilization, frac_charged, frac_waited = get_charging_station_utilization(parsed)
+                    utilization, frac_charged, frac_waited = get_charging_station_utilization_slowest(parsed)
 
                     data.append(
                         [os.path.join(rootdir, trial_subdir, subdir), scheduler, execution_time, t_solve_total, t_solve_mean, n_solves, voxel_size, N_w, N_d, N_s, n_waypoints, W_hat, pi, sigma, epsilon, int_feas_tol, v, r_charge, r_deplete, B_min,
@@ -53,7 +53,10 @@ def load_results_from_dir(rootdir):
 
     return df
 
-def get_charging_station_utilization(parsed):
+def get_charging_station_utilization_all(parsed):
+    """
+    Extract the charging station utilization across the mission log, measured for *all* drones
+    """
     mission_time_cumulative = sum([l[-1]['t_end'] for l in parsed['event']])
 
     time_charged_all = {}
@@ -76,4 +79,28 @@ def get_charging_station_utilization(parsed):
     frac_waited = sum(time_waited_all.values()) / mission_time_cumulative
     utilization = frac_charged + frac_waited
     
+    return utilization, frac_charged, frac_waited
+
+def get_charging_station_utilization_slowest(parsed):
+    """
+    Extract the charging station utilization across the mission log, measured for the slowest drone only
+    """
+    end_times = [ev[-1]['t_end'] for ev in parsed['event']]
+    slowest_uav, slowest_time = np.argmax(end_times), np.max(end_times)
+
+    time_charged = 0
+    time_waited = 0
+    for ev in parsed['event'][slowest_uav]:
+        if ev['type'] == 'charged':
+            t_start = ev['t_start']
+            t_end = ev['t_end']
+            time_charged += t_end - t_start
+        elif ev['type'] == 'waited':
+            t_start = ev['t_start']
+            t_end = ev['t_end']
+            time_waited += t_end - t_start
+    frac_charged = time_charged / slowest_time
+    frac_waited = time_waited / slowest_time
+    utilization = frac_charged + frac_waited
+
     return utilization, frac_charged, frac_waited
