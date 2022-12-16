@@ -37,9 +37,11 @@ def main():
         if (pi > W_hat) and W_hat < 75:
             # cannot run simulation where rescheduling frequency is larger than horizon
             # whenever the horizon is infinite and W_hat = N_w, there is no rescheduling involved, and the simulation can proceed
+            logger.info(f"skipping configuration with pi={pi} and W_hat={W_hat}")
             continue
         elif anchorcount > 30:
             # this might become infeasible, so don't run
+            logger.info(f"skipping configuration because anchor count = {anchorcount} (W_hat={W_hat}, sigma={sigma})")
             continue
         for trial in range(1, 1 + n_trials):
             conf = MilpConfiguration(
