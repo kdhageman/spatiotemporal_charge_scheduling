@@ -17,7 +17,7 @@ def load_results_from_dir(rootdir):
                     with open(fpath, 'r') as f:
                         parsed = json.load(f)
 
-                    if not parsed.get("success", False):
+                    if not parsed.get("success", True):
                         # ignore non-successful runs
                         continue
 
