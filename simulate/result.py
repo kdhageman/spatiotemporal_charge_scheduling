@@ -14,6 +14,7 @@ class SimResult:
     """
     Stores the status of the simulation result
     """
+    success: bool
     sched_params: SchedulingParameters
     scenario: Scenario
     events: List[Event]
@@ -32,6 +33,7 @@ class SimResult:
 
 def simresult_serializer(obj: SimResult, *args, **kwargs):
     res = dict(
+        success=obj.success,
         sched_params=jsons.dump(obj.sched_params),
         scenario=jsons.dump(obj.scenario),
         event=jsons.dump(obj.events),

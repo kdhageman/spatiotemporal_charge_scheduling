@@ -1,16 +1,17 @@
+import json
 import logging
 import os.path
-import pickle
 from datetime import datetime
 from typing import List, Dict
 
+import jsons
 import numpy as np
 import simpy
-from PyPDF2 import PdfMerger
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from mpl_toolkits.axes_grid1 import ImageGrid
 
+from simulate.environment import Environment, DeterministicEnvironment
 from simulate.event import EventType, Event
 from simulate.node import ChargingStation, NodeType, AuxWaypoint
 from simulate.parameters import SchedulingParameters, SimulationParameters
@@ -20,7 +21,6 @@ from simulate.scheduling import Scheduler
 from simulate.strategy import Strategy
 from simulate.uav import UAV, UavStateType
 from simulate.util import gen_colors
-from simulate.environment import Environment, DeterministicEnvironment
 from util.scenario import Scenario
 
 
@@ -192,8 +192,10 @@ class Simulator:
         self.strat_proc = strat_proc
 
     def sim(self) -> SimResult:
+        success = False
         try:
             self.env.run(until=self.strat_proc)
+            success = True
         finally:
             self.info(self.env, f"finished simulation in {self.env.now:.2f}s")
             for d in range(self.sc.N_d):
@@ -206,7 +208,12 @@ class Simulator:
                     time_spent[d]['moving_minimum'] = self.sc.D_N[d, -1, :].sum() / self.sched_params.v[d]
                 nr_visited_waypoints = [uav.waypoint_id for uav in self.uavs]
                 occupancy = events_to_occupancy(events)
-                result = SimResult(self.sched_params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints, occupancy, self.scheduler)
+                result = SimResult(success, self.sched_params, self.sc, events, self.solve_times, self.env.now, time_spent, self.all_schedules, nr_visited_waypoints, occupancy, self.scheduler)
+
+                # output simulation result to JSON
+                with open(os.path.join(self.directory, "result.json"), 'w') as f:
+                    dumped = jsons.dump(result)
+                    json.dump(dumped, f)
 
                 # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
