@@ -38,13 +38,15 @@ class Scheduler:
         if event.value.node.node_type == NodeType.Waypoint:
             self.offsets[uav_id] += 1
 
-    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
+    def schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, bool, Dict[int, List[Node]], Scenario]:
         """
         Creates a new schedule for the drones
+        :return: t_solve: time taken to schedule
         :return: optimal: True if the schedule is optimal, False otherwise
         :return: schedules: list of nodes for each schedules drone to follow
+        :return: scenario: the scenario used for scheduling
         """
-        t_solve, (optimal, schedules) = self._schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
+        t_solve, optimal, schedules, scenario = self._schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
 
         for d, schedule in schedules.items():
             # ignore schedule when no waypoints are remaining
@@ -79,7 +81,7 @@ class Scheduler:
 
         self.n_scheduled += 1
 
-        return t_solve, (optimal, schedules)
+        return t_solve, optimal, schedules, scenario
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
         raise NotImplementedError
@@ -169,7 +171,7 @@ class MilpScheduler(Scheduler):
         # uncomment for debugging
         # draw_graph(self.sc, params, f"graph_orig.pdf")
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, Tuple[bool, Dict[int, List[Node]]]]:
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], cs_locks: np.array, uavs_to_schedule: List[int]) -> Tuple[float, bool, Dict[int, List[Node]], Scenario]:
         start_positions_list = list(start_positions.values())
         sc, rhos = self.sf.next(start_positions_list, self.offsets)
         if sc.N_w == 0:
@@ -317,13 +319,13 @@ class MilpScheduler(Scheduler):
         for d in uavs_to_schedule:
             nodes = ng.generate(d)
             res[d] = nodes
-        return t_solve, (optimal, res)
+        return t_solve, optimal, res, sc
 
 
 class NaiveScheduler(Scheduler):
     _EPSILON = 0.0001
 
-    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[bool, Dict[int, List[Node]]]:
+    def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[float, bool, Dict[int, List[Node]], Scenario]:
         res = {}
         for d in uavs_to_schedule:
             if len(self.remaining_waypoints(d)) == 0:
@@ -382,4 +384,4 @@ class NaiveScheduler(Scheduler):
                 wp = Waypoint(*pos)
                 nodes.append(wp)
             res[d] = nodes
-        return float(0), (False, res)
+        return float(0), False, res, None

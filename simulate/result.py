@@ -20,7 +20,7 @@ class SimResult:
     solve_times: List[float]
     execution_time: float
     time_spent: dict
-    schedules: List[Tuple[int, List[Node]]]
+    schedules: List[Tuple[int, List[Node], Scenario]]
     nr_visited_waypoints: List[int]
     occupancy: Dict[int, List[Dict[str, float]]]
     scheduler_cls: Type[Scheduler]

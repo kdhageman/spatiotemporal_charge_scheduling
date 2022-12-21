@@ -57,7 +57,7 @@ class TestMilpScheduler(TestCase):
         cs_locks = np.zeros((1, 1))
         start_positions_dict = {i: v for i, v in enumerate(start_positions)}
         batteries = {0: 1}
-        t_solve, (optimal, schedules) = scheduler.schedule(start_positions_dict, batteries=batteries, cs_locks=cs_locks, uavs_to_schedule=[0])
+        t_solve, optimal, schedules, _ = scheduler.schedule(start_positions_dict, batteries=batteries, cs_locks=cs_locks, uavs_to_schedule=[0])
         logging.getLogger("test").info(schedules[0])
 
     def test_failing_case(self):
@@ -128,7 +128,7 @@ class TestMilpScheduler(TestCase):
 
         start_positions_dict = {i: v for i, v in enumerate(start_positions)}
         batteries = {d: 1 for d in range(sc.N_d)}
-        t_solve, (optimal, schedules) = scheduler.schedule(start_positions_dict, batteries=batteries, cs_locks=cs_locks, uavs_to_schedule=[0, 1, 2])
+        t_solve, optimal, schedules, _ = scheduler.schedule(start_positions_dict, batteries=batteries, cs_locks=cs_locks, uavs_to_schedule=[0, 1, 2])
 
 
 class MockModel:

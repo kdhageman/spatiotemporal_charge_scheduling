@@ -134,7 +134,7 @@ class Simulator:
                         if d != uav.uav_id:
                             cs_locks[d, uav.resource_id] = self.sched_params.epsilon
 
-            t_solve, (optimal, schedules) = self.scheduler.schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
+            t_solve, optimal, schedules, scenario = self.scheduler.schedule(start_positions, batteries, cs_locks, uavs_to_schedule)
             self.debug(env, f"rescheduled {'non-' if not optimal else ''}optimal drone paths in {t_solve:.2f}s")
             n_remaining_waypoints = [self.scheduler.n_remaining_waypoints(d) for d in range(self.sc.N_d)]
             self.solve_times.append(SolveTime(env.now, optimal, t_solve, n_remaining_waypoints))
@@ -153,7 +153,8 @@ class Simulator:
                 existing_schedules = self.all_schedules.get(d, [])
                 new_schedule = {
                     "timestamp": env.now,
-                    "nodes": nodes
+                    "nodes": nodes,
+                    "scenario": scenario
                 }
                 self.all_schedules[d] = existing_schedules + [new_schedule]
 

@@ -404,6 +404,8 @@ def scenario_serializer(obj: Scenario, *args, **kwargs):
         nr_charging_stations=obj.N_s,
         nr_waypoints=obj.N_w,
         source_file=obj.source_file,
+        D_N=obj.D_N.tolist(),
+        D_W=obj.D_W.tolist(),
     )
 
 
