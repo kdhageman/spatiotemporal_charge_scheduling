@@ -415,14 +415,7 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
         scheduler = NaiveScheduler(sched_params, sc)
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
         logger.debug("[{datetime.now().strftime('%H:%M:%S')}] prepared naive simulator")
-    result = simulator.sim()
-
-    if directory:
-        with open(os.path.join(directory, "result.json"), 'w') as f:
-            dumped = jsons.dump(result)
-            json.dump(dumped, f)
-
-    return result
+    simulator.sim()
 
 
 def load_flight_sequences(path):
@@ -505,7 +498,7 @@ def schedule_charge_from_conf(conf):
     sim_params = SimulationParameters(plot_delta=plot_delta, delta_t=1)
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     t_start = time.perf_counter()
-    _ = schedule_charge(start_positions, waypoints, charging_station_positions, sched_params, sim_params, directory=output_dir, strategy=strategy, source_file=flight_sequence_fpath)
+    schedule_charge(start_positions, waypoints, charging_station_positions, sched_params, sim_params, directory=output_dir, strategy=strategy, source_file=flight_sequence_fpath)
     elapsed = time.perf_counter() - t_start
     logger.debug(f"finished charge schedule simulation in {elapsed:.1f}s")
 

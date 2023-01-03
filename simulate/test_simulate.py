@@ -65,11 +65,7 @@ class TestSimulator(TestCase):
             NormalDistributedEnvironment.from_seed(scale, seed=1)
         ]
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory, simenvs=simenvs)
-        result = simulator.sim()
-
-        if directory:
-            with open(os.path.join(directory, "result.json"), 'w') as f:
-                json.dump(jsons.dump(result), f)
+        simulator.sim()
 
     def test_milp_three_drones_circling_W4(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -109,11 +105,7 @@ class TestSimulator(TestCase):
             NormalDistributedEnvironment.from_seed(scale, seed=1)
         ]
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory, simenvs=simenvs)
-        result = simulator.sim()
-
-        if directory:
-            with open(os.path.join(directory, "result.json"), 'w') as f:
-                json.dump(jsons.dump(result), f)
+        simulator.sim()
 
     def test_milp_three_drones_circling_W5(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -144,11 +136,7 @@ class TestSimulator(TestCase):
         solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(sched_params, sc, solver=solver)
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
-        result = simulator.sim()
-
-        if directory:
-            with open(os.path.join(directory, "result.json"), 'w') as f:
-                json.dump(jsons.dump(result), f)
+        simulator.sim()
 
     def test_naive_simulator_long(self):
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
@@ -184,13 +172,7 @@ class TestSimulator(TestCase):
             NormalDistributedEnvironment.from_seed(scale, seed=1)
         ]
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory, simenvs=simenvs)
-        result = simulator.sim()
-
-        if directory:
-            with open(os.path.join(directory, "result.json"), 'w') as f:
-                dumped = jsons.dump(result)
-                json.dump(dumped, f)
-                # json.dump(result, f)
+        simulator.sim()
 
     def test_naive_three_drones_circling(self):
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
@@ -224,11 +206,7 @@ class TestSimulator(TestCase):
             NormalDistributedEnvironment.from_seed(scale, seed=1)
         ]
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory, simenvs=simenvs)
-        result = simulator.sim()
-
-        if directory:
-            with open(os.path.join(directory, "result.json"), 'w') as f:
-                json.dump(jsons.dump(result), f)
+        simulator.sim()
 
 
 class TestFailingCase(TestCase):
@@ -314,11 +292,7 @@ class TestFailingCase(TestCase):
             NormalDistributedEnvironment.from_seed(scale, seed=1)
         ]
         simulator = Simulator(scheduler, strat, self.sched_params, self.sim_params, self.sc, directory=directory, simenvs=simenvs)
-        result = simulator.sim()
-
-        if directory:
-            with open(os.path.join(directory, "result.json"), 'w') as f:
-                json.dump(jsons.dump(result), f)
+        simulator.sim()
 
     def test_naive(self):
         directory = 'out/test/failing_case/naive'
@@ -332,8 +306,4 @@ class TestFailingCase(TestCase):
             NormalDistributedEnvironment.from_seed(scale, seed=1)
         ]
         simulator = Simulator(scheduler, strat, self.sched_params, self.sim_params, self.sc, directory=directory, simenvs=simenvs)
-        result = simulator.sim()
-
-        if directory:
-            with open(os.path.join(directory, "result.json"), 'w') as f:
-                json.dump(jsons.dump(result), f)
+        simulator.sim()

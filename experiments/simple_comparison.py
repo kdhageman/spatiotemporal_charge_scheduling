@@ -42,7 +42,7 @@ def main():
     strat = OnEventStrategySingle()
     scheduler = NaiveScheduler(params, sc)
     simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-    _ = simulator.sim()
+    simulator.sim()
 
     # MILP
     directory = os.path.join(basedir, 'milp')
@@ -50,7 +50,7 @@ def main():
     strat = AfterNEventsStrategyAll(4)
     scheduler = MilpScheduler(params, sc)
     simulator = Simulator(scheduler, strat, params, sc, directory=directory)
-    _ = simulator.sim()
+    simulator.sim()
 
 
 if __name__ == "__main__":

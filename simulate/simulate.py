@@ -191,7 +191,7 @@ class Simulator:
         self.env = env
         self.strat_proc = strat_proc
 
-    def sim(self) -> SimResult:
+    def sim(self):
         success = False
         try:
             self.env.run(until=self.strat_proc)
@@ -228,10 +228,6 @@ class Simulator:
                 if self.sim_params.plot_delta:
                     sa = SimulationAnimator(self.sc, events, self.all_schedules, self.sim_params.plot_delta)
                     sa.animate(fname)
-            else:
-                result = None
-
-        return result
 
     def debug(self, env, msg):
         self.logger.debug(self._craft_msg(env, msg))
