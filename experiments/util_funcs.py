@@ -382,6 +382,10 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
     if directory:
         os.makedirs(directory, exist_ok=True)
 
+    start_positions = np.round(start_positions, 5).tolist()
+    waypoints = [np.round(l, 5).tolist() for l in waypoints]
+    charging_station_positions = np.round(charging_station_positions, 5).tolist()
+
     sc = Scenario(start_positions, charging_station_positions, waypoints, source_file=source_file)
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # drones:               {sc.N_d}")
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] # stations:             {sc.N_s}")

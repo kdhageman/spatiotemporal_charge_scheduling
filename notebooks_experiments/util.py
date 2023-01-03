@@ -226,3 +226,74 @@ def get_drone_charg_wait_windows(parsed):
         charged_windows.append(charged_windows_d)
         waited_windows.append(waited_windows_d)
     return charged_windows, waited_windows
+
+
+def compare_objs(a, b, prefix=""):
+    """
+    Compares two objects, trying to find their differences.
+    Traverses any nested list or dictionary.
+    """
+    equal = True
+    
+    if type(a) != type(b):
+        msg = f"different types ({type(a)} != {type(b)})"
+        if prefix:
+            msg = f"[{prefix}] {msg}"
+        print(msg)
+        return False
+    
+    if type(a) in [dict, list, tuple] and len(a) != len(b):
+        msg = f"different lengths ({len(a)} != {len(b)})"
+        if prefix:
+            msg = f"[{prefix}] {msg}"
+        print(msg)
+        equal = False
+    
+    if type(a) == dict:
+        nr_unequal = 0
+        for i in range(min(len(a), len(b))):
+            k_a, v_a = list(a.items())[i]
+            k_b, v_b = list(b.items())[i]
+            if k_a != k_b:
+                msg = f"key mismatch ({k_a} != {k_b})"
+                if prefix:
+                    msg = f"[{prefix}] {msg}"
+                print(msg)
+                
+                new_prefix = prefix + f"[k'{i}']"
+            else:
+                new_prefix = prefix + f"['{k_a}']"
+
+            v_equal = compare_objs(v_a, v_b, prefix=new_prefix)
+            
+            equal = equal & v_equal
+            
+            if not v_equal:
+                nr_unequal += 1
+            if nr_unequal > 7:
+                print("...")
+                break
+
+    elif type(a) in [list, tuple]:
+        nr_unequal = 0
+        for i in range(min(len(a), len(b))):
+            new_prefix = prefix + f"[{i}]"
+            v_equal = compare_objs(a[i], b[i], prefix=new_prefix)
+            
+            equal = equal & v_equal
+            
+            if not v_equal:
+                nr_unequal += 1
+            if nr_unequal > 7:
+                print("...")
+                break
+
+    else:
+        if a != b: 
+            msg = f"{a} != {b}"
+            if prefix: 
+                msg = f"[{prefix}] {msg}"
+            print(msg)
+            equal = False
+            
+    return equal
