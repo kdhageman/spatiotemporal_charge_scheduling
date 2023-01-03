@@ -23,12 +23,12 @@ class Scenario:
         for pos in start_positions:
             if len(pos) == 2:
                 pos = (pos[0], pos[1], 0)
-            self.start_positions.append(pos)
+            self.start_positions.append(list(np.round(pos, 10)))
         self.positions_S = []
         for pos in positions_S:
             if len(pos) == 2:
                 pos = (pos[0], pos[1], 0)
-            self.positions_S.append(pos)
+            self.positions_S.append(list(np.round(pos, 10)))
         self.N_w = max([len(l) for l in positions_w])
         self.positions_w = []
         for d, l in enumerate(positions_w):
@@ -36,7 +36,7 @@ class Scenario:
             for wp in l:
                 if len(wp) == 2:
                     wp = (wp[0], wp[1], 0)
-                waypoints.append(wp)
+                waypoints.append(list(np.round(wp, 10)))
             if waypoints:
                 padding_val = waypoints[-1]
             else:
