@@ -21,6 +21,11 @@ class ConfigurationManager:
                         parsed = json.load(f)
                 except FileNotFoundError:
                     continue
+
+                if not parsed.get('success', False):
+                    # only successful runs count
+                    continue
+
                 charging_strategy = parsed['scheduler']
                 n_drones = parsed['scenario']['nr_drones']
                 W_hat = parsed['sched_params']['W_hat']
