@@ -29,7 +29,7 @@ def main():
     time_limit = 300
     r_charge = 1 / 3600
     r_deplete = 1 / 600
-    n_trials = 1
+    n_trials = 5
 
     confs = []
     for W_hat, pi, sigma in tqdm(product(W_hats, pis, sigmas)):
