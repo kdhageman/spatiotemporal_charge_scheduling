@@ -24,7 +24,7 @@ def main():
     flight_seq_fpath = "out/flight_sequences/villalvernia_3.vs_30/flight_sequences.pkl"
 
     W_hats = [75, 60, 45, 30, 15]
-    pis = [np.inf, 61, 46, 31, 16]
+    pis = [np.inf, 61, 46, 31, 16, 8]
     sigmas = [1, 2, 3, 4, 5, 6, 7, 8]
     time_limit = 300
     r_charge = 1 / 3600
