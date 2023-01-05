@@ -80,6 +80,7 @@ def load_results_from_dir(rootdir):
                          utilization,
                          frac_charged,
                          frac_waited,
+                         1 - utilization,
                          charged_windows,
                          waited_windows,
                          trial
@@ -114,6 +115,7 @@ def load_results_from_dir(rootdir):
             'utilization',
             'frac_charged',
             'frac_waited',
+            'frac_moved',
             'charged_windows_drones',
             'waited_windows_drones',
             'trial'])
