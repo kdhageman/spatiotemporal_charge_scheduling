@@ -13,7 +13,7 @@ sys.path.append(".")
 from experiments.configuration import MilpConfiguration, NaiveConfiguration, ConfigurationManager
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
 
-time_limit = 300
+time_limit = 600
 charging_stations_compositions = {
     1: [
         [-5.89549398, 13.3062412, 0]
@@ -63,7 +63,7 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
             )
             conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
-            conf.baseconf['charging_optimization']['v'] = 0.4
+            conf.baseconf['charging_optimization']['v'] = 0.45
             confs.append(conf)
 
             conf = NaiveConfiguration(
@@ -77,6 +77,7 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
             )
             conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
+            conf.baseconf['charging_optimization']['v'] = 0.45
             confs.append(conf)
 
     return confs
@@ -142,7 +143,7 @@ def main():
 
     confs = []
     confs += coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
-    confs += fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
+    # confs += fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
 
     conf_manager = ConfigurationManager(basedir)
     for i, conf in enumerate(tqdm(confs)):
