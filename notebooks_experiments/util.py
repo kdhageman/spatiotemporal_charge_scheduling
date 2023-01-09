@@ -5,6 +5,8 @@ import re
 import pandas as pd
 from datetime import datetime
 import math
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 def load_results_from_dir(rootdir):
@@ -299,3 +301,59 @@ def compare_objs(a, b, prefix=""):
             equal = False
             
     return equal
+
+def heatmap_3dim(inp, y, x1, x2, target, ax=None, ylabel=None, x1label=None, x2label=None, ytickslabels=None, x1tickslabels=None, x2tickslabels=None):
+    if not ax:
+        _, ax = plt.subplots(figsize=(15,2.25), dpi=110)
+
+    if not ytickslabels:
+        ytickslabels = {}
+
+    if not x1tickslabels:
+        x1tickslabels = {}
+
+    if not x2tickslabels:
+        x2tickslabels = {}
+
+    # generate data
+    ys = sorted(inp[y].unique())
+    x1s = sorted(inp[x1].unique())
+    x2s = sorted(inp[x2].unique())
+
+    n_ys = len(ys)
+    n_x1s = len(x1s)
+    n_x2s = len(x2s)
+
+    dat = np.zeros((n_ys, (n_x2s * n_x1s) + n_x1s - 1))
+    for _, r in inp.iterrows():
+        y_idx = ys.index(r[y])
+        x1_idx = x1s.index(r[x1])
+        x2_idx = x2s.index(r[x2])
+        target_val = r[target]
+
+        row = y_idx
+        col = x1_idx * (n_x2s + 1) + x2_idx
+        dat[row, col] = target_val
+
+    mask = dat == 0
+    sns.heatmap(dat, square=True, mask=mask, cmap='vlag', ax=ax)
+
+    # set label values
+    xticks = []
+    xticklabels = []
+    offset = 0.5
+    for i in range(len(x1s)):
+        if i > 0:
+            offset += 1
+        for x2_val in x2s:
+            xticklabels.append(x2tickslabels.get(x2_val, x2_val))
+            xticks.append(offset)
+            offset += 1
+    ax.set_xticks(xticks, xticklabels)
+    ax.set_yticklabels([ytickslabels.get(y_val, y_val) for y_val in ys], rotation=0)
+    
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    
+    if x2label:
+        ax.set_xlabel(x2label)
