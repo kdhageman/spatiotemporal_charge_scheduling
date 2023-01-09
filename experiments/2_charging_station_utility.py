@@ -145,7 +145,7 @@ def main():
     confs += fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
 
     conf_manager = ConfigurationManager(basedir)
-    for i, conf in enumerate(tqdm(confs[:1])):
+    for i, conf in enumerate(tqdm(confs)):
         try:
             existing_experiment_dir = conf_manager.seen(conf)
             if not existing_experiment_dir:
