@@ -63,6 +63,7 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
             )
             conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
+            conf.baseconf['charging_optimization']['v'] = 0.4
             confs.append(conf)
 
             conf = NaiveConfiguration(
@@ -144,7 +145,7 @@ def main():
     confs += fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
 
     conf_manager = ConfigurationManager(basedir)
-    for i, conf in enumerate(tqdm(confs)):
+    for i, conf in enumerate(tqdm(confs[:1])):
         try:
             existing_experiment_dir = conf_manager.seen(conf)
             if not existing_experiment_dir:
