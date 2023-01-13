@@ -24,7 +24,7 @@ def load_results_from_dir(rootdir):
                         continue
 
                     execution_time = parsed['execution_time']
-                    execution_time_all = [l[-1]['t_end'] for l in parsed['event']]
+                    execution_time_all = get_execution_times(parsed)
                     t_solve_total = sum([x['t_solve'] for x in parsed['solve_times']])
                     t_solve_mean = np.mean([x['t_solve'] for x in parsed['solve_times']])
                     n_solves = len(parsed['solve_times'])
@@ -51,8 +51,7 @@ def load_results_from_dir(rootdir):
                     B_start = parsed['sched_params']['B_start'][0]
                     trial = trial_subdir
 
-                    utilization, frac_charged, frac_waited = get_charging_station_utilization_slowest(parsed)
-                    charged_windows, waited_windows = get_drone_charg_wait_windows(parsed)
+                    charging_times, waiting_times, moving_times, idle_times = get_time_spent(parsed)
 
                     data.append(
                         [os.path.join(rootdir, trial_subdir, subdir),
@@ -79,12 +78,10 @@ def load_results_from_dir(rootdir):
                          B_min,
                          B_max,
                          B_start,
-                         utilization,
-                         frac_charged,
-                         frac_waited,
-                         1 - utilization,
-                         charged_windows,
-                         waited_windows,
+                         charging_times,
+                         waiting_times,
+                         moving_times,
+                         idle_times,
                          trial
                          ])
     df = pd.DataFrame(
@@ -114,12 +111,10 @@ def load_results_from_dir(rootdir):
             'B_min',
             'B_max',
             'B_start',
-            'utilization',
-            'frac_charged',
-            'frac_waited',
-            'frac_moved',
-            'charged_windows_drones',
-            'waited_windows_drones',
+            'charging_times',
+            'waiting_times',
+            'moving_times',
+            'idle_times',
             'trial'])
 
     # convert formats
@@ -138,98 +133,63 @@ def load_results_from_dir(rootdir):
     return df
 
 
-def get_charging_station_utilization_all(parsed):
+def get_execution_times(parsed):
     """
-    Extract the charging station utilization across the mission log, measured for *all* drones
+    Return the execution time per drone
     """
-    mission_time_cumulative = sum([l[-1]['t_end'] for l in parsed['event']])
+    return [l[-1]['t_end'] for l in parsed['event']]
 
-    time_charged_all = {}
-    time_waited_all = {}
 
-    for event_list in parsed['event']:
-        for ev in event_list:
+def get_time_spent(parsed):
+    """
+    Return the time spend charging, waiting, moving and idle for all drones in the event list from the input
+    :param parsed:
+    :return:
+    """
+    max_execution_time = parsed['execution_time']
+    execution_times = get_execution_times(parsed)
+    charging_times = get_charged_spent(parsed)
+    waiting_times = get_waited_spent(parsed)
+    moving_times = []
+    idle_times = []
+    for d in range(len(execution_times)):
+        moving_time = execution_times[d] - charging_times[d] - waiting_times[d]
+        moving_times.append(moving_time)
+
+        idle_time = max_execution_time - execution_times[d]
+        idle_times.append(idle_time)
+
+    return charging_times, waiting_times, moving_times, idle_times
+
+
+def get_charged_spent(parsed):
+    """
+    Return the time spend charging for all drones in the event list from the input
+    """
+    res = []
+    for ev_list in parsed['event']:
+        charged_d = 0
+
+        for ev in ev_list:
             if ev['type'] == 'charged':
-                station_idx = ev['node']['id']
-                t_start = ev['t_start']
-                t_end = ev['t_end']
-                time_charged_all[station_idx] = time_charged_all.get(station_idx, 0) + t_end - t_start
-            elif ev['type'] == 'waited':
-                station_idx = ev['node']['id']
-                t_start = ev['t_start']
-                t_end = ev['t_end']
-                time_waited_all[station_idx] = time_waited_all.get(station_idx, 0) + t_end - t_start
-
-    frac_charged = sum(time_charged_all.values()) / mission_time_cumulative
-    frac_waited = sum(time_waited_all.values()) / mission_time_cumulative
-    utilization = frac_charged + frac_waited
-
-    return utilization, frac_charged, frac_waited
+                charged_d += ev['duration']
+        res.append(charged_d)
+    return res
 
 
-def get_charging_station_utilization_slowest(parsed):
+def get_waited_spent(parsed):
     """
-    Extract the charging station utilization across the mission log, measured for the slowest drone only
+    Return the time spend waiting for all drones in the event list from the input
     """
-    end_times = [ev[-1]['t_end'] for ev in parsed['event']]
-    slowest_uav, slowest_time = np.argmax(end_times), np.max(end_times)
+    res = []
+    for ev_list in parsed['event']:
+        waited_d = 0
 
-    time_charged = 0
-    time_waited = 0
-    for ev in parsed['event'][slowest_uav]:
-        if ev['type'] == 'charged':
-            t_start = ev['t_start']
-            t_end = ev['t_end']
-            time_charged += t_end - t_start
-        elif ev['type'] == 'waited':
-            t_start = ev['t_start']
-            t_end = ev['t_end']
-            time_waited += t_end - t_start
-    frac_charged = time_charged / slowest_time
-    frac_waited = time_waited / slowest_time
-    utilization = frac_charged + frac_waited
-
-    return utilization, frac_charged, frac_waited
-
-
-def get_drone_charg_wait_windows(parsed):
-    """
-    Extract the charging and waiting windows for each drone
-    """
-    charged_windows = []
-    waited_windows = []
-
-    for evlist in parsed['event']:
-        charged_windows_d = []
-        waited_windows_d = []
-        cur_type = None
-        cur_station = None
-        window_start = None
-
-        stop = False
-        for ev in evlist:
-            if ev['type'] != cur_type:
-                # end of current window
-                if cur_type == 'charged':
-                    # end charging
-                    charged_windows_d.append((window_start, ev['t_end'], cur_station))
-                elif cur_type == 'waited':
-                    # end waiting
-                    waited_windows_d.append((window_start, ev['t_end'], cur_station))
-
-                cur_type = ev['type']
-
-                if cur_type == 'charged':
-                    # start of charging
-                    window_start = ev['t_start']
-                    cur_station = ev['node']['id']
-                elif cur_type == 'waited':
-                    # start of waiting
-                    window_start = ev['t_end']
-                    cur_station = ev['node']['id']
-        charged_windows.append(charged_windows_d)
-        waited_windows.append(waited_windows_d)
-    return charged_windows, waited_windows
+        for ev in ev_list:
+            if ev['type'] == 'waited':
+                waited_d += ev['duration']
+        res.append(waited_d)
+    return res
 
 
 def compare_objs(a, b, prefix=""):
@@ -238,21 +198,21 @@ def compare_objs(a, b, prefix=""):
     Traverses any nested list or dictionary.
     """
     equal = True
-    
+
     if type(a) != type(b):
         msg = f"different types ({type(a)} != {type(b)})"
         if prefix:
             msg = f"[{prefix}] {msg}"
         print(msg)
         return False
-    
+
     if type(a) in [dict, list, tuple] and len(a) != len(b):
         msg = f"different lengths ({len(a)} != {len(b)})"
         if prefix:
             msg = f"[{prefix}] {msg}"
         print(msg)
         equal = False
-    
+
     if type(a) == dict:
         nr_unequal = 0
         for i in range(min(len(a), len(b))):
@@ -263,15 +223,15 @@ def compare_objs(a, b, prefix=""):
                 if prefix:
                     msg = f"[{prefix}] {msg}"
                 print(msg)
-                
+
                 new_prefix = prefix + f"[k'{i}']"
             else:
                 new_prefix = prefix + f"['{k_a}']"
 
             v_equal = compare_objs(v_a, v_b, prefix=new_prefix)
-            
+
             equal = equal & v_equal
-            
+
             if not v_equal:
                 nr_unequal += 1
             if nr_unequal > 7:
@@ -283,9 +243,9 @@ def compare_objs(a, b, prefix=""):
         for i in range(min(len(a), len(b))):
             new_prefix = prefix + f"[{i}]"
             v_equal = compare_objs(a[i], b[i], prefix=new_prefix)
-            
+
             equal = equal & v_equal
-            
+
             if not v_equal:
                 nr_unequal += 1
             if nr_unequal > 7:
@@ -293,18 +253,19 @@ def compare_objs(a, b, prefix=""):
                 break
 
     else:
-        if a != b: 
+        if a != b:
             msg = f"{a} != {b}"
-            if prefix: 
+            if prefix:
                 msg = f"[{prefix}] {msg}"
             print(msg)
             equal = False
-            
+
     return equal
+
 
 def heatmap_3dim(inp, y, x1, x2, target, ax=None, ylabel=None, x1label=None, x2label=None, ytickslabels=None, x1tickslabels=None, x2tickslabels=None):
     if not ax:
-        _, ax = plt.subplots(figsize=(15,2.25), dpi=110)
+        _, ax = plt.subplots(figsize=(15, 2.25), dpi=110)
 
     if not ytickslabels:
         ytickslabels = {}
@@ -351,9 +312,9 @@ def heatmap_3dim(inp, y, x1, x2, target, ax=None, ylabel=None, x1label=None, x2l
             offset += 1
     ax.set_xticks(xticks, xticklabels)
     ax.set_yticklabels([ytickslabels.get(y_val, y_val) for y_val in ys], rotation=0)
-    
+
     if ylabel:
         ax.set_ylabel(ylabel)
-    
+
     if x2label:
         ax.set_xlabel(x2label)
