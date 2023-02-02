@@ -13,7 +13,7 @@ charging_optimization:
   r_charge: 0.00067
   r_deplete: 0.006
   plot_delta: 0
-  W_hat:6
+  W_hat: 6
   sigma: 6
   epsilon: 3
   schedule_delta: 20
