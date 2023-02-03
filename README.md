@@ -33,7 +33,8 @@ The license key should come from a page such as [this](https://www.gurobi.com/do
 > Note that these command are only tested on MacOS and Windows and Linux remain untested.
 
 ### 1. Preparation
-Prior to running a simulation, a set of flight paths must be generated first. 
+It is necessary to have access to a 3d point cloud (in `.ply` format) of a structure.
+Prior to running a simulation, a set of flight paths must be generated first for this structure.
 To do so, prepare a configuration file (use `config/flight_sequence/template.yml` as a template).
 Then run the following two commands:
 ```
