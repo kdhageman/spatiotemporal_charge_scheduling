@@ -1,14 +1,12 @@
 import json
 import logging
 import os
-import pickle
 import time
 from datetime import datetime
 from enum import Enum
-from typing import List
+from typing import List, Tuple
 
 import cvxpy
-import jsons
 import networkx as nx
 import numpy as np
 import nxmetis
@@ -16,7 +14,6 @@ import open3d as o3d
 import scipy
 from matplotlib import pyplot as plt
 from open3d.cpu.pybind.camera import PinholeCameraParameters
-from open3d.cpu.pybind.visualization import ViewControl
 
 from simulate.parameters import SchedulingParameters, SimulationParameters
 
@@ -252,22 +249,29 @@ def get_next_node(points: np.array, cur_node: int, g: nx.Graph, sn_idx: int, z_p
     return res
 
 
-def plan_path(pcd: o3d.geometry.PointCloud, g: nx.Graph, z_penalty=1, start_position=[0, 0, 0]):
+def plan_path(pcd: o3d.geometry.PointCloud, g_local: nx.Graph, g_global: nx.Graph, z_penalty=1, start_position=[0, 0, 0]) -> Tuple[List[int], List[Tuple[int, int]]]:
     """
-    Plans a path for the given subgraph 'sg', using the information from pointcloud 'pcd'
+    Plans a path for the given subgraph 'g', using the information from point-cloud 'pcd'
+    :param pcd = a point cloud representing the position of waypoints to visit
+    :param g_local = a graph representing the neighborhood edges of the waypoints
+    :param g_global = the global connectivity graph used for finding shortest paths across connected components
+    :param start_position = the (3-dimensional) start position of the UAV
+    :return the path (list of integers) and the path (list of (src, dest) tuples
     """
     points = np.asarray(pcd.points)
-    sn_idx = closest_point(points, g, start_position)
+    sn_idx = closest_point(points, g_local, start_position)
 
     cur_node = sn_idx
-    g.nodes[sn_idx]['visited'] = True
+    g_local.nodes[sn_idx]['visited'] = True
     seq = [cur_node]
 
-    while len(seq) < g.number_of_nodes():
-        next_node = get_next_node(points, cur_node, g, sn_idx, z_penalty=z_penalty)
+    while len(seq) < g_local.number_of_nodes():
+        next_node = get_next_node(points, cur_node, g_local, sn_idx, z_penalty=z_penalty)
         if next_node is not None:
-            g.nodes[next_node]['visited'] = True
-            seq.append(next_node)
+            g_local.nodes[next_node]['visited'] = True
+            shortest_path = nx.shortest_path(g_global, cur_node, next_node)
+            for node in shortest_path[1:]:
+                seq.append(node)
             cur_node = next_node
         else:
             raise Exception("failed to find next node")
@@ -423,8 +427,8 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
 
 
 def load_flight_sequences(path):
-    with open(path, 'rb') as f:
-        flight_sequences = np.array(pickle.load(f))
+    with open(path, 'r') as f:
+        flight_sequences = np.array(json.load(f))
 
     # add intermediate positions
     dist_cuttoffs = []

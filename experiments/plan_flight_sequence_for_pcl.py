@@ -1,12 +1,13 @@
+import copy
 import glob
+import json
 import logging
 import os
-import pickle
 import sys
 
 import numpy as np
-import yaml
 import open3d as o3d
+import yaml
 from tqdm import tqdm
 
 from util_funcs import draw_geometries, downsample, estimate_normal, remove_downward_normals, pcd_to_subgraphs, graphs_to_geometries, plan_path, paths_to_geometries, optimize_path, flight_sequences_to_geometries, charging_positions_to_geometries
@@ -84,6 +85,7 @@ def main(conf):
         mesh.translate(offset)
 
     geos = [pcd]
+    pcd_posttrans = copy.deepcopy(pcd)
     if cf:
         geos.append(cf)
     if mesh:
@@ -175,7 +177,7 @@ def main(conf):
     # TODO: set starting positions per drone
     start_positions = [[0, 0, 0]] * n_drones
     for i, sg in enumerate(subgraphs):
-        seq, path = plan_path(pcd, sg, z_penalty=z_penalty, start_position=start_positions[i])
+        seq, path = plan_path(pcd, sg, G, z_penalty=z_penalty, start_position=start_positions[i])
         seqs.append(seq)
         paths.append(path)
         logger.debug(f"finished path planning for subgraph [{i}]")
@@ -210,16 +212,17 @@ def main(conf):
     draw_geometries(original_pcd, geos, viewpoint=viewpoint, fname=fname, width=open3d_width, height=open3d_height, window_name='flight paths')
     filecounter += 1
 
-    # draw flight paths with charging stations
+    # draw flight paths with charging stations + point cloud
     charging_station_geos = charging_positions_to_geometries(charging_stations_positions, scale=1)
+    geos.append(pcd_posttrans)
     geos += charging_station_geos
     fname = os.path.join(output_dir, f"{filecounter}_flight_paths_incl_cs.png") if not visualize else None
     draw_geometries(original_pcd, geos, viewpoint=viewpoint, fname=fname, width=open3d_width, height=open3d_height, window_name='flight paths incl charging stations')
     filecounter += 1
 
-    fname = os.path.join(output_dir, "flight_sequences.pkl")
-    with open(fname, 'wb') as f:
-        pickle.dump(flight_sequences, f, protocol=2)
+    fname = os.path.join(output_dir, "flight_sequences.json")
+    with open(fname, 'w') as f:
+        json.dump([x.tolist() for x in flight_sequences], f)
 
 
 if __name__ == "__main__":
