@@ -3,7 +3,6 @@ import logging
 import os
 from unittest import TestCase
 
-import jsons
 import numpy as np
 from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
@@ -208,6 +207,93 @@ class TestSimulator(TestCase):
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory, simenvs=simenvs)
         simulator.sim()
 
+    def test_generate_demo_video_milp(self):
+        start_positions = [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ]
+
+        positions_S = [
+            [-5, -10, 0],
+            [10, 5, 0],
+        ]
+
+        with open("out/flight_sequences/villalvernia_4.demo.fine/flight_sequences.json", 'r') as f:
+            position_w = json.load(f)
+
+        sc = Scenario(start_positions, positions_S, position_w)
+
+        p_sim = dict(
+            plot_delta=5,
+        )
+        p_sched = dict(
+            r_charge=[1 / 240]*4,
+            r_deplete=[1 / 120]*4,
+            v=[1]*4,
+            B_min=[0.1]*4,
+            B_max=[1]*4,
+            B_start=[1]*4,
+            W_hat=100,
+            sigma=10,
+            epsilon=5,
+        )
+        sim_params = SimulationParameters(**p_sim)
+        sched_params = SchedulingParameters.from_raw(**p_sched)
+
+        directory = "out/test/demo/milp"
+        os.makedirs(directory, exist_ok=True)
+        strat = AfterNEventsStrategyAll(75)
+        # solver = SolverFactory("gurobi_ampl", solver_io='nl')
+        solver = SolverFactory("gurobi")
+        solver.options['MIPFocus'] = 1
+        scheduler = MilpScheduler(sched_params, sc, solver=solver)
+        # scheduler = NaiveScheduler(sched_params, sc)
+        simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
+        simulator.sim()
+
+    def test_generate_demo_video_greedy(self):
+        start_positions = [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ]
+
+        positions_S = [
+            [-5, -10, 0],
+            [10, 5, 0],
+        ]
+
+        with open("out/flight_sequences/villalvernia_4.demo.fine/flight_sequences.json", 'r') as f:
+            position_w = json.load(f)
+
+        sc = Scenario(start_positions, positions_S, position_w)
+
+        p_sim = dict(
+            plot_delta=5,
+        )
+        p_sched = dict(
+            r_charge=[1 / 240] * 4,
+            r_deplete=[1 / 120] * 4,
+            v=[1] * 4,
+            B_min=[0.1] * 4,
+            B_max=[1] * 4,
+            B_start=[1] * 4,
+            W_hat=100,
+            sigma=10,
+            epsilon=5,
+        )
+        sim_params = SimulationParameters(**p_sim)
+        sched_params = SchedulingParameters.from_raw(**p_sched)
+
+        directory = "out/test/demo/greedy"
+        os.makedirs(directory, exist_ok=True)
+        strat = OnEventStrategySingle()
+        scheduler = NaiveScheduler(sched_params, sc)
+        simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
+        simulator.sim()
 
 class TestFailingCase(TestCase):
     def setUp(self) -> None:
