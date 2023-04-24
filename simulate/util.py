@@ -23,17 +23,16 @@ def gen_colors(n: int):
         [204, 51, 51],
         [51, 204, 51],
         [51, 51, 204],
+        [181, 175, 0],
     ]) / 255
 
     np.random.seed(3)
     res = []
     i = 0
-    while len(res) < 3:
+    while len(res) < len(base_colors):
         c = base_colors[i]
         res.append(c)
         i += 1
-        if i == 3:
-            break
 
     while len(res) < n:
         c = np.random.rand(3).tolist()
