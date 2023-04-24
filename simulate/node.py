@@ -51,6 +51,9 @@ class Node:
             return np.array([0, 0, 0])
         return dir_vector / np.linalg.norm(dir_vector)
 
+    def __eq__(self, other):
+        return self.same_pos(other) and self.node_type == other.node_type
+
     @property
     def node_type(self) -> NodeType:
         raise NotImplementedError

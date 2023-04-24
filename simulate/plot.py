@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.patches import Rectangle
 
 from simulate.event import Event, EventType
@@ -52,7 +52,7 @@ class SimulationAnimator:
         return res
 
     def animate(self, fname):
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(dpi=200)
 
         cur_schedules = [s[0] for s in self.schedules.values()]
         remaining_schedules = [s[1:] for s in self.schedules.values()]
@@ -146,13 +146,10 @@ class SimulationAnimator:
                         remaining_waypoints[d].remove(tuple(ev.node.pos))
 
                     # mark nodes as reached, to clean up the remaining schedule
-                    if cur_schedules[d]['nodes'] and ev.type == EventType.reached and ev.node == cur_schedules[d]['nodes'][0]:
+                    nodes_in_sched = cur_schedules[d]['nodes']
+                    if nodes_in_sched and ev.node == nodes_in_sched[0]:
                         new_sched_nodes = cur_schedules[d]['nodes'][1:]
                         cur_schedules[d]['nodes'] = new_sched_nodes
-
-                    # for next loop iteration
-                    cur_events[d] = remaining_events[d][0]
-                    remaining_events[d] = remaining_events[d][1:]
 
                     start_pos[d] = ev.node.pos
                     start_battery[d] = ev.battery
@@ -160,6 +157,10 @@ class SimulationAnimator:
                     target_pos[d] = cur_events[d].node.pos
                     target_battery[d] = cur_events[d].battery
                     target_time[d] = cur_events[d].t_end
+
+                    # for next loop iteration
+                    cur_events[d] = remaining_events[d][0]
+                    remaining_events[d] = remaining_events[d][1:]
 
                 if target_time[d] - start_time[d] == 0:
                     progress = 1
@@ -228,6 +229,11 @@ class SimulationAnimator:
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] animating {self.n_frames} frames")
         ani = FuncAnimation(fig, update, frames=self.frames, blit=True, interval=50)
 
-        video = ani.to_html5_video()
-        with open(fname, 'w') as f:
-            f.write(video)
+        if fname.endswith(".html"):
+            video = ani.to_html5_video()
+            with open(fname, 'w') as f:
+                f.write(video)
+
+        elif fname.endswith(".mp4"):
+            ff_writer = FFMpegWriter(fps=20)
+            ani.save(fname, writer=ff_writer)

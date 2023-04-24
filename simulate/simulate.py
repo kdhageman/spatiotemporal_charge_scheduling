@@ -223,7 +223,7 @@ class Simulator:
                 fname = os.path.join(self.directory, "occupancy.pdf")
                 plot_station_occupancy(result, fname)
 
-                fname = os.path.join(self.directory, "animation.html")
+                fname = os.path.join(self.directory, "animation.mp4")
                 events = {d: uav.events(self.env) for d, uav in enumerate(self.uavs)}
                 if self.sim_params.plot_delta:
                     sa = SimulationAnimator(self.sc, events, self.all_schedules, self.sim_params.plot_delta)
