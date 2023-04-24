@@ -226,7 +226,7 @@ class TestSimulator(TestCase):
         sc = Scenario(start_positions, positions_S, position_w)
 
         p_sim = dict(
-            plot_delta=5,
+            plot_delta=3,
         )
         p_sched = dict(
             r_charge=[1 / 240]*4,
@@ -245,11 +245,9 @@ class TestSimulator(TestCase):
         directory = "out/test/demo/milp"
         os.makedirs(directory, exist_ok=True)
         strat = AfterNEventsStrategyAll(75)
-        # solver = SolverFactory("gurobi_ampl", solver_io='nl')
         solver = SolverFactory("gurobi")
         solver.options['MIPFocus'] = 1
         scheduler = MilpScheduler(sched_params, sc, solver=solver)
-        # scheduler = NaiveScheduler(sched_params, sc)
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
         simulator.sim()
 
@@ -272,7 +270,7 @@ class TestSimulator(TestCase):
         sc = Scenario(start_positions, positions_S, position_w)
 
         p_sim = dict(
-            plot_delta=5,
+            plot_delta=3,
         )
         p_sched = dict(
             r_charge=[1 / 240] * 4,

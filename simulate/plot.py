@@ -59,8 +59,9 @@ class SimulationAnimator:
 
         cur_events = [e[0] for e in self.events.values()]
         remaining_events = [e[1:] for e in self.events.values()]
-        remaining_waypoints = [l[1:] for l in self.sc.positions_w]
-        visited_waypoints = [[] for d in range(self.sc.N_d)]
+        remaining_waypoints = []
+        for d in range(self.sc.N_d):
+            remaining_waypoints.append([tuple(x) for x in self.sc.positions_w[d]])
 
         start_pos = [np.array(l[0]) for l in self.sc.positions_w]
         start_battery = [e.pre_battery for e in cur_events]
@@ -122,25 +123,36 @@ class SimulationAnimator:
             battery_inner_patches.append(patch)
 
         def update(t):
+            # renew schedule if needed
+            for d in range(self.sc.N_d):
+                while remaining_schedules[d] and t >= remaining_schedules[d][0]['timestamp']:
+                    cur_schedules[d] = remaining_schedules[d][0]
+                    remaining_schedules[d] = remaining_schedules[d][1:]
+
+                    # trim first node(s) from schedule if drone is already there
+                    while cur_schedules[d]['nodes'] and tuple(cur_schedules[d]['nodes'][0].pos) == tuple(start_pos[d]):
+                        new_sched_nodes = cur_schedules[d]['nodes'][1:]
+                        cur_schedules[d]['nodes'] = new_sched_nodes
+
+            # go through all events to see if they have happened
             interpolated_pos = []
             interpolated_battery = []
             for d in range(self.sc.N_d):
-                # TODO: break infinite loop here
-                while t >= target_time[d] and remaining_waypoints[d]:
+                while t >= cur_events[d].t_end and remaining_events[d]:
                     ev = cur_events[d]
-                    if cur_events[d].node.node_type == NodeType.Waypoint:
-                        # reached a waypoint, so remaining waypoints is reduced
-                        visited_waypoints[d].append(cur_events[d].node)
-                        if remaining_waypoints[d]:
-                            remaining_waypoints[d] = remaining_waypoints[d][1:]
 
-                    if cur_events[d].type == EventType.reached:
-                        # reached SOMETHING, so the schedule is updated
-                        cur_schedules[d]['nodes'] = cur_schedules[d]['nodes'][1:]
+                    # mark seen waypoints, so it will not be plotted as a remaining waypoint
+                    if ev.type == EventType.reached and ev.node.node_type == NodeType.Waypoint:
+                        remaining_waypoints[d].remove(tuple(ev.node.pos))
 
-                    if remaining_events[d]:
-                        cur_events[d] = remaining_events[d][0]
-                        remaining_events[d] = remaining_events[d][1:]
+                    # mark nodes as reached, to clean up the remaining schedule
+                    if cur_schedules[d]['nodes'] and ev.type == EventType.reached and ev.node == cur_schedules[d]['nodes'][0]:
+                        new_sched_nodes = cur_schedules[d]['nodes'][1:]
+                        cur_schedules[d]['nodes'] = new_sched_nodes
+
+                    # for next loop iteration
+                    cur_events[d] = remaining_events[d][0]
+                    remaining_events[d] = remaining_events[d][1:]
 
                     start_pos[d] = ev.node.pos
                     start_battery[d] = ev.battery
@@ -149,30 +161,12 @@ class SimulationAnimator:
                     target_battery[d] = cur_events[d].battery
                     target_time[d] = cur_events[d].t_end
 
-                # select next schedule if needed
-                while remaining_schedules[d]:
-                    next_schedule = remaining_schedules[d][0]
-                    if t >= next_schedule[0]:
-                        cur_schedules[d] = next_schedule
-                        remaining_schedules[d] = remaining_schedules[d][1:]
-                    else:
-                        break
-
                 if target_time[d] - start_time[d] == 0:
                     progress = 1
                 else:
                     progress = min((t - start_time[d]) / (target_time[d] - start_time[d]), 1)
                 interpolated_pos.append((1 - progress) * start_pos[d] + progress * target_pos[d])
                 interpolated_battery.append((1 - progress) * start_battery[d] + progress * target_battery[d])
-
-            # clean up schedule
-            for d in range(self.sc.N_d):
-                sched = cur_schedules[d]['nodes']
-                visited_nodes = list(filter(lambda x: x in visited_waypoints[d], sched))
-                if visited_nodes:
-                    last_node_visited_in_sched = last_node_visited_in_sched[-1]
-                    sched_new = sched[sched.index(last_node_visited_in_sched) + 1:]
-                    cur_schedules[d]['nodes'] = sched_new
 
             # plot current position
             for d in range(self.sc.N_d):
@@ -233,6 +227,7 @@ class SimulationAnimator:
 
         self.logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] animating {self.n_frames} frames")
         ani = FuncAnimation(fig, update, frames=self.frames, blit=True, interval=50)
+
         video = ani.to_html5_video()
         with open(fname, 'w') as f:
             f.write(video)

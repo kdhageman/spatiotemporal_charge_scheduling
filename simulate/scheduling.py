@@ -383,5 +383,5 @@ class NaiveScheduler(Scheduler):
             for pos in self.remaining_waypoints(d):
                 wp = Waypoint(*pos)
                 nodes.append(wp)
-            res[d] = nodes
+            res[d] = nodes[:10]
         return float(0), False, res, None
