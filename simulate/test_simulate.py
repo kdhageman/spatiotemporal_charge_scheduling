@@ -368,7 +368,7 @@ class TestSimulator(TestCase):
             B_min=[0.1] * 4,
             B_max=[1] * 4,
             B_start=[1] * 4,
-            W_hat=600,
+            W_hat=620,
             sigma=45,
             epsilon=5,
         )
