@@ -5,12 +5,14 @@ import logging
 import os
 import sys
 
+import networkx as nx
 import numpy as np
 import open3d as o3d
 import yaml
 from tqdm import tqdm
 
-from util_funcs import draw_geometries, downsample, estimate_normal, remove_downward_normals, pcd_to_subgraphs, graphs_to_geometries, plan_path, paths_to_geometries, optimize_path, flight_sequences_to_geometries, charging_positions_to_geometries
+from util_funcs import draw_geometries, downsample, estimate_normal, remove_downward_normals, pcd_to_subgraphs, graphs_to_geometries, plan_path, paths_to_geometries, optimize_path, flight_sequences_to_geometries, charging_positions_to_geometries, \
+    extract_navigation_graphs, graph_to_pcd
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +150,7 @@ def main(conf):
     obb = pcd.get_oriented_bounding_box()
     logger.debug(f"bounding box size: {obb.extent}")
 
-    G, subgraphs = pcd_to_subgraphs(pcd, n_drones, nb_count=nb_count, z=3)
+    G, subgraphs = pcd_to_subgraphs(pcd, n_drones, nb_count=nb_count, z=1.2)
     logger.debug("finished graph extraction")
 
     geos = graphs_to_geometries(pcd, [G])
@@ -171,13 +173,30 @@ def main(conf):
     filecounter += 1
     logger.debug("finished geometry extraction from subgraphs")
 
+    # extract navigation graphs
+    navigation_graphs = extract_navigation_graphs(G, charging_stations_positions, 2)
+
+    for i, navigation_graph in enumerate(navigation_graphs):
+        geos = charging_positions_to_geometries(charging_stations_positions, scale=1)
+        geos.append(pcd_posttrans)
+
+        pcd_graph = graph_to_pcd(navigation_graph)
+        geos += graphs_to_geometries(pcd_graph, [navigation_graph], color_offset=i)
+        if cf:
+            geos.append(cf)
+        if mesh:
+            geos.append(mesh)
+
+        fname = os.path.join(output_dir, f"{filecounter}_navigationgraphs_{i}.png") if not visualize else None
+        draw_geometries(original_pcd, geos, viewpoint=viewpoint, fname=fname, width=open3d_width, height=open3d_height, window_name=f'navigation graphs ({i})')
+        filecounter += 1
+    logger.debug("finished navigation graph extraction from graphs")
+
     z_penalty = 10
     seqs = []
     paths = []
-    # TODO: set starting positions per drone
-    start_positions = [[0, 0, 0]] * n_drones
     for i, sg in enumerate(subgraphs):
-        seq, path = plan_path(pcd, sg, G, z_penalty=z_penalty, start_position=start_positions[i])
+        seq, path = plan_path(pcd, sg, G, z_penalty=z_penalty, start_position=p_start[i])
         seqs.append(seq)
         paths.append(path)
         logger.debug(f"finished path planning for subgraph [{i}]")
@@ -223,6 +242,15 @@ def main(conf):
     fname = os.path.join(output_dir, "flight_sequences.json")
     with open(fname, 'w') as f:
         json.dump([x.tolist() for x in flight_sequences], f)
+
+    navigation_graphs_as_json = []
+    for navigation_graph in navigation_graphs:
+        graph_as_json = nx.adjacency_data(navigation_graph)
+        navigation_graphs_as_json.append(graph_as_json)
+
+    fname = os.path.join(output_dir, "navigation_graphs.json")
+    with open(fname, 'w') as f:
+        json.dump(navigation_graphs_as_json, f)
 
 
 if __name__ == "__main__":

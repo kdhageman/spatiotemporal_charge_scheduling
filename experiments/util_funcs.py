@@ -99,24 +99,92 @@ def pcd_to_graph(pcd: o3d.geometry.PointCloud, nb_count: int = 5, z: int = 1):
     """
     # create KD tree
     points = np.asarray(pcd.points)
-    tree = KDTree(points)
+    normals = np.asarray(pcd.normals)
+    points_weighted = points * [1, 1, z] + normals * 1.2  # TODO: make normal impact configurable
+    tree = KDTree(points_weighted)
 
     # create neighbor list
+    nodes_to_add = []
     edge_list = []
-    for idx, p in enumerate(points):
+    for idx_src, p in enumerate(points_weighted):
         _, idx_nbs = tree.query(p, nb_count + 1)
         for idx_nb in idx_nbs[1:]:
-            dist = np.linalg.norm([points[idx] * [1, 1, z], points[idx_nb] * [1, 1, z]])
-            edge_list.append([idx, idx_nb, {"weight": int(dist)}])
+            dist = np.linalg.norm([p, points_weighted[idx_nb]])
+            edge_list.append([int(idx_src), int(idx_nb), {"weight": int(dist)}])
+        node_to_add = [int(idx_src), {"pos": points[idx_src].astype(float).tolist(), "normal": normals[idx_src].astype(float).tolist()}]
+        nodes_to_add.append(node_to_add)
 
     # create graph
     G = nx.Graph()
+    G.add_nodes_from(nodes_to_add)
     G.add_edges_from(edge_list)
 
     return G
 
 
+def extract_navigation_graphs(G, charging_station_positions, dist=1):
+    """
+    Return a navigation graph whose nodes
+    are based on the nodes from G, the normal
+    vectors of those points and the distance
+    from the points the navigation nodes must be positioned
+    :param G: source graph, which each node annotated with a 'pos' and 'normal' value
+    :param charging_station_positions: positions of charging stations
+    :param dist: the distance between the graph points and the navigation points
+    :return: nx.Graph
+    """
+
+    # first create a graph of nodes moved away from structure according to normals
+    positions = np.array([n[1]['pos'] for n in G.nodes(data=True)])
+    normals = np.array([n[1]['normal'] for n in G.nodes(data=True)])
+    positions_nav = positions + normals * dist
+    logger.debug(f"positions:     {positions.min():.3f}, {positions.max():.3f}")
+    logger.debug(f"normals:       {normals.min():.3f}, {normals.max():.3f}")
+    logger.debug(f"positions_nav: {positions_nav.min():.3f}, {positions_nav.max():.3f}")
+
+    nodes_to_add = [(int(n), {'pos': positions_nav[n].astype(float).tolist()}) for n in G.nodes]
+
+    navigation_graphs = []
+    for pos_S in charging_station_positions:
+        # prepare graph to apply shortest-path tree search on
+        G_search = nx.Graph()
+        G_search.add_nodes_from(nodes_to_add)
+        G_search.add_edges_from(G.edges())
+
+        # add charging station + edge to closest node
+        node_cs_idx = len(G_search.nodes)
+        G_search.add_node(node_cs_idx, pos=pos_S)
+
+        distances_cs_to_nodes = [dist3(p, pos_S) for p in positions_nav]
+        closest_node_idx = np.argmin(distances_cs_to_nodes)
+        G_search.add_edge(closest_node_idx, node_cs_idx)
+
+        # apply shortest-path tree search
+        shortest_paths = nx.single_source_shortest_path(G_search, node_cs_idx)
+
+        # create the navigaton graph
+        G_nav = nx.Graph()
+        G_nav.add_nodes_from(G_search.nodes(data=True))
+
+        # use shortest paths to add edges to navigation graph
+        for p in shortest_paths.values():
+            for src_idx in range(len(p[:-1])):
+                src, dst = p[src_idx:src_idx + 2]
+                G_nav.add_edge(int(src), int(dst))
+        navigation_graphs.append(G_nav)
+
+    return navigation_graphs
+
+
 def pcd_to_subgraphs(pcd: o3d.geometry.PointCloud, n_drones: int, nb_count: int = 5, z: int = 1):
+    """
+    Extracts
+    :param pcd: point cloud
+    :param n_drones: number of drones
+    :param nb_count: number of neighbors to consider for each node
+    :param z: "punishment" for movement in the z direction
+    :return: overall graph G and list of subgraphs for each drone
+    """
     G = pcd_to_graph(pcd, nb_count=nb_count, z=z)
     objval, partitioning = nxmetis.partition(G, n_drones)
     logger.debug(f"objective value: {objval:.2f}")
@@ -125,20 +193,28 @@ def pcd_to_subgraphs(pcd: o3d.geometry.PointCloud, n_drones: int, nb_count: int 
     for d in range(n_drones):
         sg = nx.subgraph(G, partitioning[d])
         subgraphs.append(sg)
+
     return G, subgraphs
 
 
-def graphs_to_geometries(pcd: o3d.geometry.PointCloud, graphs: list):
-    colors = gen_colors(len(graphs))
+def graphs_to_geometries(pcd: o3d.geometry.PointCloud, graphs: list, color_offset=0):
+    colors = gen_colors(len(graphs)+color_offset)
 
     geos = []
     for i, g in enumerate(graphs):
         ls = o3d.geometry.LineSet()
         ls.points = pcd.points
         ls.lines = o3d.utility.Vector2iVector([e for e in g.edges()])
-        ls.colors = o3d.utility.Vector3dVector([colors[i]] * g.number_of_edges())
+        ls.colors = o3d.utility.Vector3dVector([colors[i+color_offset]] * g.number_of_edges())
         geos.append(ls)
     return geos
+
+
+def graph_to_pcd(G: nx.Graph):
+    pcd = o3d.geometry.PointCloud()
+    points = [n[1]['pos'] for n in G.nodes(data=True)]
+    pcd.points = o3d.utility.Vector3dVector(points)
+    return pcd
 
 
 def paths_to_geometries(pcd: o3d.geometry.PointCloud, paths: list):
@@ -379,7 +455,8 @@ class ChargingStrategy(Enum):
         return NotImplementedError()
 
 
-def schedule_charge(start_positions: list, waypoints: list, charging_station_positions: list, sched_params: SchedulingParameters, sim_params: SimulationParameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp, source_file : str = None):
+def schedule_charge(start_positions: list, waypoints: list, charging_station_positions: list, sched_params: SchedulingParameters, sim_params: SimulationParameters, directory: str = None, strategy: ChargingStrategy = ChargingStrategy.Milp,
+                    source_file: str = None):
     """
     Schedules the charging for a sequence of flight waypoints and number of charging station positions
     """
