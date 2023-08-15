@@ -424,7 +424,7 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
 
 def load_flight_sequences(path):
     with open(path, 'rb') as f:
-        flight_sequences = np.array(pickle.load(f))
+        flight_sequences = pickle.load(f)
 
     # add intermediate positions
     dist_cuttoffs = []
