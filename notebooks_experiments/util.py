@@ -13,6 +13,9 @@ def load_results_from_dir(rootdir):
     data = []
     for trial_subdir in os.listdir(rootdir):
         for subdir in os.listdir(os.path.join(rootdir, trial_subdir)):
+            if subdir.startswith("."):
+                continue
+            
             for fname in os.listdir(os.path.join(rootdir, trial_subdir, subdir)):
                 if fname == "result.json":
                     fpath = os.path.join(rootdir, trial_subdir, subdir, fname)

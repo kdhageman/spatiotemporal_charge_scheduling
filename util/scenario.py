@@ -13,7 +13,7 @@ from util.distance import dist3
 
 
 class Scenario:
-    def __init__(self, start_positions: list, positions_S: list, positions_w: list, wp_max: int=None, anchors: list = None, offsets: list = None, waypoint_ids: list = None, n_parent_anchors: list = None, source_file=None):
+    def __init__(self, start_positions: list, positions_S: list, positions_w: list, wp_max: int = None, anchors: list = None, offsets: list = None, waypoint_ids: list = None, n_parent_anchors: list = None, source_file=None):
         """
         :param positions_S: list of charging point positions (x,y,z coordinates)
         :param positions_w: list of list of waypoint positions (x,y,z coordinates)
@@ -275,7 +275,9 @@ class Scenario:
         if not ax:
             _, ax = plt.subplots()
 
-        colors = gen_colors(self.N_d)
+        drone_colors = [(0, 0, 0)] * self.N_d
+        cs_colors = gen_colors(self.N_s)
+
         if greyscale:
             # TODO: implement grey scale plotting
             pass
@@ -285,7 +287,7 @@ class Scenario:
             # draw lines between waypoints and S
             for d, s, w in product(range(self.N_d), range(self.N_s), range(self.N_w)):
                 pos_s = self.positions_S[s]
-                pos_w = self.positions_w[d][w]
+                pos_w = self.waypoints(d)[w]
                 dist = distance.dist3(pos_s, pos_w)
                 x = [pos_s[0], pos_w[0]]
                 y = [pos_s[1], pos_w[1]]
@@ -297,30 +299,31 @@ class Scenario:
                 y_text = pos_s[1] + alpha * (pos_w[1] - pos_s[1])
                 ax.text(x_text, y_text, f"{dist:.2f}", color='k', alpha=0.4)
 
+        # plot charging stations
         for s in range(self.N_s):
             x_s = self.positions_S[s][0]
             y_s = self.positions_S[s][1]
-            ax.scatter(x_s, y_s, marker='s', color='k', s=100)
+            ax.scatter(x_s, y_s, marker='s', color=cs_colors[s], edgecolors=[0, 0, 0], s=100)
 
             # label station
             x_text = x_s + 0.1
             y_text = y_s
-            ax.text(x_text, y_text, f"$s_{{{s + 1}}}$", fontsize=15)
+            ax.text(x_text, y_text, f"$s_{{{s + 1}}}$", fontsize=15, ha='left', va='bottom')
 
         # plot waypoints
         for d in range(self.N_d):
-            waypoints = self.positions_w[d]
+            waypoints = self.waypoints(d)
             x = [i[0] for i in waypoints]
             y = [i[1] for i in waypoints]
-            ax.plot(x, y, color=colors[d], linestyle=linestyles[d], zorder=-1)
-            ax.scatter(x, y, marker='o', color=colors[d], facecolor='white', s=70)
-            ax.scatter(x[:1], y[:1], marker='o', color=colors[d], facecolor=colors[d], s=100)
+            ax.plot(x, y, color=drone_colors[d], linestyle=linestyles[d], zorder=-1)
+            ax.scatter(x, y, marker='o', color=drone_colors[d], facecolor='white', s=70)
+            ax.scatter(x[:1], y[:1], marker='o', color=drone_colors[d], facecolor=drone_colors[d], s=100)  # start position
 
             # label waypoints
             for w in range(self.N_w):
-                x_text = waypoints[w][0]
-                y_text = waypoints[w][1] + 0.05
-                ax.text(x_text, y_text, f"$w^{{{d + 1}}}_{{{w + 1}}}$", color=colors[d], fontsize=15)
+                x_text = waypoints[w + 1][0]
+                y_text = waypoints[w + 1][1] + 0.05
+                ax.text(x_text, y_text, f"$w_{{ {d + 1}, {w + 1} }}$", color=drone_colors[d], fontsize=15, ha='left', va='bottom')
 
             # label time between waypoints
             if draw_distances:
@@ -333,7 +336,7 @@ class Scenario:
 
                     x_text = pos_w_s[0] + alpha * (pos_w_d[0] - pos_w_s[0])
                     y_text = pos_w_s[1] + alpha * (pos_w_d[1] - pos_w_s[1]) + 0.05
-                    ax.text(x_text, y_text, f"{dist:.2f}", color=colors[d])
+                    ax.text(x_text, y_text, f"{dist:.2f}", color=drone_colors[d])
 
 
 class ScenarioFactory:

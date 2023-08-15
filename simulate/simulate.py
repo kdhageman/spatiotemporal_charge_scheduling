@@ -217,7 +217,7 @@ class Simulator:
 
                 # plot batteries
                 fname = os.path.join(self.directory, "battery.pdf")
-                plot_events_battery(result, fname)
+                plot_events_battery(result, fname, draw_scheduling=self.sim_params.draw_scheduling, draw_battery_profile_greyscale=self.sim_params.draw_battery_profile_greyscale)
 
                 # plot occupancy
                 fname = os.path.join(self.directory, "occupancy.pdf")
@@ -256,7 +256,7 @@ def events_to_occupancy(events: List[List[Event]]) -> Dict[int, List[Dict[str, f
     return res
 
 
-def plot_events_battery(result: SimResult, fname: str):
+def plot_events_battery(result: SimResult, fname: str, draw_scheduling=False, draw_battery_profile_greyscale=False):
     """
     Plots the battery over time for the given events
     """
@@ -287,11 +287,13 @@ def plot_events_battery(result: SimResult, fname: str):
                 if e.node.identifier not in station_ids:
                     station_ids.append(e.node.identifier)
     station_colors = {}
-    if len(station_ids) == 1:
-        # make grey
-        station_colors[station_ids[0]] = [0.5] * 3
-    else:
-        for station_id, color in zip(station_ids, gen_colors(len(station_ids))):
+
+    for station_id, color in zip(sorted(station_ids), gen_colors(len(station_ids))):
+        if draw_battery_profile_greyscale:
+            # all stations are grey
+            station_colors[station_id] = [0.5] * 3
+        else:
+            # all stations have their own color
             station_colors[station_id] = color
 
     Y_min = 1
@@ -299,6 +301,8 @@ def plot_events_battery(result: SimResult, fname: str):
     for evlist in events:
         Y_min = min(Y_min, min([e.battery for e in evlist]))
         Y_max = max(Y_max, max([e.battery for e in evlist]))
+        Y_min = 0
+        Y_max = 1
 
     for d in range(len(events)):
         X_line = []
@@ -344,15 +348,16 @@ def plot_events_battery(result: SimResult, fname: str):
                 X_crash.append(e.t_end)
                 Y_crash.append(e.battery)
 
-        grid[d].plot(X_line, Y_line, c=uav_colors[d])
+        grid[d].plot(X_line, Y_line, c="black")
         if do_plot_scatter:
-            grid[d].scatter(X_scatter_wp, Y_scatter_wp, c=[uav_colors[d]], s=10)
+            grid[d].scatter(X_scatter_wp, Y_scatter_wp, c='black', s=10)
         grid[d].scatter(X_crash, Y_crash, c=[uav_colors[d]], s=40, marker='x', zorder=100)
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([Y_min, Y_max])
         grid[d].spines.right.set_visible(False)
-        for schedule in result.schedules[d]:
-            grid[d].axvline(schedule['timestamp'], color='black', linestyle=":", alpha=0.5, zorder=1)
+        if draw_scheduling:
+            for schedule in result.schedules[d]:
+                grid[d].axvline(schedule['timestamp'], color='black', linestyle=":", alpha=0.5, zorder=1)
 
     # add vertical lines
     for d in range(len(events)):

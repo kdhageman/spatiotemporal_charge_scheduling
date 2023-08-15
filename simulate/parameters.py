@@ -34,7 +34,6 @@ class SchedulingParameters:
     rho: np.ndarray
     W_hat: int
     sigma: int
-    pi: int = 1
     int_feas_tol: float = 1e-9
     time_limit: float = 60
     epsilon: float = 1
@@ -51,7 +50,6 @@ class SchedulingParameters:
                  rho: List[float] = None,
                  W_hat: int = 1,
                  sigma: int = 1,
-                 pi: int = 1,
                  int_feas_tol: float = 1e-9,
                  time_limit: float = 60,
                  epsilon: float = 1,
@@ -69,7 +67,6 @@ class SchedulingParameters:
             np.array(rho),
             W_hat,
             sigma,
-            pi,
             int_feas_tol,
             time_limit,
             epsilon,
@@ -114,6 +111,8 @@ class SimulationParameters:
     """
     plot_delta: float = 0
     delta_t: float = 0.1
+    draw_scheduling: bool = True
+    draw_battery_profile_greyscale: bool = False
 
 
 def sched_parameters_serializer(obj: SchedulingParameters, *args, **kwargs):
