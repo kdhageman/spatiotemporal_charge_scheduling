@@ -5,7 +5,7 @@ import pickle
 import time
 from datetime import datetime
 from enum import Enum
-from typing import List
+from typing import List, Dict
 
 import cvxpy
 import jsons
@@ -485,6 +485,9 @@ def schedule_charge_from_conf(conf):
     waypoints = [seq[1:] for seq in flight_sequences]
 
     logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] starting charge scheduling..")
+
+    sc = Scenario(start_positions, charging_station_positions, waypoints)
+
     sched_params = SchedulingParameters.from_raw(
         v=v,
         r_charge=r_charge,
@@ -494,12 +497,14 @@ def schedule_charge_from_conf(conf):
         B_max=B_max,
         epsilon=epsilon,
         W_hat=W_hat,
+        omega=[[0] * sc.N_s] * sc.N_d,
+        rho=[0] * sc.N_d,
         pi=pi,
         sigma=sigma,
         time_limit=time_limit,
         int_feas_tol=int_feas_tol,
     )
-    sim_params = SimulationParameters(plot_delta=plot_delta, delta_t=1)
+    sim_params = SimulationParameters(plot_delta=plot_delta, delta_t=50000)
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     t_start = time.perf_counter()
     schedule_charge(start_positions, waypoints, charging_station_positions, sched_params, sim_params, directory=output_dir, strategy=strategy, source_file=flight_sequence_fpath)

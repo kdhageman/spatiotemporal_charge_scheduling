@@ -92,6 +92,8 @@ class TestCollapse(TestCase):
             B_start=[1] * 3,
             B_min=0.1 * np.ones((3, 3)),
             B_max=[1] * 3,
+            omega=[[0] * 1] * 3,
+            rho=[0] * 3,
             W_hat=3,
             sigma=1,
             epsilon=1e-2,
@@ -225,7 +227,7 @@ class TestScenarioFactory(TestCase):
         ]
         start_positions = [(-0.5, 0)]
         sc = Scenario(start_positions, positions_S, positions_w)
-        sf = ScenarioFactory(sc, W=3, sigma=2)
+        sf = ScenarioFactory(sc, W_hat=3, sigma=2)
 
         offsets = [0]
         sc_new, _ = sf.next(start_positions, offsets)
@@ -267,12 +269,12 @@ class TestScenarioFactory(TestCase):
         ]
         start_positions = [(-1, 0)]
         sc = Scenario(start_positions, positions_S, positions_w)
-        sf = ScenarioFactory(sc, W=3, sigma=3)
+        sf = ScenarioFactory(sc, W_hat=3, sigma=3)
         actual = sf.anchors()
         expected = [0, 3, 6, 9]
         self.assertEqual(expected, actual)
 
-        sf = ScenarioFactory(sc, W=10, sigma=2)
+        sf = ScenarioFactory(sc, W_hat=10, sigma=2)
         actual = sf.anchors()
         expected = [0, 2, 4, 6, 8]
         self.assertEqual(expected, actual)

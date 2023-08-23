@@ -295,25 +295,6 @@ class MilpScheduler(Scheduler):
 
         optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
 
-        # For debugging purposes
-        # extract charging windows
-        charging_windows = {}
-
-        for d in range(sc_collapsed.N_d):
-            for w_s in range(sc_collapsed.N_w):
-                try:
-                    station_idx = model.P_np[d, :-1, w_s].tolist().index(1)
-                    t_s = model.T_s(d, w_s)()
-                    t_e = model.T_e(d, w_s)()
-                    if station_idx not in charging_windows:
-                        charging_windows[station_idx] = {}
-                    if d not in charging_windows[station_idx]:
-                        charging_windows[station_idx][d] = []
-                    charging_windows[station_idx][d].append((t_s, t_e))
-                except ValueError:
-                    # drone is NOT charging now
-                    pass
-
         ng = NodeGenerator(sc, model)
         res = {}
         for d in uavs_to_schedule:
@@ -374,13 +355,13 @@ class NaiveScheduler(Scheduler):
                             pos_prev = pos
                         remaining_depletion = remaining_dist / self.params.v[d] * self.params.r_deplete[d]
                         if remaining_depletion + self.params.B_min[d] > self.params.B_max[d]:
-                            ct = 'full'
+                            ct = (self.params.B_max[d] - batteries[d]) / self.params.r_charge[d]
                         else:
                             ct = (remaining_depletion + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d] + NaiveScheduler._EPSILON
                         nodes.append(
                             ChargingStation(*self.sc.positions_S[idx_station], identifier=idx_station, wt=0, ct=ct)
                         )
-            for pos in self.remaining_waypoints(d):
+            for pos in self.remaining_waypoints(d)[:1]:
                 wp = Waypoint(*pos)
                 nodes.append(wp)
             res[d] = nodes

@@ -28,6 +28,7 @@ def load_results_from_dir(rootdir):
 
                     execution_time = parsed['execution_time']
                     execution_time_all = get_execution_times(parsed)
+                    solve_times = [x['t_solve'] for x in parsed['solve_times']]
                     t_solve_total = sum([x['t_solve'] for x in parsed['solve_times']])
                     t_solve_mean = np.mean([x['t_solve'] for x in parsed['solve_times']])
                     n_solves = len(parsed['solve_times'])
@@ -64,6 +65,7 @@ def load_results_from_dir(rootdir):
                          t_solve_total,
                          t_solve_mean,
                          n_solves,
+                         solve_times,
                          voxel_size,
                          N_w,
                          N_d,
@@ -97,6 +99,7 @@ def load_results_from_dir(rootdir):
             't_solve_total',
             't_solve_mean',
             'n_solves',
+            'solve_times',
             'voxel_size',
             'N_w',
             'N_d',

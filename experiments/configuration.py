@@ -101,6 +101,7 @@ class Configuration:
         conf['charging_optimization']['r_charge'] = self.r_charge
         conf['charging_optimization']['r_deplete'] = self.r_deplete
         conf['charging_optimization']['B_min'] = self.B_min
+        conf['charging_optimization']['v'] = self.v
 
         return conf
 

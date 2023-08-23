@@ -74,13 +74,12 @@ class UAV:
         self.release_lock_cbs = []
         self.finish_cbs = []
 
-    def _get_battery(self, env: simpy.Environment, offset: float = 0) -> float:
+    def _get_battery(self, env: simpy.Environment) -> float:
         """
         Returns the state of the battery given the simpy environment (+ an offset)
         :param env: simpy.Environment
-        :param offset: offset in seconds
         """
-        t_passed = env.now - self.t_start + offset
+        t_passed = env.now - self.t_start
         battery = self.battery
         if self.state_type == UavStateType.Moving:
             battery = self.battery - t_passed * self.r_deplete
@@ -210,7 +209,7 @@ class UAV:
 
             if cur_instruction.type == InstructionType.move:
                 # move
-                self.debug(env, f"is moving from {self.last_known_pos} to {self.dest_node}")
+                self.debug(env, f"is moving from {self.last_known_pos} to {self.dest_node} (distance = {self.last_known_pos.dist(self.dest_node):.2f})")
                 self.state_type = UavStateType.Moving
 
                 interrupted = False
@@ -248,20 +247,19 @@ class UAV:
                     except simpy.Interrupt:
                         self.debug(env, f"is interrupted during moving to a node")
                         self.last_known_pos = self.get_state(env).node
-                        self.battery = self._get_battery(env, 0)
+                        self.battery = self._get_battery(env)
                         elapsed = env.now - self.t_start
                         self.time_spent['moving'] += elapsed
 
-                        if not self.dest_node.same_pos(self.instructions[0].node):
-                            # change direction
-                            depletion = self.battery - pre_move_battery
-                            event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, depletion=depletion, forced=True))
-                            yield event
-                            self.debug(env, f"changed direction from {self.dest_node} to {self.instructions[0].node} at {self.last_known_pos}")
-                            self.t_start = env.now
+                        # change direction
+                        depletion = pre_move_battery - self.battery
+                        event = env.timeout(0, value=ChangedCourseEvent(self.t_start, elapsed, self.last_known_pos, self, battery=self.battery, depletion=depletion, forced=True))
+                        yield event
+                        self.debug(env, f"changed direction from {self.dest_node} to {self.instructions[0].node} at {self.last_known_pos}")
+                        self.t_start = env.now
 
-                            for cb in self.changed_course_cbs:
-                                cb(event)
+                        for cb in self.changed_course_cbs:
+                            cb(event)
 
                         # step out of the loop for moving small time steps
                         interrupted = True
@@ -412,7 +410,7 @@ class UAV:
                         ct_sum += t_charged
                         self.battery = self.battery + self.r_charge * t_charged  # TODO: simulate this too?
                         depletion = pre_charge_battery - self.battery
-                        event = env.timeout(0, value=ChargedEvent(self.t_start, t_charged, self.dest_node, self, battery=self.battery, depletion=depletion))
+                        event = env.timeout(0, value=ChargedEvent(self.t_start, t_charged, self.dest_node, self, battery=self.battery, depletion=depletion, forced=True))
                         yield event
 
                         self.debug(env, f"forcefully finished charging at station [{self.dest_node.identifier}] for {ct_sum:.2f}s")

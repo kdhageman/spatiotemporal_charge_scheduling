@@ -350,7 +350,7 @@ def plot_events_battery(result: SimResult, fname: str, draw_scheduling=False, dr
 
         grid[d].plot(X_line, Y_line, c="black")
         if do_plot_scatter:
-            grid[d].scatter(X_scatter_wp, Y_scatter_wp, c='black', s=10)
+            grid[d].scatter(X_scatter_wp, Y_scatter_wp, c='white', edgecolors='black', s=15, zorder=100)
         grid[d].scatter(X_crash, Y_crash, c=[uav_colors[d]], s=40, marker='x', zorder=100)
         grid[d].set_ylabel(f"UAV {d + 1}", fontsize=9)
         grid[d].set_ylim([Y_min, Y_max])

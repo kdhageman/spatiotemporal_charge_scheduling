@@ -25,6 +25,9 @@ class TestSimulator(TestCase):
         self.logger = logging.getLogger(__name__)
 
     def test_milp_simulator_long(self):
+        """
+        Scenario has two drones, four charging stations
+        """
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
 
         p_sim = dict(
@@ -38,6 +41,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
+            omega=[[0] * 30] * 2,
+            rho=[0, 0],
             W_hat=10,
             sigma=2,
             epsilon=1,
@@ -68,6 +73,10 @@ class TestSimulator(TestCase):
         simulator.sim()
 
     def test_milp_three_drones_circling_W4(self):
+        """
+        Three drones, one charging station, four waypoints each
+        :return:
+        """
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
 
         p_sim = dict(
@@ -80,6 +89,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            omega=[[0] * 5] * 3,
+            rho=[0, 0, 0],
             W_hat=4,
             sigma=1,
             epsilon=5,
@@ -120,6 +131,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            omega=[[0] * 5] * 3,
+            rho=[0, 0, 0],
             W_hat=5,
             sigma=1,
             epsilon=5,
@@ -152,6 +165,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
+            omega=[[0] * 30] * 2,
+            rho=[0, 0],
             W_hat=10,
             sigma=2,
             epsilon=1,
@@ -187,6 +202,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            omega=[[0] * 5] * 3,
+            rho=[0, 0, 0],
             W_hat=5,
             sigma=1,
             epsilon=5,
@@ -267,6 +284,8 @@ class TestFailingCase(TestCase):
             B_start=[1, 1, 1],
             B_min=[0.4, 0.4, 0.4],
             B_max=[1, 1, 1],
+            omega=[[0] * 14] * 3,
+            rho=[0, 0, 0],
             W_hat=13,
             sigma=1,
             pi=np.inf,

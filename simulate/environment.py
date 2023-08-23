@@ -38,12 +38,12 @@ class NormalDistributedEnvironment(Environment):
         self.rs = RandomState(MT19937(SeedSequence(seed)))
 
     @classmethod
-    def from_seed(cls, stddev, seed=None):
+    def from_seed(cls, scale, seed=None):
         # ensures that multiple distributions called with the same seed will return a predictable, yet different environment
         if seed is None:
-            env = NormalDistributedEnvironment(stddev, seed)
+            env = NormalDistributedEnvironment(scale, seed)
         else:
-            env = NormalDistributedEnvironment(stddev, cls.seed + seed)
+            env = NormalDistributedEnvironment(scale, cls.seed + seed)
             cls.seed += 1
         return env
 
