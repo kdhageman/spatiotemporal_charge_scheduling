@@ -159,19 +159,20 @@ class UAV:
     def set_schedule(self, env: simpy.Environment, nodes: List[Node]):
         instructions = []
         for node in nodes:
-            ins = MoveInstruction(node)
-            if not ins.node.same_pos(self.last_known_pos) or ins.node.node_type == NodeType.Waypoint:
-                # ignore auxiliary waypoints at the UAV's current position
-                instructions.append(ins)
+            instr = MoveInstruction(node)
+            if instr.node.same_pos(self.last_known_pos) and instr.node.node_type == NodeType.AuxWaypoint:
+                # ignore auxiliary instructions that are at the current position
+                continue
+            instructions.append(instr)
 
             if node.node_type == NodeType.ChargingStation:
                 if node.wt:
-                    ins = WaitInstruction(node, node.wt)
-                    instructions.append(ins)
+                    instr = WaitInstruction(node, node.wt)
+                    instructions.append(instr)
 
-                if node.ct == 'full' or node.ct:
-                    ins = ChargeInstruction(node, node.ct)
-                    instructions.append(ins)
+                if node.ct:
+                    instr = ChargeInstruction(node, node.ct)
+                    instructions.append(instr)
 
         if not instructions:
             return
