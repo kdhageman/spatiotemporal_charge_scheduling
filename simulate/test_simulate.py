@@ -12,7 +12,7 @@ from simulate.environment import NormalDistributedEnvironment
 from simulate.parameters import SchedulingParameters, SimulationParameters
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Simulator
-from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
+from simulate.strategy import OnWaypointStrategySingle, AfterNEventsStrategyAll
 from util.scenario import Scenario
 
 
@@ -156,7 +156,7 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
-            delta_t=1,
+            delta_t=100,
         )
         p_sched = dict(
             v=[1, 1],
@@ -178,7 +178,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/naive_simulator_long'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategySingle()
+        strat = OnWaypointStrategySingle()
         scheduler = NaiveScheduler(sched_params, sc)
         scale = 0
         simenvs = [
@@ -214,7 +214,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/naive_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategySingle()
+        strat = OnWaypointStrategySingle()
         scheduler = NaiveScheduler(sched_params, sc)
         scale = 1
         simenvs = [
@@ -316,7 +316,7 @@ class TestFailingCase(TestCase):
     def test_naive(self):
         directory = 'out/test/failing_case/naive'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategySingle()
+        strat = OnWaypointStrategySingle()
         scheduler = NaiveScheduler(self.sched_params, self.sc)
         scale = 0
         simenvs = [

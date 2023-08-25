@@ -12,6 +12,8 @@ class MoveInstruction:
         self.node = node
         self.type = InstructionType.move
 
+    def __repr__(self):
+        return f"MoveInstruction({self.node})"
 
 class WaitInstruction:
     def __init__(self, node, t):
@@ -19,9 +21,15 @@ class WaitInstruction:
         self.t = t
         self.type = InstructionType.wait
 
+    def __repr__(self):
+        return f"WaitInstruction({self.node}, {self.t})"
+
 
 class ChargeInstruction:
     def __init__(self, node, t):
         self.node = node
         self.t = t
         self.type = InstructionType.charge
+
+    def __repr__(self):
+        return f"ChargeInstruction({self.node}, {self.t})"

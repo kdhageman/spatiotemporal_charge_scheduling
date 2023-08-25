@@ -415,7 +415,7 @@ def schedule_charge(start_positions: list, waypoints: list, charging_station_pos
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
         logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] prepared MILP simulator")
     elif strategy == ChargingStrategy.Naive:
-        strat = OnEventStrategySingle()
+        strat = OnWaypointStrategySingle()
         scheduler = NaiveScheduler(sched_params, sc)
         simulator = Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
         logger.debug("[{datetime.now().strftime('%H:%M:%S')}] prepared naive simulator")
@@ -504,7 +504,7 @@ def schedule_charge_from_conf(conf):
         time_limit=time_limit,
         int_feas_tol=int_feas_tol,
     )
-    sim_params = SimulationParameters(plot_delta=plot_delta, delta_t=50000)
+    sim_params = SimulationParameters(plot_delta=plot_delta, delta_t=1e10)
     strategy = ChargingStrategy.parse(conf['charging_strategy'])
     t_start = time.perf_counter()
     schedule_charge(start_positions, waypoints, charging_station_positions, sched_params, sim_params, directory=output_dir, strategy=strategy, source_file=flight_sequence_fpath)

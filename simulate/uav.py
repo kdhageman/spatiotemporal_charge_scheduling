@@ -430,8 +430,7 @@ class UAV:
 
                 if not charge_interrupted:
                     self._release_lock(env)
-                    ct_str = charging_time if charging_time == 'until full' else f"for {ct_sum:.2f}s"
-                    self.debug(env, f"finished charging at station {self.dest_node.identifier} {ct_str}")
+                    self.debug(env, f"finished charging at station {self.dest_node.identifier} for {ct_sum:.2f}s ending up with {self.battery*100:.2f}%")
                     self.state_type = UavStateType.FinishedCharging
 
                     for cb in self.charged_cbs:

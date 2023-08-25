@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from simulate.parameters import SchedulingParameters, SimulationParameters
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Simulator
-from simulate.strategy import AfterNEventsStrategyAll, OnEventStrategySingle
+from simulate.strategy import AfterNEventsStrategyAll, OnWaypointStrategySingle
 from util.scenario import Scenario
 
 
@@ -26,7 +26,7 @@ def greedy_simulator(rootdir, sc, sched_params, sim_params):
     os.makedirs(directory, exist_ok=True)
 
     scheduler = NaiveScheduler(sched_params, sc)
-    strat = OnEventStrategySingle()
+    strat = OnWaypointStrategySingle()
 
     return Simulator(scheduler, strat, sched_params, sim_params, sc, directory=directory)
 
@@ -68,9 +68,12 @@ def main():
         B_start=[1, 1],
         B_min=[0.1, 0.1],
         B_max=[1, 1],
-        W_hat=10
+        omega=[[0] * 3] * 2,
+        rho=[0, 0],
+        W_hat=10,
     )
     sim_params = SimulationParameters(
+        delta_t =400,
         draw_scheduling=False,
         draw_battery_profile_greyscale=False,
     )
