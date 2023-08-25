@@ -16,15 +16,15 @@ from experiments.util_funcs import load_flight_sequences, schedule_charge_from_c
 time_limit = 300
 charging_stations_compositions = {
     1: [
-        [-9.2918538, 18.04343851, 0],
+        [-5.89549398, 13.3062412, 0],
     ],
     2: [
-        [-9.2918538, 18.04343851, 0],
         [-5.89549398, 13.3062412, 0],
+        [-9.2918538, 18.04343851, 0],
     ],
     3: [
-        [-9.2918538, 18.04343851, 0],
         [-5.89549398, 13.3062412, 0],
+        [-9.2918538, 18.04343851, 0],
         [-2.49913417, 8.56904388, 0],
     ]
 }
@@ -35,7 +35,7 @@ def coarse_configs(number_of_charging_stations, r_charges, r_deplete, n_trials):
     """
     Returns the configuration for the simulation of the coarse (i.e., voxel size=5.1) experiment
     """
-    flight_seq_fpath = "out/flight_sequences/villalvernia_3.vs_52/flight_sequences.pkl"
+    flight_seq_fpath = "out/flight_sequences/villalvernia_3.vs_51/flight_sequences.pkl"
     flight_sequences = load_flight_sequences(flight_seq_fpath)
 
     with open("config/charge_scheduling/base.fewervoxels.yml", 'r') as f:
@@ -62,6 +62,7 @@ def coarse_configs(number_of_charging_stations, r_charges, r_deplete, n_trials):
                 r_charge=r_charge,
             )
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
+            conf.v = 0.13
             confs.append(conf)
 
             conf = NaiveConfiguration(
@@ -74,6 +75,7 @@ def coarse_configs(number_of_charging_stations, r_charges, r_deplete, n_trials):
                 r_charge=r_charge,
             )
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
+            conf.v = 0.13
             confs.append(conf)
 
     return confs
