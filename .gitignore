@@ -11,3 +11,4 @@ cache
 .run
 test.pdf
 .DS_Store
+deploy.sh

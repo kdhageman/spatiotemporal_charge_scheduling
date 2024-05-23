@@ -66,20 +66,18 @@ class IntervalStrategy(Strategy):
                 break
 
 
-class OnEventStrategy(Strategy):
+class OnWaypointStrategy(Strategy):
+    """
+    Strategy that reschedules at each visited waypiont
+    """
     def __init__(self, interval: float = 0):
         super().__init__()
-        self.interval = interval
-        self.last_time = 0
 
     def handle_event(self, event: simpy.Event):
         uav_id = event.value.uav.uav_id
-        if self.last_time is None or event.env.now >= self.last_time + self.interval:
+        if event.value.node.node_type == NodeType.Waypoint:
             self.logger.debug(f"[{event.env.now:.2f}] rescheduling triggered by UAV [{event.value.uav.uav_id}] for UAVs: {self._uavs(uav_id)}")
             self.cb(self._uavs(uav_id))
-            self.last_time = event.env.now
-        # else:
-        #     self.debug(event.env, f"skipping scheduling triggered by UAV [{uav_id}] because most recent reschedule was too soon")
 
     def _uavs(self, uav_id: int) -> List[int]:
         """
@@ -90,12 +88,12 @@ class OnEventStrategy(Strategy):
         raise NotImplementedError
 
 
-class OnEventStrategySingle(OnEventStrategy):
+class OnWaypointStrategySingle(OnWaypointStrategy):
     def _uavs(self, uav_id):
         return [uav_id]
 
 
-class OnEventStrategyAll(OnEventStrategy):
+class OnWaypointStrategyAll(OnWaypointStrategy):
     def _uavs(self, uav_id):
         return 'all'
 

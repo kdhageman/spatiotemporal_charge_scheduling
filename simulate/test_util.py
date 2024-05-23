@@ -8,49 +8,9 @@ from matplotlib import pyplot as plt
 from pyomo.opt import SolverFactory
 
 from pyomo_models.multi_uavs import MultiUavModel
-from simulate.parameters import Parameters
-from simulate.util import maximum_schedule_delta, is_feasible, as_graph, draw_schedule
+from simulate.parameters import SchedulingParameters
+from simulate.util import is_feasible, as_graph, draw_schedule
 from util.scenario import Scenario
-
-
-class TestMaximumScheduleDelta(TestCase):
-    def test_maximum_schedule_delta(self):
-        positions_w = [
-            [
-                (0, 0, 0),
-                (1, 0, 0),
-                (2, 0, 0),
-                (3, 0, 0),
-                (4, 0, 0),
-                (4.5, 0, 0),
-            ]
-        ]
-        sc = Scenario([], positions_w)
-
-        v = np.array([1])
-        actual = maximum_schedule_delta(sc, v, W=3, sigma=1)
-        expected = 1.5
-        self.assertEqual(actual, expected)
-
-        v = np.array([0.5])
-        actual = maximum_schedule_delta(sc, v, W=3, sigma=1)
-        expected = 3
-        self.assertEqual(actual, expected)
-
-        v = np.array([1])
-        actual = maximum_schedule_delta(sc, v, W=2, sigma=1)
-        expected = 0.5
-        self.assertEqual(actual, expected)
-
-        v = np.array([1])
-        actual = maximum_schedule_delta(sc, v, W=3, sigma=2)
-        expected = 3.5
-        self.assertEqual(actual, expected)
-
-        v = np.array([1])
-        actual = maximum_schedule_delta(sc, v, W=10, sigma=10)
-        expected = 4.5
-        self.assertEqual(actual, expected)
 
 
 class TestFeasibility(TestCase):
@@ -81,18 +41,20 @@ class TestFeasibility(TestCase):
 
         sc = Scenario(start_positions, positions_S, positions_w, anchors=anchors)
 
-        params = Parameters(
+        p = dict(
             v=[1],
             r_charge=[0.02],
             r_deplete=[0.05],
             B_start=[1],
-            B_min=[0.5],
+            B_min=[[0.5] * (sc.N_w + 1)] * sc.N_d,
             B_max=[1],
-            W_zero_min=np.zeros((1, 1)),
-            W=5,
+            rho=[1],
+            omega=[1, 1],
+            W_hat=5,
         )
+        params = SchedulingParameters.from_raw(**p)
 
-        is_feasible(sc, params)
+        self.assertTrue(is_feasible(sc, params))
 
     def test_no_anchors(self):
         start_positions = [
@@ -111,18 +73,21 @@ class TestFeasibility(TestCase):
         ]
 
         sc = Scenario(start_positions, positions_S, positions_w)
-        params = Parameters(
+
+        p = dict(
             v=[1],
             r_charge=[0.02],
             r_deplete=[0.05],
             B_start=[1],
-            B_min=[0.5],
+            B_min=[[0.5] * (sc.N_w + 1)] * sc.N_d,
             B_max=[1],
-            W_zero_min=np.zeros((1, 1)),
-            W=5,
+            rho=[1],
+            omega=[1, 1],
+            W_hat=5,
         )
+        params = SchedulingParameters.from_raw(**p)
 
-        is_feasible(sc, params)
+        self.assertTrue(is_feasible(sc, params))
 
     def test_just_feasible(self):
         start_positions = [
@@ -138,16 +103,19 @@ class TestFeasibility(TestCase):
             [0]
         ]
         sc = Scenario(start_positions, positions_S, positions_w, anchors=anchors)
-        params = Parameters(
+
+        p = dict(
             v=[1],
             r_charge=[0.02],
             r_deplete=[0.20],
             B_start=[1],
-            B_min=[0],
+            B_min=[[0] * (sc.N_w + 1)] * sc.N_d,
             B_max=[1],
-            W_zero_min=np.zeros((1, 1)),
-            W=6,
+            rho=[1],
+            omega=[1, 1],
+            W_hat=6,
         )
+        params = SchedulingParameters.from_raw(**p)
 
         expected = True
         actual = is_feasible(sc, params)
@@ -167,16 +135,19 @@ class TestFeasibility(TestCase):
             [0]
         ]
         sc = Scenario(start_positions, positions_S, positions_w, anchors=anchors)
-        params = Parameters(
+
+        p = dict(
             v=[1],
             r_charge=[0.02],
             r_deplete=[0.21],
             B_start=[1],
-            B_min=[0],
+            B_min=[[0] * (sc.N_w + 1)] * sc.N_d,
             B_max=[1],
-            W_zero_min=np.zeros((1, 1)),
-            W=6,
+            rho=[1],
+            omega=[1, 1],
+            W_hat=6,
         )
+        params = SchedulingParameters.from_raw(**p)
 
         expected = False
         actual = is_feasible(sc, params)
@@ -204,7 +175,7 @@ class TestGraph(TestCase):
         ]
         sc = Scenario(positions_S=positions_S, positions_w=positions_w, start_positions=start_positions, anchors=anchors)
 
-        g, pos = as_graph(sc, 0, [0])
+        g, pos = as_graph(sc, 0)
 
         plt.subplots()
         nx.draw(g, pos)
@@ -221,17 +192,16 @@ class TestDrawSchedule(TestCase):
             v=[1, 1, 1],
             r_charge=[0.2, 0.2, 0.2],
             r_deplete=[0.3, 0.3, 0.3],
-            B_min=[0.1, 0.1, 0.1],
-            B_max=[1, 1, 1],
             B_start=[1, 1, 1],
-            # plot_delta=0.1,
-            plot_delta=0,
-            W=4,
+            B_min=[[0.1] * (sc.N_w + 1)] * sc.N_d,
+            B_max=[1, 1, 1],
+            rho=[0, 0, 0],
+            omega=[[0] * sc.N_s] * sc.N_d,
+            W_hat=4,
             sigma=1,
             epsilon=5,
-            W_zero_min=np.zeros((sc.N_d, sc.N_s)),
         )
-        params = Parameters(**p)
+        params = SchedulingParameters.from_raw(**p)
 
         model = MultiUavModel(sc, params)
         solver = SolverFactory("gurobi")

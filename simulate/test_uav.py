@@ -41,18 +41,18 @@ class TestUav(TestCase):
         def inc_charges(_):
             self.n_charged += 1
 
-        uav = UAV(0, charging_stations, v=1, r_charge=0.1, r_deplete=0.1, initial_pos=(0, 0, 0))
+        uav = UAV(0, charging_stations, v=1, r_charge=0.05, r_deplete=0.2, initial_pos=(0, 0, 0))
         uav.add_arrival_cb(inc_arrivals)
         uav.add_waited_cb(inc_waited)
         uav.add_charged_cb(inc_charges)
 
         uav.set_schedule(env, nodes)
-        env.process(uav.sim(env, delta_t=0.01, flyenv=NormalDistributedEnvironment.from_seed(stddev=0.1, seed=1)))
+        env.process(uav.sim(env, delta_t=0.01, flyenv=NormalDistributedEnvironment.from_seed(scale=0, seed=1)))
         env.run()
         # self.assertEqual(len(uav._events), 8)
         self.assertEqual(self.n_arrivals, 4)
         self.assertEqual(self.n_waited, 1)
         self.assertEqual(self.n_charged, 2)
         state = uav.get_state(env)
-        self.assertEqual(np.round(state.battery, 5), 0.9)
+        self.assertEqual(0.35, np.round(state.battery, 3))
         self.assertTrue(np.array_equal(state.node.pos, np.array([4, 0, 0])))

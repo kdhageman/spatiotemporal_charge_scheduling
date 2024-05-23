@@ -45,10 +45,10 @@ class SchedulingParameters:
                  r_charge: List[float],
                  r_deplete: List[float],
                  B_start: List[float],
-                 B_min: List[float],
+                 B_min: List[List[float]],
                  B_max: List[float],
-                 omega: List[List[float]] = None,
-                 rho: List[float] = None,
+                 omega: List[List[float]],
+                 rho: List[float],
                  W_hat: int = 1,
                  sigma: int = 1,
                  pi: int = 1,
@@ -56,8 +56,7 @@ class SchedulingParameters:
                  time_limit: float = 60,
                  epsilon: float = 1,
                  ):
-        if rho is None:
-            rho = [0] * len(v)
+
         return SchedulingParameters(
             np.array(v),
             np.array(r_charge),
@@ -114,6 +113,8 @@ class SimulationParameters:
     """
     plot_delta: float = 0
     delta_t: float = 0.1
+    draw_scheduling: bool = False
+    draw_battery_profile_greyscale: bool = False
 
 
 def sched_parameters_serializer(obj: SchedulingParameters, *args, **kwargs):

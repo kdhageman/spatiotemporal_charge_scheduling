@@ -295,25 +295,6 @@ class MilpScheduler(Scheduler):
 
         optimal = True if solution['Solver'][0]['Termination condition'] == 'optimal' else False
 
-        # For debugging purposes
-        # extract charging windows
-        charging_windows = {}
-
-        for d in range(sc_collapsed.N_d):
-            for w_s in range(sc_collapsed.N_w):
-                try:
-                    station_idx = model.P_np[d, :-1, w_s].tolist().index(1)
-                    t_s = model.T_s(d, w_s)()
-                    t_e = model.T_e(d, w_s)()
-                    if station_idx not in charging_windows:
-                        charging_windows[station_idx] = {}
-                    if d not in charging_windows[station_idx]:
-                        charging_windows[station_idx][d] = []
-                    charging_windows[station_idx][d].append((t_s, t_e))
-                except ValueError:
-                    # drone is NOT charging now
-                    pass
-
         ng = NodeGenerator(sc, model)
         res = {}
         for d in uavs_to_schedule:
@@ -323,7 +304,7 @@ class MilpScheduler(Scheduler):
 
 
 class NaiveScheduler(Scheduler):
-    _EPSILON = 0.0001
+    _EPSILON = 1e-1
 
     def _schedule(self, start_positions: Dict[int, List[float]], batteries: Dict[int, float], state_types: Dict[int, UavStateType], uavs_to_schedule: List[int]) -> Tuple[float, bool, Dict[int, List[Node]], Scenario]:
         res = {}
@@ -342,8 +323,8 @@ class NaiveScheduler(Scheduler):
                 node_prev = pos
             depletion_to_end = dist_to_end / self.params.v[d] * self.params.r_deplete[d]
 
-            if batteries[d] - depletion_to_end > self.params.B_min[d]:
-                # no need to charge
+            if batteries[d] - depletion_to_end >= self.params.B_min[d]:
+                # no need to charge, as the end can be reached without charging
                 pass
             else:
                 # need to charge at some point, check if it should be now
@@ -352,36 +333,52 @@ class NaiveScheduler(Scheduler):
                     idx_station, dist_to_station = self.sc.nearest_station(start_positions[d])
                     dist_to_wp_from_station = self.sc.D_W[d, idx_station, self.offsets[d]]
                     depletion_to_wp_via_station = (dist_to_station + dist_to_wp_from_station) / self.params.v[d] * self.params.r_deplete[d]
-                    ct = (depletion_to_wp_via_station + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d] + NaiveScheduler._EPSILON
+                    ct = (depletion_to_wp_via_station + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d]
                     nodes.append(
                         ChargingStation(*self.sc.positions_S[idx_station], identifier=idx_station, wt=0, ct=ct)
                     )
                 else:
                     # check if a station is reachable from next waypoint
                     dist_to_wp = self.sc.D_N[d, -1, self.offsets[d]]
-                    idx_station, dist_to_station = self.sc.nearest_station(self.remaining_waypoints(d)[0])
-                    dist_to_station_full = dist_to_wp + dist_to_station
-                    depletion_to_station_full = dist_to_station_full / self.params.v[d] * self.params.r_deplete[d]
-                    if batteries[d] - depletion_to_station_full < self.params.B_min[d]:
+                    idx_station, dist_to_station_from_next_wp = self.sc.nearest_station(self.remaining_waypoints(d)[0])
+                    dist_to_station_via_next_wp = dist_to_wp + dist_to_station_from_next_wp
+                    depletion_to_station_via_next_wp = dist_to_station_via_next_wp / self.params.v[d] * self.params.r_deplete[d]
+                    if batteries[d] - depletion_to_station_via_next_wp < self.params.B_min[d]:
                         # must visit charging station next
-                        idx_station, _ = self.sc.nearest_station(start_positions[d])
 
-                        remaining_dist = 0
+                        # identifier of station
+                        idx_station, dist_to_station_from_wp = self.sc.nearest_station(start_positions[d])
+                        depletion_to_station_from_wp = dist_to_station_from_wp / self.params.v[d] * self.params.r_deplete[d]
+                        charge_at_station_arrival = batteries[d] - depletion_to_station_from_wp
+
+                        # see if we can reach the end of the mission from the station
+                        remaining_dist_after_cs_to_end = 0
                         pos_prev = self.sc.positions_S[idx_station]
                         for pos in self.remaining_waypoints(d):
                             dist = dist3(pos_prev, pos)
-                            remaining_dist += dist
+                            remaining_dist_after_cs_to_end += dist
                             pos_prev = pos
-                        remaining_depletion = remaining_dist / self.params.v[d] * self.params.r_deplete[d]
-                        if remaining_depletion + self.params.B_min[d] > self.params.B_max[d]:
-                            ct = 'full'
+                        remaining_depletion_after_cs_to_end = remaining_dist_after_cs_to_end / self.params.v[d] * self.params.r_deplete[d]
+                        required_charge_post_station = remaining_depletion_after_cs_to_end + self.params.B_min[d]
+
+                        if required_charge_post_station < self.params.B_max[d] - NaiveScheduler._EPSILON:
+                            # we can reach the end of the mission from the station, so no full charge is needed
+                            self.logger.debug(f"no full charge needed for UAV [{d}]")
+
+                            required_charge_post_station = remaining_depletion_after_cs_to_end + self.params.B_min[d]
+                            amount_to_charge = required_charge_post_station - charge_at_station_arrival
+                            ct = amount_to_charge / self.params.r_charge[d]
                         else:
-                            ct = (remaining_depletion + self.params.B_min[d] - batteries[d]) / self.params.r_charge[d] + NaiveScheduler._EPSILON
+                            # we cannot reach the end of the mission from the station, so a full charge is needed
+                            self.logger.debug(f"full charge needed for UAV [{d}]")
+                            ct = (self.params.B_max[d] - charge_at_station_arrival) / self.params.r_charge[d]
+
                         nodes.append(
                             ChargingStation(*self.sc.positions_S[idx_station], identifier=idx_station, wt=0, ct=ct)
                         )
-            for pos in self.remaining_waypoints(d):
+            for pos in self.remaining_waypoints(d)[:1]:
                 wp = Waypoint(*pos)
                 nodes.append(wp)
             res[d] = nodes
+
         return float(0), False, res, None

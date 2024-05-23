@@ -13,25 +13,25 @@ sys.path.append(".")
 from experiments.configuration import MilpConfiguration, NaiveConfiguration, ConfigurationManager
 from experiments.util_funcs import load_flight_sequences, schedule_charge_from_conf
 
-time_limit = 600
+time_limit = 300
 charging_stations_compositions = {
     1: [
-        [-5.89549398, 13.3062412, 0]
+        [-5.89549398, 13.3062412, 0],
     ],
     2: [
+        [-5.89549398, 13.3062412, 0],
         [-9.2918538, 18.04343851, 0],
-        [-2.49913417, 8.56904388, 0],
     ],
     3: [
-        [-9.2918538, 18.04343851, 0],
         [-5.89549398, 13.3062412, 0],
+        [-9.2918538, 18.04343851, 0],
         [-2.49913417, 8.56904388, 0],
     ]
 }
 basedir = "out/villalvernia/charging_station_utility"
 
 
-def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials):
+def coarse_configs(number_of_charging_stations, r_charges, r_deplete, n_trials):
     """
     Returns the configuration for the simulation of the coarse (i.e., voxel size=5.1) experiment
     """
@@ -61,9 +61,8 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
                 r_deplete=r_deplete,
                 r_charge=r_charge,
             )
-            conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
-            conf.baseconf['charging_optimization']['v'] = 0.45
+            conf.v = 0.13
             confs.append(conf)
 
             conf = NaiveConfiguration(
@@ -75,15 +74,14 @@ def coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_t
                 r_deplete=r_deplete,
                 r_charge=r_charge,
             )
-            conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
-            conf.baseconf['charging_optimization']['v'] = 0.45
+            conf.v = 0.13
             confs.append(conf)
 
     return confs
 
 
-def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials):
+def fine_configs(number_of_charging_stations, r_charges, r_deplete, n_trials):
     """
     Returns the configuration for the simulation of the fine-grained (i.e., voxel size=2) experiment
     """
@@ -112,7 +110,6 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
                 r_deplete=r_deplete,
                 r_charge=r_charge,
             )
-            conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
             confs.append(conf)
 
@@ -125,7 +122,6 @@ def fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_tri
                 r_deplete=r_deplete,
                 r_charge=r_charge,
             )
-            conf.B_min = B_min
             conf.baseconf['charging_optimization']['charging_positions'] = charging_stations_compositions[N_s]
             confs.append(conf)
 
@@ -138,12 +134,11 @@ def main():
     number_of_charging_stations = [1, 2, 3]
     r_charges = [1 / 5400, 1 / 3600, 1 / 3000, 1 / 2400, 1 / 1800, 1 / 1200, 1 / 600, 1 / 300]
     r_deplete = 1 / 600
-    B_min = 0.73
     n_trials = 1
 
     confs = []
-    confs += coarse_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
-    # confs += fine_configs(r_charges, number_of_charging_stations, r_deplete, B_min, n_trials)
+    confs += coarse_configs(number_of_charging_stations, r_charges, r_deplete, n_trials)
+    # confs += fine_configs(number_of_charging_stations, r_charges, r_deplete, B_min, n_trials)
 
     conf_manager = ConfigurationManager(basedir)
     for i, conf in enumerate(tqdm(confs)):

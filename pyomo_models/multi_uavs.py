@@ -93,16 +93,6 @@ class MultiUavModel(pyo.ConcreteModel):
 
         self.lambda_charge_block = Block(self.d, rule=lambda_charge_block_rule)
 
-        # fixes the path for drones with padded anchor waypoints
-        for d in range(self.N_d):
-            for w in range(sc.n_parent_anchors[d], self.N_w):
-                # for path directly to next waypoint
-                for s in range(self.N_s):
-                    self.P[d, s, w].fix(0)
-                self.P[d, self.N_s, w].fix(1)
-
-        self.info("fixed control variable values")
-
         # STATE VARIABLES
         self.theta = pyo.Var(self.d, self.d, self.w_s, self.w_s, self.s, domain=pyo.Binary)  # used for linearizing the Theta state variable
         self.alpha = pyo.Var()  # used for linearizing the minmax objective

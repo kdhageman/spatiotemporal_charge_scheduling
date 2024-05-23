@@ -26,12 +26,31 @@ def main():
     W_hats = [75, 60, 45, 30, 15]
     pis = [np.inf, 61, 46, 31, 16, 8]
     sigmas = [1, 2, 3, 4]
+
+    # W_hats = [30]
+    # pis = [8, 16]
+    # pis = [8]
+    # sigmas = [4]
+
     time_limit = 300
     r_charge = 1 / 3600
     r_deplete = 1 / 600
-    n_trials = 5
+    n_trials = 1
+
 
     confs = []
+
+    conf = NaiveConfiguration(
+        baseconf,
+        basedir,
+        1,
+        3,
+        flight_sequence_fpath=flight_seq_fpath,
+        r_charge=r_charge,
+        r_deplete=r_deplete,
+    )
+    confs.append(conf)
+
     for W_hat, pi, sigma in tqdm(product(W_hats, pis, sigmas)):
         anchorcount = 1 + math.floor(W_hat / sigma)
         if (pi > W_hat) and W_hat < 75:
@@ -58,17 +77,6 @@ def main():
                 r_deplete=r_deplete,
             )
             confs.append(conf)
-
-    conf = NaiveConfiguration(
-        baseconf,
-        basedir,
-        1,
-        3,
-        flight_sequence_fpath=flight_seq_fpath,
-        r_charge=r_charge,
-        r_deplete=r_deplete,
-    )
-    confs.append(conf)
 
     conf_manager = ConfigurationManager(basedir)
     for i, conf in enumerate(tqdm(confs)):

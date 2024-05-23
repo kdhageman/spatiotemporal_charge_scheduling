@@ -12,7 +12,7 @@ from simulate.environment import NormalDistributedEnvironment
 from simulate.parameters import SchedulingParameters, SimulationParameters
 from simulate.scheduling import MilpScheduler, NaiveScheduler
 from simulate.simulate import Simulator
-from simulate.strategy import OnEventStrategySingle, AfterNEventsStrategyAll
+from simulate.strategy import OnWaypointStrategySingle, AfterNEventsStrategyAll
 from util.scenario import Scenario
 
 
@@ -25,6 +25,9 @@ class TestSimulator(TestCase):
         self.logger = logging.getLogger(__name__)
 
     def test_milp_simulator_long(self):
+        """
+        Scenario has two drones, four charging stations
+        """
         sc = Scenario.from_file("scenarios/two_longer_path.yml")
 
         p_sim = dict(
@@ -38,6 +41,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
+            omega=[[0] * 30] * 2,
+            rho=[0, 0],
             W_hat=10,
             sigma=2,
             epsilon=1,
@@ -68,6 +73,10 @@ class TestSimulator(TestCase):
         simulator.sim()
 
     def test_milp_three_drones_circling_W4(self):
+        """
+        Three drones, one charging station, four waypoints each
+        :return:
+        """
         sc = Scenario.from_file("scenarios/three_drones_circling.yml")
 
         p_sim = dict(
@@ -80,6 +89,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            omega=[[0] * 5] * 3,
+            rho=[0, 0, 0],
             W_hat=4,
             sigma=1,
             epsilon=5,
@@ -120,6 +131,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            omega=[[0] * 5] * 3,
+            rho=[0, 0, 0],
             W_hat=5,
             sigma=1,
             epsilon=5,
@@ -143,7 +156,7 @@ class TestSimulator(TestCase):
 
         p_sim = dict(
             plot_delta=0,
-            delta_t=1,
+            delta_t=100,
         )
         p_sched = dict(
             v=[1, 1],
@@ -152,6 +165,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1],
             B_max=[1, 1],
             B_start=[1, 1],
+            omega=[[0] * 30] * 2,
+            rho=[0, 0],
             W_hat=10,
             sigma=2,
             epsilon=1,
@@ -163,7 +178,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/naive_simulator_long'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategySingle()
+        strat = OnWaypointStrategySingle()
         scheduler = NaiveScheduler(sched_params, sc)
         scale = 0
         simenvs = [
@@ -187,6 +202,8 @@ class TestSimulator(TestCase):
             B_min=[0.1, 0.1, 0.1],
             B_max=[1, 1, 1],
             B_start=[1, 1, 1],
+            omega=[[0] * 5] * 3,
+            rho=[0, 0, 0],
             W_hat=5,
             sigma=1,
             epsilon=5,
@@ -197,7 +214,7 @@ class TestSimulator(TestCase):
 
         directory = 'out/test/naive_three_drones_circling'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategySingle()
+        strat = OnWaypointStrategySingle()
         scheduler = NaiveScheduler(sched_params, sc)
         scale = 1
         simenvs = [
@@ -267,6 +284,8 @@ class TestFailingCase(TestCase):
             B_start=[1, 1, 1],
             B_min=[0.4, 0.4, 0.4],
             B_max=[1, 1, 1],
+            omega=[[0] * 14] * 3,
+            rho=[0, 0, 0],
             W_hat=13,
             sigma=1,
             pi=np.inf,
@@ -297,7 +316,7 @@ class TestFailingCase(TestCase):
     def test_naive(self):
         directory = 'out/test/failing_case/naive'
         os.makedirs(directory, exist_ok=True)
-        strat = OnEventStrategySingle()
+        strat = OnWaypointStrategySingle()
         scheduler = NaiveScheduler(self.sched_params, self.sc)
         scale = 0
         simenvs = [

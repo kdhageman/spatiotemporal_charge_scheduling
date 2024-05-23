@@ -6,18 +6,6 @@ from matplotlib import pyplot as plt
 
 logger = logging.getLogger(__name__)
 
-
-def maximum_schedule_delta(sc, v: np.array, W: int, sigma: int):
-    n_waypoints = min(1 + sigma * (W - 1), sc.N_w)
-    move_times = []
-
-    for d in range(sc.N_d):
-        for offset in range(sc.N_w - n_waypoints + 1):
-            dist = sum(sc.D_N[d, -1, offset:offset + n_waypoints - 1])
-            move_times.append(dist / v[d])
-    return min(move_times)
-
-
 def gen_colors(n: int):
     base_colors = np.array([
         [204, 51, 51],
@@ -58,6 +46,7 @@ def is_feasible(sc, params) -> bool:
     :param sc: scenario
     :param params: parameters
     """
+    # TODO: take into account reaching the end
     for d in range(sc.N_d):
         if len(sc.anchors[d]) == 0:
             b_before = params.B_start[d]
@@ -139,6 +128,12 @@ Y_DIST = 0.25
 
 
 def as_graph(sc, d):
+    """
+    Convert scenario into a networkx graph, for a given UAV.
+    :param sc: scenario
+    :param d: UAV index
+    :return: graph, positions
+    """
     g = nx.DiGraph()
     w = 0
     wp_counter = 0
